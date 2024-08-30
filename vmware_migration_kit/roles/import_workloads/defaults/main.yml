@@ -1,0 +1,12 @@
+image_metadata:
+  - hw_rng_model='virtio'
+  - os_type='linux'
+  - hw_vif_model='virtio'
+  - hw_scsi_model='virtio-scsi'
+  - hw_qemu_guest_agent='True'
+  - hw_disk_bus='scsi'
+  - os_distro='rhel'
+  - hw_machine_type='q35'
+  - hw_firmware_type='uefi'
+  - hw_boot_mode='uefi'
+  - cinder_img_volume_type='rhcs6-gp3'

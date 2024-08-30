@@ -1,0 +1,4 @@
+vm_info_path: "{{ os_migrate_data_dir }}/vm_info_{{ vm_name }}.json"
+guest_info_path: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
+disk_info_path: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
+flavor_name: "{{ flavor_name }}"

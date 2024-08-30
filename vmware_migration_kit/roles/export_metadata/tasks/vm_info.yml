@@ -1,0 +1,50 @@
+---
+- name: Gather VM info
+  community.vmware.vmware_vm_info:
+    validate_certs: false
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    vm_name: "{{ vm_name }}"
+  register: vm_info
+
+- name: Dump vm_info file
+  copy:
+    content: "{{ vm_info }}"
+    dest: "{{ os_migrate_data_dir }}/vm_info_{{ vm_name }}.json"
+  delegate_to: localhost
+  run_once: true
+
+- name: Gather guest info
+  community.vmware.vmware_guest_info:
+    validate_certs: false
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    datacenter: '{{ vcenter_datacenter }}'
+    name: '{{ vm_name }}'
+  register: guest_info
+
+- name: Dump guest_info file
+  copy:
+    content: "{{ guest_info }}"
+    dest: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
+  delegate_to: localhost
+  run_once: true
+
+- name: Gather disk info from virtual machine using name
+  community.vmware.vmware_guest_disk_info:
+    validate_certs: false
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    datacenter: '{{ vcenter_datacenter }}'
+    name: '{{ vm_name }}'
+  register: disk_info
+
+- name: Dump guest_info file
+  copy:
+    content: "{{ disk_info }}"
+    dest: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
+  delegate_to: localhost
+  run_once: true

@@ -1,0 +1,50 @@
+---
+- name: prepare the image metadata command
+  set_fact:
+    image_properties: "{{ image_metadata | map('regex_replace', '^(.*)$', '--image-property \\1') | join(' ') }}"
+  when: image_metadata is defined
+
+- name: set guest boot volume image metadata
+  shell: |
+    openstack volume set {{ volumes[0] }} {{ image_properties }}
+  when: hw_machine_type is defined
+  environment:
+    OS_CLOUD: "{{ openstack_cloud }}"
+
+- name: Get volume uuid
+  ansible.builtin.shell: |
+    export OS_CLOUD={{ dst_cloud }}
+    openstack volume list 2>/dev/null | grep {{ vm_name }}-sda | awk '{print $2}'
+  register: volume_uuid
+
+- name: Set fact for volume_uuid
+  set_fact:
+    volume_uuid: "{{ volume_uuid.stdout }}"
+
+# - name: Create VM in Openstack
+#   ansible.builtin.shell: |
+#     export OS_CLOUD={{ dst_cloud }}
+#     openstack server create --flavor {{ dst_flavor }} --volume {{ volume_uuid }} --network {{ dst_public_network }} --security-group default {{ vm_name }}
+
+- name: Create VM in Openstack
+  openstack.cloud.server:
+    cloud: "{{ dst_cloud }}"
+    state: present
+    name: "{{ vm_name }}"
+    nics: "{{ nics }}"
+    volumes: "{{ vm_name }}-sda"
+    boot_volume: "{{ vm_name }}-sda"
+    security_groups: "{{ security_groups }}"
+    flavor: "{{ flavor_name_or_uuid }}"
+  when: port_creation_allow_by_policy|default(true)|bool
+
+- name: Create VM in Openstack
+  openstack.cloud.server:
+    cloud: "{{ dst_cloud }}"
+    state: present
+    name: "{{ vm_name }}"
+    network: "{{ dst_public_network }}"
+    volumes: "{{ vm_name }}-sda"
+    security_groups: "{{ security_groups }}"
+    flavor: "{{ flavor_name_or_uuid }}"
+  when: not port_creation_allow_by_policy|default(true)|bool

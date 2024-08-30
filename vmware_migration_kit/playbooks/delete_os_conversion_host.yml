@@ -1,0 +1,10 @@
+---
+- name: Delete conversion host
+  hosts: migrator
+  tasks:
+  - name: Delete conversion host 
+    vars:
+      os_migrate_delete_src_conversion_host: false
+      os_migrate_delete_dst_conversion_host: true
+    ansible.builtin.import_playbook:
+      "os_migrate.os_migrate.delete_conversion_hosts.yml"

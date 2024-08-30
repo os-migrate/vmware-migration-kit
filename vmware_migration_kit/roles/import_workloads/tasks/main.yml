@@ -1,0 +1,7 @@
+---
+- include_tasks: virt_v2v.yml
+  when: os_migrate_virt_v2v|default(true)|bool  
+- include_tasks: create_network_port.yml
+  when: os_migrate_create_network_port|default(true)|bool
+- include_tasks: create_os_instance.yml
+  when: os_migrate_create_os_instance|default(true)|bool

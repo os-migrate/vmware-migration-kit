@@ -1,0 +1,18 @@
+# virt-v2v
+vddk_libdir: /usr/lib/vmware-vix-disklib
+
+# conversion host parameters
+already_deploy_conversion_host: true
+conversion_host_id: "459b2b84-fcde-4ad9-9db2-2aa8c4c61445"
+os_migrate_delete_dst_conversion_host: false
+os_migrate_deploy_dst_conversion_host: false
+
+
+vm_list:
+  - ubuntu-2
+
+conv_host_user: cloud-user
+conv_host: "10.0..0.9"
+dst_flavor: ci.standard.xs
+dst_public_network: public
+os_migrate_data_dir: "{{ lookup('env', 'PWD') }}"

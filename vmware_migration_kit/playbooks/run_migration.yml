@@ -1,0 +1,89 @@
+---
+- name: Setup requirements
+  hosts: migrator
+  tasks:
+    - name: Copy clouds.yaml to os-migrate data dir
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'HOME') }}/.config/openstack/clouds.yaml"
+        dest: "{{ os_migrate_data_dir }}"
+        mode: '0644'
+
+    - name: Deploy conversion host
+      block:
+        - name: Make sure conversion hosts are cleaned up
+          vars:
+            os_migrate_delete_src_conversion_host: false
+            os_migrate_delete_dst_conversion_host: true
+          ansible.builtin.import_playbook:
+            "os_migrate.os_migrate.delete_conversion_hosts.yml"
+
+        - name: Deploy conversion hosts
+          vars:
+            os_migrate_deploy_src_conversion_host: false
+            os_migrate_deploy_dst_conversion_host: true
+            os_migrate_link_conversion_host_src: false
+            os_migrate_link_conversion_host_dst: true
+          ansible.builtin.import_playbook:
+            "os_migrate.os_migrate.deploy_conversion_hosts.yml"
+      when: not already_deploy_conversion_host|default(false)|bool
+
+- name: Make sure already deployed conversion host is set up correctly
+  hosts: conversion_host
+  tasks:
+    - name: Install the conversion host content
+      become: true
+      ansible.builtin.import_tasks: "playbooks/conversion_host_content.yml"
+
+# Gather information from vmware (networks and flavors)
+- name: Export vmware metadata
+  hosts: migrator
+  tasks:
+    - name: Export vmware metadata
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.export_metadata
+
+    - name: Convert vmware metadata to openstack flavors
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.convert_metadata
+      vars:
+        guest_info_path: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
+        disk_info_path: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
+        flavor_name: "{{ flavor_name }}"
+
+# Migrate vmware vms to cinder volumes
+# Create instances in openstack from cinder volumes and vmware metadata
+- name: Migrate vmware virtual machines
+  hosts: conversion_host
+  become: true
+  tasks:
+    - name: Migrate vmware virtual machines
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.import_workloads
+        os_migrate_create_network_port: false
+        os_migrate_create_os_instance: false
+
+- name: Import vmware virtual machines
+  hosts: migrator
+  tasks:
+    - name: Migrate vmware virtual machines
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.import_workloads
+      vars:
+        os_migrate_virt_v2v: false
+
+# Cleanup
+# To be implement outside of this playbook
+- name: Clean up
+  hosts: migrator
+  tasks:
+    - name: Delete OS instance
+      ansible.builtin.shell: |
+        export OS_CLOUD={{ dst_cloud }}
+        openstack server delete {{ vm_name }}
+      when: delete_os_instance|default(true)|bool
+
+    - name: Delete Cinder Volume
+      ansible.builtin.shell: |
+        export OS_CLOUD={{ dst_cloud }}
+        openstack volume delete {{ volume_uuid }}
+      when: delete_os_volume|default(true)|bool

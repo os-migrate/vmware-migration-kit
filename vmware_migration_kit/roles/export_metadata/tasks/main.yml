@@ -1,0 +1,3 @@
+---
+- include_tasks: vm_info.yml
+- include_tasks: network.yml

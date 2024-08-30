@@ -1,0 +1,22 @@
+namespace: os_migrate
+name: vmware_migration_kit
+version: 0.0.1
+readme: README.md
+authors:
+  - Mathieu Bultel <mat.bultel@gmail.com>
+description: VMWare to Openstack / Openshift migration kit
+license:
+  - Apache-2.0
+tags:
+  - openstack
+  - vmware
+  - migrations
+dependencies:
+  community.crypto: '>=1.4.0'
+  community.general: '<5.0.0'
+  openstack.cloud: '>=2.0.0'
+  os_migrate.os_migrate: '>=0.0.1'
+  community.vmware: '>=1.0.0'
+repository: 'https://github.com/matbu/vmware-migration-kit'
+homepage: 'https://github.com/matbu/vmware-migration-kit'
+issues: 'https://github.com/matbu/vmware-migration-kit/issues'

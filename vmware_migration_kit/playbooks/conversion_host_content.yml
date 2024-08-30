@@ -1,0 +1,7 @@
+- name: install the conversion host content
+  ansible.builtin.include_role:
+    name: os_migrate.vmware_migration_kit.conversion_host
+  when: os_migrate_conversion_host_content_install|default(true)|bool
+  vars:
+    ansible_become_user: root
+    ansible_become: true
