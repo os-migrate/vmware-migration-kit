@@ -21,11 +21,6 @@
   set_fact:
     volume_uuid: "{{ volume_uuid.stdout }}"
 
-# - name: Create VM in Openstack
-#   ansible.builtin.shell: |
-#     export OS_CLOUD={{ dst_cloud }}
-#     openstack server create --flavor {{ dst_flavor }} --volume {{ volume_uuid }} --network {{ dst_public_network }} --security-group default {{ vm_name }}
-
 - name: Create VM in Openstack
   openstack.cloud.server:
     cloud: "{{ dst_cloud }}"
@@ -36,7 +31,7 @@
     boot_volume: "{{ vm_name }}-sda"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
-  when: port_creation_allow_by_policy|default(true)|bool
+  when: os_migrate_create_network_port|default(true)|bool
 
 - name: Create VM in Openstack
   openstack.cloud.server:
@@ -47,4 +42,4 @@
     volumes: "{{ vm_name }}-sda"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
-  when: not port_creation_allow_by_policy|default(true)|bool
+  when: not os_migrate_create_network_port|default(true)|bool
