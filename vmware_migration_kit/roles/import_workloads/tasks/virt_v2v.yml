@@ -1,0 +1,27 @@
+---
+- name: Find vddk-libdir
+  ansible.builtin.shell: |
+    find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
+  register: vddk_libdir
+
+- name: Dump passwd file
+  ansible.builtin.shell: |
+    echo "{{ vcenter_password }}" > /tmp/passwd
+
+- name: Make sure virtqemud is started
+  ansible.builtin.service:
+    name: virtqemud-ro.socket
+    state: started
+
+- name: Import VMware volume to Openstack
+  environment:
+    OS_CLOUD: "{{ dst_cloud }}"
+  ansible.builtin.shell: |
+    virt-v2v -ip /tmp/passwd \
+    -ic 'esx://{{ vcenter_username }}@{{ vcenter_hostname }}/Datacenter/{{ esxi_hostname }}?no_verify=1' \
+    -it vddk   \
+    -io vddk-libdir={{ vddk_libdir }} \
+    -io vddk-thumbprint={{ vddk_thumbprint }} \
+    -o openstack \
+    -oo server-id={{ conversion_host_id }} \
+    {{ vm_name }}

@@ -1,0 +1,39 @@
+- name: Install Openstack SIG repo
+  ansible.builtin.package:
+    name: centos-release-openstack-zed.noarch
+    state: present
+
+- name: Make sure required package are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - python3
+    - python3-pip
+    - libvirt
+    - virt-v2v
+    - qemu-kvm
+    - python3-openstackclient
+    - wget
+
+- name: Check if vmware-vix-disklib is present
+  ansible.builtin.shell: rpm -q vmware-vix-disklib
+  register: vmware_vix_disklib_installed
+  ignore_errors: true
+
+- name: Install vmware vix disklib
+  ansible.builtin.shell: |
+    wget {{ vmware_vix_disklib_url }}/{{ vmware_vix_disklib }}
+    dnf localinstall -y {{ vmware_vix_disklib }}
+  when: vmware_vix_disklib_installed.rc != 0
+
+- name: Create configuration directory .config/openstack
+  ansible.builtin.file:
+    path: "~/.config/openstack"
+    recurse: yes
+    state: directory
+
+- name: Set Openstack credentials clouds.yaml file
+  ansible.builtin.copy:
+    src: "{{ os_migrate_clouds_path|default(os_migrate_data_dir ~ '/clouds.yaml') }}"
+    dest: "~/.config/openstack/clouds.yaml"

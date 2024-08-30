@@ -1,0 +1,3 @@
+# Change this to the correct official repository URL
+vmware_vix_disklib_url: https://repo.storware.eu/vprotect/current/el9/
+vmware_vix_disklib: vmware-vix-disklib-8.0.0-20521017.el9.x86_64.rpm
