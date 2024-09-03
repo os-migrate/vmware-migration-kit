@@ -1,0 +1,23 @@
+---
+- name: Setup requirements
+  hosts: migrator
+  tasks:
+    - name: Deploy conversion host
+      block:
+        - name: Make sure conversion hosts are cleaned up
+          vars:
+            os_migrate_delete_src_conversion_host: false
+            os_migrate_delete_dst_conversion_host: true
+          ansible.builtin.import_playbook:
+            "os_migrate.os_migrate.delete_conversion_hosts.yml"
+
+        - name: Deploy conversion hosts
+          vars:
+            os_migrate_deploy_src_conversion_host: false
+            os_migrate_deploy_dst_conversion_host: true
+            os_migrate_link_conversion_host_src: false
+            os_migrate_link_conversion_host_dst: true
+          ansible.builtin.import_playbook:
+            "os_migrate.os_migrate.deploy_conversion_hosts.yml"
+      when: not already_deploy_conversion_host|default(false)|bool
+
