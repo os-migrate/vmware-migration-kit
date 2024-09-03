@@ -8,25 +8,6 @@
         dest: "{{ os_migrate_data_dir }}"
         mode: '0644'
 
-    - name: Deploy conversion host
-      block:
-        - name: Make sure conversion hosts are cleaned up
-          vars:
-            os_migrate_delete_src_conversion_host: false
-            os_migrate_delete_dst_conversion_host: true
-          ansible.builtin.import_playbook:
-            "os_migrate.os_migrate.delete_conversion_hosts.yml"
-
-        - name: Deploy conversion hosts
-          vars:
-            os_migrate_deploy_src_conversion_host: false
-            os_migrate_deploy_dst_conversion_host: true
-            os_migrate_link_conversion_host_src: false
-            os_migrate_link_conversion_host_dst: true
-          ansible.builtin.import_playbook:
-            "os_migrate.os_migrate.deploy_conversion_hosts.yml"
-      when: not already_deploy_conversion_host|default(false)|bool
-
 - name: Make sure already deployed conversion host is set up correctly
   hosts: conversion_host
   tasks:
@@ -59,6 +40,7 @@
     - name: Migrate vmware virtual machines
       ansible.builtin.include_role:
         name: os_migrate.vmware_migration_kit.import_workloads
+      vars:
         os_migrate_create_network_port: false
         os_migrate_create_os_instance: false
 
