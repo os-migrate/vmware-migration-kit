@@ -1,0 +1,78 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cython debug symbols
+cython_debug/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+eggs-info/
+pip-wheel-metadata/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.venv/
+*.env/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Pytest
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+*.log
+local_settings.py
+
+# MyPy
+.mypy_cache/
+
+# Pytype
+.pytype/
+
+# pylint
+pylint_report.html
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+*.json
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Secrets
+*.pem
+*.key
+*.crt
+
+# System files
+.DS_Store
+Thumbs.db

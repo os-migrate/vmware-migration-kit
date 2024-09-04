@@ -1,0 +1,16 @@
+ansible==6.7.0
+ansible-core==2.13.13
+cffi==1.17.0
+cryptography==43.0.1
+exceptiongroup==1.2.2
+iniconfig==2.0.0
+Jinja2==3.1.4
+MarkupSafe==2.1.5
+packaging==24.1
+pluggy==1.5.0
+pycparser==2.22
+pytest==8.3.2
+pytest-mock==3.14.0
+PyYAML==6.0.2
+resolvelib==0.8.1
+tomli==2.0.1
