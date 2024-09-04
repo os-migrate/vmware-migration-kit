@@ -14,14 +14,11 @@
     state: started
 
 - name: Import VMware volume to Openstack
-  environment:
-    OS_CLOUD: "{{ dst_cloud }}"
-  ansible.builtin.shell: |
-    virt-v2v -ip /tmp/passwd \
-    -ic 'esx://{{ vcenter_username }}@{{ vcenter_hostname }}/Datacenter/{{ esxi_hostname }}?no_verify=1' \
-    -it vddk   \
-    -io vddk-libdir={{ vddk_libdir }} \
-    -io vddk-thumbprint={{ vddk_thumbprint }} \
-    -o openstack \
-    -oo server-id={{ conversion_host_id }} \
-    {{ vm_name }}
+  os_migrate.vmware_migration_kit.import_vmware_volume:
+    vcenter_username: "{{ vcenter_username }}"
+    vcenter_hostname: "{{ vcenter_hostname }}"
+    esxi_hostname: "{{ esxi_hostname }}"
+    vddk_libdir: "{{ vddk_libdir }}"
+    vddk_thumbprint: "{{ vddk_thumbprint }}"
+    conversion_host_id: "{{ conversion_host_id }}"
+    vm_name: "{{ vm_name }}"
