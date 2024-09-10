@@ -27,6 +27,7 @@
       ansible.builtin.include_role:
         name: os_migrate.vmware_migration_kit.convert_metadata
       vars:
+        network_info_path: "{{ os_migrate_data_dir }}/network_info_{{ vm_name }}.json"
         guest_info_path: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
         disk_info_path: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
         flavor_name: "{{ flavor_name }}"
