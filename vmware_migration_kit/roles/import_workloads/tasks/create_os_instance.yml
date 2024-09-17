@@ -31,7 +31,7 @@
     boot_volume: "{{ vm_name }}-sda"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
-  when: port_creation_allow_by_policy|default(true)|bool
+  when: used_mapped_networks|default(true)|bool
 
 - name: Create VM in Openstack
   openstack.cloud.server:
@@ -42,4 +42,4 @@
     volumes: "{{ vm_name }}-sda"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
-  when: not port_creation_allow_by_policy|default(true)|bool
+  when: not used_mapped_networks|default(true)|bool
