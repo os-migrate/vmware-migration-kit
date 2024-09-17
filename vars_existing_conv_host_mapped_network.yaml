@@ -1,3 +1,9 @@
+# Ansible variables for existing conversion host and network
+# Note:
+# * You should have an instance in your destination Openstack cloud
+# * A provider network or a private network to mapped and the correct rights
+#   to create the ports
+
 # Fill this with your own information
 ### VMware connection parameters
 esxi_hostname: esxi_ip
@@ -27,7 +33,6 @@ vm_name: ubuntu-2
 # Openstack parameters
 dst_cloud: dst
 security_groups: default
-openstack_private_network: osm_private
 
 ### OS-Migrate parameters
 os_migrate_virt_v2v: true

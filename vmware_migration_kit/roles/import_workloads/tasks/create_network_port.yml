@@ -3,7 +3,7 @@
   block:
     - name: Create network ports
       os_migrate.vmware_migration_kit.create_network_port:
-        cloud: dst
+        cloud: "{{ dst_cloud }}"
         os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/nics_{{ vm_name }}.json"
         vm_name: "{{ vm_name }}"
         used_mapped_networks: true
@@ -13,7 +13,7 @@
 
     - name: Create network port
       os_migrate.vmware_migration_kit.create_network_port:
-        cloud: dst
+        cloud: "{{ dst_cloud }}"
         os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/macs_{{ vm_name }}.json"
         vm_name: "{{ vm_name }}"
         used_mapped_networks: false
