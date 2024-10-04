@@ -37,6 +37,15 @@ vddk_thumbprint: XX:XX:XX
 vddk_libdir: /usr/lib/vmware-vix-disklib
 ```
 
+In order to generate the thumbprint of your VMWare source cloud you need to use:
+
+```
+# thumbprint
+openssl s_client -connect ESXI_SERVER_NAME:443 </dev/null |
+   openssl x509 -in /dev/stdin -fingerprint -sha1 -noout
+```
+
+
 If you want to reuse a conversion host already deployed and configured,
 otherwise you can let os-migrate do it for you:
 
