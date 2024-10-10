@@ -1,4 +1,6 @@
 ---
+- include_tasks: nbdkit.yml
+  when: os_migrate_nbkit|default(false)|bool  
 - include_tasks: virt_v2v.yml
   when: os_migrate_virt_v2v|default(true)|bool  
 - include_tasks: create_network_port.yml
