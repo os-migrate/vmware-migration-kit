@@ -1,0 +1,13 @@
+---
+- name: Migrate Guest from Vmware using nbdkit
+  os_migrate.vmware_migration_kit.nbdkit:
+    user:  "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    server: "{{ vcenter_hostname }}"
+    vmname: "{{ vm_name }}"
+    osmdatadir: "{{ os_migrate_data_dir }}"
+  register: nbdkit_output
+
+- name: set vol path
+  set_fact:
+    volume_path: "{{ nbdkit_output.disk }}"
