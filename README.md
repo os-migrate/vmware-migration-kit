@@ -8,6 +8,20 @@ correctly the prerequists in the Openstack destination cloud.
 It also re-used the vmware community collection in order to gather informations from the source
 VMWare environment.
 
+## Workflow
+
+There is different ways to run the migration from VMWare to OpenStack.
+
+* The first one by using virt-v2v binding with a conversion host. Here you can use a conversion
+host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
+for you.
+* The second one by using nbdkit without a conversion host. The platform from where you run
+OS-Migrate should have the packages correctly configure for using nbdkit because the migration
+will operate on the local host.
+Then there is different choices you can make, either upload the converted disk via Glance or
+create directly a Cinder volume.
+All of these are configurable with Ansible boolean variables.
+
 ## Usage
 
 Clone repository or install from ansible galaxy
