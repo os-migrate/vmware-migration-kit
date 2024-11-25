@@ -7,6 +7,7 @@
         src: "{{ lookup('env', 'HOME') }}/.config/openstack/clouds.yaml"
         dest: "{{ os_migrate_data_dir }}"
         mode: '0644'
+      when: not already_deploy_conversion_host
 
 - name: Make sure already deployed conversion host is set up correctly
   hosts: conversion_host
