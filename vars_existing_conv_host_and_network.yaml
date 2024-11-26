@@ -34,6 +34,7 @@ vm_name: ubuntu-2
 ### Openstack
 # Openstack parameters
 dst_cloud: dst
+os_cloud_environ: dst
 security_groups: default
 
 # Non mapped network config:
