@@ -39,7 +39,10 @@
     state: present
     name: "{{ vm_name }}"
     network: "{{ openstack_private_network }}"
-    volumes: "{{ vm_name }}-sda"
+    boot_volume: "{{ vm_name }}-sda"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
+    userdata: |
+      #!/bin/sh
+      dhclient
   when: not used_mapped_networks|default(true)|bool
