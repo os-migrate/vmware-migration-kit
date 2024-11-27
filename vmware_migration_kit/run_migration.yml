@@ -69,7 +69,7 @@
 
     - name: Delete Cinder Volume
       openstack.cloud.volume:
-        state: present
+        state: absent
         cloud: "{{ dst_cloud }}"
         name: "{{ volume_uuid }}"
       when: delete_os_volume|default(true)|bool
