@@ -11,15 +11,15 @@
   environment:
     OS_CLOUD: "{{ openstack_cloud }}"
 
-- name: Get volume uuid
-  ansible.builtin.shell: |
-    export OS_CLOUD={{ dst_cloud }}
-    openstack volume list 2>/dev/null | grep {{ vm_name }}-sda | awk '{print $2}'
-  register: volume_uuid
+- name: Get volume information
+  openstack.cloud.volume_info:
+    cloud: "{{ dst_cloud }}"
+    name: "{{ vm_name }}-sda"
+  register: volume_result
 
-- name: Set fact for volume_uuid
+- name: Set volume UUID as a fact
   set_fact:
-    volume_uuid: "{{ volume_uuid.stdout }}"
+    volume_uuid: "{{ volume_result.volumes[0].id }}"
 
 - name: Create VM in Openstack
   register: instance_uuid
