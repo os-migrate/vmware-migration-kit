@@ -57,17 +57,19 @@
 
 # Cleanup
 # To be implement outside of this playbook
-- name: Clean up
+- name: Tear down
   hosts: migrator
   tasks:
     - name: Delete OS instance
-      ansible.builtin.shell: |
-        export OS_CLOUD={{ dst_cloud }}
-        openstack server delete {{ vm_name }}
+      openstack.cloud.server:
+        state: absent
+        name: "{{ instance_uuid }}"
+        cloud: "{{ dst_cloud }}"
       when: delete_os_instance|default(true)|bool
 
     - name: Delete Cinder Volume
-      ansible.builtin.shell: |
-        export OS_CLOUD={{ dst_cloud }}
-        openstack volume delete {{ volume_uuid }}
+      openstack.cloud.volume:
+        state: present
+        cloud: "{{ dst_cloud }}"
+        name: "{{ volume_uuid }}"
       when: delete_os_volume|default(true)|bool

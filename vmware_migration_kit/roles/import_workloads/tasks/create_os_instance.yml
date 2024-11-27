@@ -22,6 +22,7 @@
     volume_uuid: "{{ volume_uuid.stdout }}"
 
 - name: Create VM in Openstack
+  register: instance_uuid
   openstack.cloud.server:
     cloud: "{{ dst_cloud }}"
     state: present
@@ -34,6 +35,7 @@
   when: used_mapped_networks|default(true)|bool
 
 - name: Create VM in Openstack
+  register: instance_uuid
   openstack.cloud.server:
     cloud: "{{ dst_cloud }}"
     state: present
@@ -46,3 +48,7 @@
       #!/bin/sh
       dhclient
   when: not used_mapped_networks|default(true)|bool
+
+- name: Set fact for instance_uuid
+  set_fact:
+    instance_uuid: "{{ instance_uuid.id }}"
