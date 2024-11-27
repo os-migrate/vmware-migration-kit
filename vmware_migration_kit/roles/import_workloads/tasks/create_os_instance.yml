@@ -51,4 +51,4 @@
 
 - name: Set fact for instance_uuid
   set_fact:
-    instance_uuid: "{{ instance_uuid.id }}"
+    instance_uuid: "{{ instance_uuid.server.id }}"
