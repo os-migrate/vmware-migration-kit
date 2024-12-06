@@ -17,9 +17,9 @@
         network_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
         import_workloads_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/import_workloads.json"
 
-    # - name: Sync to conversion host
-    #   ansible.builtin.synchronize:
-    #     src: "{{ os_migrate_data_dir }}"
-    #     dest: "{{ os_migrate_data_dir }}"
-    #   delegate_to: conversion_host
-    #   when: copy_metadata_to_conv_host|default(false)|bool
+    - name: Sync to conversion host
+      ansible.builtin.synchronize:
+        src: "{{ os_migrate_data_dir }}"
+        dest: "{{ os_migrate_data_dir }}"
+      delegate_to: conversion_host
+      when: copy_metadata_to_conv_host|default(false)|bool
