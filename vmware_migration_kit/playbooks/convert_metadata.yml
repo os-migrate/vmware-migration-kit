@@ -1,0 +1,25 @@
+- name: Export vmware metadata
+  hosts: migrator
+  vars:
+    vms: "{{ vms }}"
+  tasks:
+    - name: Convert vmware metadata to openstack flavors
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.convert_metadata
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm_name
+      vars:
+        vm_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/vm_info.json"
+        guest_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
+        disk_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/disk_info.json"
+        flavor_name_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/flavors.yml"
+        network_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
+        import_workloads_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/import_workloads.json"
+
+    - name: Sync to conversion host
+      ansible.builtin.synchronize:
+        src: "{{ os_migrate_data_dir }}"
+        dest: "{{ os_migrate_data_dir }}"
+      delegate_to: conversion_host
+      when: copy_metadata_to_conv_host|default(false)|bool
