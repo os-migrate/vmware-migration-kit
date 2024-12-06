@@ -7,5 +7,5 @@
   when: os_migrate_create_network_port|default(true)|bool
 - include_tasks: create_os_instance.yml
   when: os_migrate_create_os_instance|default(true)|bool
-- include_tasks: tear_down.yml
+- include_tasks: teardown.yml
   when: os_migrate_tear_down|default(false)|bool
