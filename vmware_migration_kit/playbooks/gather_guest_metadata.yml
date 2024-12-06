@@ -1,0 +1,10 @@
+# Gather information from vmware (networks and flavors)
+- name: Export vmware metadata
+  hosts: migrator
+  tasks:
+    - name: Export vmware metadata
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.export_metadata
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm_name

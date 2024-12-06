@@ -1,0 +1,10 @@
+---
+- name: Setup requirements
+  hosts: migrator
+  tasks:
+    - name: Copy clouds.yaml to os-migrate data dir
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'HOME') }}/.config/openstack/clouds.yaml"
+        dest: "{{ os_migrate_data_dir }}"
+        mode: '0644'
+      when: not already_deploy_conversion_host
