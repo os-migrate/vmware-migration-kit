@@ -22,7 +22,7 @@
 #    * Data copy
 #    * VM creation
 - name: Run full migration with virt-v2v
-  import_playbook: playbooks/run_from_conversion_host.yml
+  import_playbook: playbooks/run_migration_from_conversion_host.yml
   vars:
     vms: "{{ vms }}"
   when: run_full_migration | default(true) | bool
