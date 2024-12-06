@@ -1,4 +1,15 @@
-vm_info_path: "{{ os_migrate_data_dir }}/vm_info_{{ vm_name }}.json"
-guest_info_path: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
-disk_info_path: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
+vm_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/vm_info.json"
+guest_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
+disk_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/disk_info.json"
+flavor_name_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/flavors.yml"
+network_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
+import_workloads_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/import_workloads.json"
+
 flavor_name: "{{ flavor_name }}"
+security_groups: "default"
+nics: ""
+
+# Migration
+strategy: "cold"
+dry_run: false
+os_migrate_tear_down: false

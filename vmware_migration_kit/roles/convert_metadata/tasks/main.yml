@@ -14,20 +14,34 @@
   register: flavor_name_or_uuid
   when: use_existing_flavor|default(true)|bool
 
-- name: Set fact for flavor
-  set_fact:
-    flavor_name_or_uuid: "{{ flavor_name_or_uuid.openstack_flavor_uuid }}"
-  when: use_existing_flavor|default(true)|bool
-
 - name: Export flavor
   os_migrate.vmware_migration_kit.export_flavor:
-    guest_info_path: "{{ os_migrate_data_dir }}/guest_info_{{ vm_name }}.json"
-    disk_info_path: "{{ os_migrate_data_dir }}/disk_info_{{ vm_name }}.json"
+    guest_info_path: "{{ guest_info_path }}"
+    disk_info_path: "{{ disk_info_path }}"
     flavor_name: "osm-vmware-{{ vm_name }}"
-    path: "{{ os_migrate_data_dir }}/flavors.yml"
+    path: "{{ flavor_name_path }}"
   when: not use_existing_flavor|default(true)|bool
 
-- name: Set falvor name or uuid
+- name: Set fact for flavor
   set_fact:
-    flavor_name_or_uuid: "osm-vmware-{{ vm_name }}"
-  when: not use_existing_flavor|default(true)|bool
+    flavor_name_or_uuid: "{{ flavor_name_or_uuid.openstack_flavor_uuid | default('osm-vmware-' + vm_name) }}"
+
+- name: Create import_workload template
+  template:
+    src: "import_workloads.json.j2"
+    dest: "{{ import_workloads_path }}"
+
+- name: Load import_workload template
+  set_fact:
+    vm_import: "{{ lookup('file', '{{ import_workloads_path }}') | from_json }}"
+
+- name: Merge data into vmware_guest_info
+  copy:
+    dest: "{{ import_workloads_path }}"
+    content: |
+      {
+        "vm_name": "{{ vm_import.vm_name }}",
+        "openstack": {{ vm_import.openstack | to_json }},
+        "vmware_guest_info": {{ guest_info.instance | combine(vm_import.vmware_guest_info) | to_json }},
+        "migration": {{ vm_import.migration | to_json }}
+      }

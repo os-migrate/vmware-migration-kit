@@ -1,0 +1,15 @@
+{
+    "vm_name": "{{ vm_name }}",
+    "openstack": {
+      "flavor_name_or_uuid": "{{ flavor_name_or_uuid }}",
+      "openstack_private_network": "",
+      "nics": {% if nics %}"{{ nics }}"{% else %}""{% endif %},
+      "security_groups": "{{ security_groups }}"
+    },
+    "vmware_guest_info": {},
+    "migration": {
+      "dry_run": "{{ dry_run }}",
+      "os_migrate_tear_down": "{{ os_migrate_tear_down }}",
+      "strategy": "{{ strategy }}"
+    }
+  }

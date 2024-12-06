@@ -13,7 +13,7 @@
 - name: Dump network_info to json file
   copy:
     content: "{{ network_info }}"
-    dest: "{{ os_migrate_data_dir }}/network_info_{{ vm_name }}.json"
+    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
   delegate_to: localhost
   run_once: true
 
@@ -30,7 +30,7 @@
 - name: Dump guest_nic to json file
   copy:
     content: "{{ guest_nic }}"
-    dest: "{{ os_migrate_data_dir }}/nics_{{ vm_name }}.json"
+    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/nics.json"
   delegate_to: localhost
   run_once: true
   when: used_mapped_networks|default(true)|bool
@@ -44,7 +44,7 @@
 - name: Dump guest_mac to json file
   copy:
     content: "{{ guest_mac }}"
-    dest: "{{ os_migrate_data_dir }}/macs_{{ vm_name }}.json"
+    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/macs.json"
   delegate_to: localhost
   run_once: true
   when: not used_mapped_networks|default(true)|bool

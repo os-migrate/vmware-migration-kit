@@ -31,6 +31,12 @@
     recurse: yes
     state: directory
 
+- name: Create os-migrate data dir
+  ansible.builtin.file:
+    path: "{{ os_migrate_data_dir }}"
+    state: directory
+    recurse: yes
+
 - name: Set Openstack credentials clouds.yaml file
   ansible.builtin.copy:
     src: "{{ os_migrate_clouds_path|default(os_migrate_data_dir ~ '/clouds.yaml') }}"
