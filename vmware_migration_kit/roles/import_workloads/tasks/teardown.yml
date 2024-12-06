@@ -1,0 +1,14 @@
+# Cleanup
+- name: Delete OS instance
+  openstack.cloud.server:
+    state: absent
+    name: "{{ instance_uuid }}"
+    cloud: "{{ dst_cloud }}"
+  when: delete_os_instance|default(true)|bool
+
+- name: Delete Cinder Volume
+  openstack.cloud.volume:
+    state: absent
+    cloud: "{{ dst_cloud }}"
+    name: "{{ volume_uuid }}"
+  when: delete_os_volume|default(true)|bool

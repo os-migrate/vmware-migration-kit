@@ -1,3 +1,9 @@
 ---
+- name: Make sure OSM Data directory exists and create guest directory
+  ansible.builtin.file:
+    path: "{{ os_migrate_data_dir }}/{{ vm_name }}"
+    state: directory
+    recurse: yes
+
 - include_tasks: vm_info.yml
 - include_tasks: network.yml
