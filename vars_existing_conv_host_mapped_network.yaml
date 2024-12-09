@@ -7,8 +7,6 @@
 # Fill this with your own information
 ### VMware connection parameters
 esxi_hostname: esxi_ip
-esxi_username: root
-esxi_password: foo
 vcenter_hostname: vsphere_ip
 vcenter_username: Administrator@vsphere.local
 vcenter_password: fooBar
@@ -19,15 +17,12 @@ vcenter_user_formatted: "{{ vcenter_username | regex_replace('@','%40') }}"
 # Set this if the conversion host is already deployed
 already_deploy_conversion_host: true
 conversion_host_id: "459b2b84-fcde-4ad9-9db2-2aa8c4c61445"
-# Conversion host setting if already deployed
-conv_host_user: cloud-user
-conv_host: "10.0.0.9"
 
 ### VM Workload parameters
 # VM list to export
 vm_list:
   - ubuntu-2
-vm_name: ubuntu-2
+  - rhel-1
 
 ### Openstack
 # Openstack parameters

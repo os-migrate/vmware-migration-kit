@@ -7,8 +7,6 @@
 # Fill this with your own information
 ### VMware connection parameters
 esxi_hostname: esxi_ip
-esxi_username: root
-esxi_password: foo
 vcenter_hostname: vsphere_ip
 vcenter_username: Administrator@vsphere.local
 vcenter_password: fooBar
@@ -19,7 +17,7 @@ vcenter_user_formatted: "{{ vcenter_username | regex_replace('@','%40') }}"
 # VM list to export
 vm_list:
   - ubuntu-2
-vm_name: ubuntu-2
+  - rhel-1
 
 ### Openstack
 # Openstack parameters
