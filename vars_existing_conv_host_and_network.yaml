@@ -9,11 +9,9 @@ os_migrate_data_dir: "{{ lookup('env', 'PWD') }}"
 # Fill this with your own information
 ### VMware connection parameters
 esxi_hostname: esxi_ip
-esxi_username: root
-esxi_password: xxxxx
 vcenter_hostname: vsphere_ip
 vcenter_username: Administrator@vsphere.local
-vcenter_password: 
+vcenter_password: xxxx
 vcenter_datacenter: Datacenter
 vcenter_user_formatted: "{{ vcenter_username | regex_replace('@','%40') }}"
 
@@ -21,15 +19,12 @@ vcenter_user_formatted: "{{ vcenter_username | regex_replace('@','%40') }}"
 # Set this if the conversion host is already deployed
 already_deploy_conversion_host: true
 conversion_host_id: "xxxxx"
-# Conversion host setting if already deployed
-conv_host_user: cloud-user
-conv_host: "10.0.0.9"
 
 ### VM Workload parameters
 # VM list to export
 vm_list:
   - ubuntu-2
-vm_name: ubuntu-2
+  - rhel-1
 
 ### Openstack
 # Openstack parameters
