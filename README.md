@@ -35,8 +35,6 @@ Edit secrets.yaml file and add our own setting:
 
 ```
 esxi_hostname: ********
-esxi_username: root
-esxi_password: *****
 vcenter_hostname: *******
 vcenter_username: root
 vcenter_password: *****
@@ -66,21 +64,43 @@ otherwise you can let os-migrate do it for you:
 ```
 already_deploy_conversion_host: true
 conversion_host_id: "f04deaac-a37c-47f0-a2d2-dbc02e07101e"
-conv_host_user: cloud-user
-conv_host: "192.168.18.201"
 ```
 
-Openstack configuration:
+Openstack configuration parameters
+
+Authentication parameters:
+```
+os_cloud_environ: psi-rhos-upgrades-ci
+dst_cloud:
+  auth:
+    auth_url: https://openstack.dst.cloud:13000/v3
+    username: tenant
+    project_id: 3266192cfb2846e9bcb16ceab82bbe65
+    project_name: migration
+    user_domain_name: osm.com
+    password: password
+  region_name: regionOne
+  interface: public
+  identity_api_version: 3
+```
+
+And Openstack destination cloud parameters:
 
 ```
-vm_list:
-  - ubuntu-2
-vm_name: ubuntu-2
-dst_cloud: dst
-security_groups: "f1c340e6-2242-4700-b6a4-45f50b65c9bc"
+# OpenStack migration parameters:
+# Use mapped networks or not:
+used_mapped_networks: false
+network_map:
+  VM Network: provider_network_1
+
+# If no mapped network then set the openstack network:
+openstack_private_network: provider_network_1
+
+# Security groups for the instance:
+security_groups: default
 use_existing_flavor: true
-flavor_name: m1.xtiny
-openstack_private_network: private
+
+os_migrate_create_network_port: false
 ```
 
 If you want to map the network between VMWare and OpenStack:
@@ -104,15 +124,50 @@ network_map:
 ```
 
 
-Then, if you use an already deployed conversion host, you need to edit this file:
+OS-Migration parameters:
 
 ```
-vmware_migration_kit/localhost_inventory.yml
+# osm working directory:
+os_migrate_data_dir: /opt/os-migrate
+
+# Set this to true if the Openstack "dst_cloud" is a clouds.yaml file
+# other, if the dest_cloud is a dict of authentication parameters, set
+# this to false:
+copy_openstack_credentials_to_conv_host: false
+
+# Teardown
+# Set to true if you want osm to delete everything on the destination cloud.
+os_migrate_tear_down: true
+```
+
+Then provide the list of the VMs you want to migrate:
+```
+# VMs list
+vms:
+  - rhel-1
+  - rhel-2
+```
+
+Create an invenvoty file, and replace the conv_host_ip by the ip address of your
+conversion host:
+
+```
+migrator:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"
+conversion_host:
+  hosts:
+    conv_host_ip:
+      ansible_ssh_user: cloud-user
+      ansible_ssh_private_key_file: /home/stack/.ssh/conv-host
+
 ```
 
 Then run the migration with:
 
 ```
 pushd vmware_migration_kit
-ansible-playbook -i localhost_inventory.yml run_migration.yml -e os_migrate_data_dir=/opt/os-migrate -e @secrets.yaml
+ansible-playbook -i localhost_inventory.yml migration.yml -e @vars.yaml
 ```
