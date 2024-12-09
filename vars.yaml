@@ -1,3 +1,59 @@
-# virt-v2v
-# conversion host parameters
-os_migrate_data_dir: "{{ lookup('env', 'PWD') }}"
+# VMware parameters:
+esxi_hostname: 10.10.10.7
+vcenter_hostname: 10.10.10.7
+vcenter_username: root
+vcenter_password: password
+vcenter_datacenter: Datacenter
+vddk_thumbprint: XX:XX:XX:XX
+
+# Conversion host parameters:
+vddk_libdir: /usr/lib/vmware-vix-disklib
+already_deploy_conversion_host: true
+conversion_host_id: 459b2b84-fcde-4ad9-9db2-2aa8c4c61445
+
+# OpenStack destination cloud auth parameters:
+os_cloud_environ: psi-rhos-upgrades-ci
+dst_cloud:
+  auth:
+    auth_url: https://openstack.dst.cloud:13000/v3
+    username: tenant
+    project_id: 3266192cfb2846e9bcb16ceab82bbe65
+    project_name: migration
+    user_domain_name: osm.com
+    password: password
+  region_name: regionOne
+  interface: public
+  identity_api_version: 3
+
+# OpenStack migration parameters:
+# Use mapped networks or not:
+used_mapped_networks: false
+network_map:
+  VM Network: provider_network_1
+
+# If no mapped network then set the openstack network:
+openstack_private_network: provider_network_1
+
+# Security groups for the instance:
+security_groups: 4f077e64-bdf6-4d2a-9f2c-c5588f4948ce
+use_existing_flavor: true
+
+os_migrate_create_network_port: false
+
+# OS-migrate parameters:
+# osm working directory:
+os_migrate_data_dir: /opt/os-migrate
+
+# Set this to true if the Openstack "dst_cloud" is a clouds.yaml file
+# other, if the dest_cloud is a dict of authentication parameters, set
+# this to false:
+copy_openstack_credentials_to_conv_host: false
+
+# Teardown
+# Set to true if you want osm to delete everything on the destination cloud.
+os_migrate_tear_down: true
+
+# VMs list
+vms:
+  - rhel-1
+  - rhel-2
