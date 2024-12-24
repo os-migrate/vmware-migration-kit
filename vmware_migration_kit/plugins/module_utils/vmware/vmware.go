@@ -95,3 +95,29 @@ func GetDiskKey(ctx context.Context, vm *object.VirtualMachine) ([]int32, error)
 	}
 	return diskKeys, nil
 }
+
+func GetCBTChangeID(ctx context.Context, vm *object.VirtualMachine, diskLabel string) (string, error) {
+	var conf mo.VirtualMachine
+	err := vm.Properties(ctx, vm.Reference(), []string{"config"}, &conf)
+	if err != nil {
+		logger.Printf("Failed to retrieve VM properties: %v", err)
+		return "", err
+	}
+	if conf.Config.ChangeTrackingEnabled == nil || !*conf.Config.ChangeTrackingEnabled {
+		logger.Printf("CBT not enabled")
+		return "", nil
+	} else {
+		logger.Printf("CBT enabled")
+	}
+	for _, device := range conf.Config.Hardware.Device {
+		if disk, ok := device.(*types.VirtualDisk); ok {
+			backing := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo)
+			// Match disk by its label or backing file name.
+			if backing.FileName == diskLabel || backing.DiskMode == diskLabel {
+				// Return the CBT ChangeID.
+				return backing.ChangeId, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("disk with label '%s' not found on VM", diskLabel)
+}
