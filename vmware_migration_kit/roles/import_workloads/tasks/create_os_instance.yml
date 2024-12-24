@@ -16,10 +16,12 @@
     cloud: "{{ dst_cloud }}"
     name: "{{ vm_name }}-sda"
   register: volume_result
+  when: os_migrate_virt_v2v
 
 - name: Set volume UUID as a fact
   set_fact:
     volume_uuid: "{{ volume_result.volumes[0].id }}"
+  when: os_migrate_virt_v2v
 
 - name: Create VM in Openstack
   register: instance_uuid
@@ -41,7 +43,7 @@
     state: present
     name: "{{ vm_name }}"
     network: "{{ openstack_private_network }}"
-    boot_volume: "{{ vm_name }}-sda"
+    boot_volume: "{{ volume_uuid }}"
     security_groups: "{{ security_groups }}"
     flavor: "{{ flavor_name_or_uuid }}"
     userdata: |
