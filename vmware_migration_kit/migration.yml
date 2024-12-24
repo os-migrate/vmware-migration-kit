@@ -21,8 +21,10 @@
 #    * Guest conversion
 #    * Data copy
 #    * VM creation
-- name: Run full migration with virt-v2v
+- name: Run full migration with nbdkit
   import_playbook: playbooks/run_migration_from_conversion_host.yml
   vars:
     vms: "{{ vms }}"
+    os_migrate_virt_v2v: false
+    os_migrate_nbkit: true
   when: run_full_migration | default(true) | bool
