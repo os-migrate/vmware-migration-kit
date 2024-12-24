@@ -301,7 +301,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		return "", errors.New("No disk found")
 	}
 	logger.Printf("Disk copied and converted successfully: %s", devPath)
-	return devPath, nil
+	return volume.ID, nil
 }
 
 func main() {
