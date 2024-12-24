@@ -91,6 +91,9 @@ func RunNbdKit(c MigrationConfig, diskName string) (*NbdkitServer, error) {
 
 	cmd := exec.Command(
 		"nbdkit",
+		"--readonly",
+		"--exit-with-parent",
+		"--foreground",
 		"vddk",
 		fmt.Sprintf("server=%s", c.Server),
 		fmt.Sprintf("user=%s", c.User),
