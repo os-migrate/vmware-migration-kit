@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	moduleutils "vmware_migration_kit/vmware_migration_kit/plugins/module_utils"
+	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -80,41 +80,41 @@ func UploadImage(provider *gophercloud.ProviderClient, imageName, diskPath strin
 }
 
 func main() {
-	var response moduleutils.Response
+	var response ansible.Response
 
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 
 	argsFile := os.Args[1]
 	argsData, err := os.ReadFile(argsFile)
 	if err != nil {
 		response.Msg = fmt.Sprintf("Failed to read argument file: %v", err)
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 
 	if err := json.Unmarshal(argsData, &args); err != nil {
 		response.Msg = fmt.Sprintf("Failed to parse argument file: %v", err)
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 	opts, err := clientconfig.AuthOptions(nil)
 	if err != nil {
 		response.Msg = fmt.Sprintf("Failed to get auth options: %v", err)
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 	provider, err := openstack.AuthenticatedClient(*opts)
 	if err != nil {
 		response.Msg = fmt.Sprintf("Failed to authenticate: %v", err)
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 	imageID, err := UploadImage(provider, args.Name, args.DiskPath)
 	if err != nil {
 		response.Msg = fmt.Sprintf("Failed to upload image: %v", err)
-		moduleutils.FailJson(response)
+		ansible.FailJson(response)
 	}
 
 	response.ID = imageID
 	response.Msg = fmt.Sprintf("Image created successfully: %s", imageID)
-	moduleutils.ExitJson(response)
+	ansible.ExitJson(response)
 }

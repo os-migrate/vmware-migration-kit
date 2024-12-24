@@ -32,16 +32,8 @@ import (
 
 /*
 example:
-{"user": "root", "password": "xxxx", "server": "10.9.113.7", "vmname": "ubuntu-2"}
+{"user": "root", "password": "xxxx", "server": "10.0.0.10", "vmname": "rhel-9.4-1"}
 */
-
-// type VolOpts struct {
-// 	Name       string
-// 	Size       int
-// 	VolumeType string
-// 	BusType    string
-// 	Metadata   map[string]string
-// }
 
 type VddkConfig struct {
 	VirtualMachine *object.VirtualMachine
