@@ -183,6 +183,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 	}
 
 	diskName, err := vmware.GetDiskKey(ctx, c.VddkConfig.VirtualMachine)
+	diskSize, err := vmware.GetDiskSizes(ctx, c.VddkConfig.VirtualMachine)
 	if err != nil {
 		logger.Printf("Failed to get disk key: %v", err)
 		return "", err
@@ -206,7 +207,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		// }
 		volOpts := osm_os.VolOpts{
 			Name:       vmName + "-" + diskNameStr,
-			Size:       20,
+			Size:       int(diskSize[diskNameStr] / 1024 / 1024),
 			VolumeType: "",
 			BusType:    "virtio",
 			Metadata:   volMetadata,
