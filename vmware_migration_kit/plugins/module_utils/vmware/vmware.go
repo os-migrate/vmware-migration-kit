@@ -26,6 +26,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/vmware/govmomi/object"
@@ -94,6 +95,23 @@ func GetDiskKey(ctx context.Context, vm *object.VirtualMachine) ([]int32, error)
 		}
 	}
 	return diskKeys, nil
+}
+
+func GetDiskSizes(ctx context.Context, vm *object.VirtualMachine) (map[string]int64, error) {
+	var vmMo mo.VirtualMachine
+	err := vm.Properties(ctx, vm.Reference(), []string{"config.hardware.device"}, &vmMo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve VM properties: %w", err)
+	}
+
+	diskSizes := make(map[string]int64)
+	for _, device := range vmMo.Config.Hardware.Device {
+		if disk, ok := device.(*types.VirtualDisk); ok {
+			diskSizes[strconv.Itoa(int(disk.Key))] = disk.CapacityInKB
+		}
+	}
+
+	return diskSizes, nil
 }
 
 func GetCBTChangeID(ctx context.Context, vm *object.VirtualMachine, diskLabel string) (string, error) {
