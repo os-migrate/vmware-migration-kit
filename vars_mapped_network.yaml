@@ -15,7 +15,7 @@ vcenter_user_formatted: "{{ vcenter_username | regex_replace('@','%40') }}"
 
 ### VM Workload parameters
 # VM list to export
-vm_list:
+vms_list:
   - ubuntu-2
   - rhel-1
 
