@@ -1,15 +1,15 @@
 ---
 - name: Migrate Guest from Vmware using nbdkit
-  os_migrate.vmware_migration_kit.migrate:
+  os_migrate.vmware_migration_kit.migrate.migrate:
     user:  "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
-    cbtsync: "{{ cbt_sync }} | default(false) | bool"
-    convhostname: "{{ conv_host_name }} | default('') }}"
+    # cbtsync: "{{ cbt_sync }} | default(omit) | bool" # @TODO: Not implemented yet
+    # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
 
 - name: Set fact for disk ID
   set_fact:
-    volume_uuid: "{{ nbdkit_output.ID }}"
+    volume_uuid: "{{ migrate_output.id }}"
