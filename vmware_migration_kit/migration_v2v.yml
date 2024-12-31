@@ -7,13 +7,13 @@
 - name: Fetch vmware metadata
   import_playbook: playbooks/gather_guest_metadata.yml
   vars:
-    vms: "{{ vms }}"
+    vms: "{{ vms_list }}"
   when: fetch_vmware_metadata | default(true) | bool
 
 - name: Convert vmware metadata
   import_playbook: playbooks/convert_metadata.yml
   vars:
-    vms: "{{ vms }}"
+    vms: "{{ vms_list }}"
   when: convert_metadata | default(true) | bool
 
 # Run full migration from conversion host
@@ -24,5 +24,5 @@
 - name: Run full migration with virt-v2v
   import_playbook: playbooks/run_migration_from_conversion_host.yml
   vars:
-    vms: "{{ vms }}"
+    vms: "{{ vms_list }}"
   when: run_full_migration | default(true) | bool

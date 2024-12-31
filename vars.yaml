@@ -54,6 +54,6 @@ copy_openstack_credentials_to_conv_host: false
 os_migrate_tear_down: true
 
 # VMs list
-vms:
+vms_lisr:
   - rhel-1
   - rhel-2

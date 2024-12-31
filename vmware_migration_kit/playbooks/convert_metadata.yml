@@ -1,7 +1,7 @@
 - name: Export vmware metadata
   hosts: migrator
   vars:
-    vms: "{{ vms }}"
+    vms: "{{ vms_list }}"
   tasks:
     - name: Convert vmware metadata to openstack flavors
       ansible.builtin.include_role:

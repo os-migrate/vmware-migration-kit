@@ -20,7 +20,7 @@ conversion_host_id: "459b2b84-fcde-4ad9-9db2-2aa8c4c61445"
 
 ### VM Workload parameters
 # VM list to export
-vm_list:
+vms_list:
   - ubuntu-2
   - rhel-1
 
