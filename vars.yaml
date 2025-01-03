@@ -4,6 +4,8 @@ vcenter_hostname: 10.10.10.7
 vcenter_username: root
 vcenter_password: password
 vcenter_datacenter: Datacenter
+
+# Only useful for v2v workflow
 vddk_thumbprint: XX:XX:XX:XX
 
 # Conversion host parameters:

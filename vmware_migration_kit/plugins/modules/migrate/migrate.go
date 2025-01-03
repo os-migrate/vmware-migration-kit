@@ -36,8 +36,8 @@ example:
 */
 
 type VddkConfig struct {
-	VirtualMachine *object.VirtualMachine
-	SnapshotRef    types.ManagedObjectReference
+	VirtualMachine    *object.VirtualMachine
+	SnapshotReference types.ManagedObjectReference
 }
 
 type MigrationConfig struct {
@@ -47,7 +47,7 @@ type MigrationConfig struct {
 	Libdir       string
 	VmName       string
 	OSMDataDir   string
-	VddkConfig   *VddkConfig
+	VddkConfig   *vmware.VddkConfig
 	CBTSync      bool
 	OSClient     *gophercloud.ProviderClient
 	ConvHostName string
@@ -81,41 +81,6 @@ func init() {
 	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
 }
 
-func (c *MigrationConfig) CreateSnapshot(ctx context.Context) error {
-	logger.Printf("Creating snapshot for VM %s", c.VmName)
-	task, err := c.VddkConfig.VirtualMachine.CreateSnapshot(ctx, "osm-snap", "OS Migrate snapshot.", false, false)
-	if err != nil {
-		logger.Printf("Failed to create snapshot: %v", err)
-		return err
-	}
-	info, err := task.WaitForResult(ctx)
-	if err != nil {
-		logger.Printf("Timeout to create snapshot: %v", err)
-		return err
-	}
-
-	c.VddkConfig.SnapshotRef = info.Result.(types.ManagedObjectReference)
-	logger.Printf("Snapshot created: %s", c.VddkConfig.SnapshotRef.Value)
-	return nil
-}
-
-func (c *MigrationConfig) RemoveSnapshot(ctx context.Context) error {
-	logger.Printf("Removing snapshot for VM %s", c.VmName)
-	consolidate := true
-	task, err := c.VddkConfig.VirtualMachine.RemoveSnapshot(ctx, c.VddkConfig.SnapshotRef.Value, false, &consolidate)
-	if err != nil {
-		logger.Printf("Failed to remove snapshot: %v", err)
-		return err
-	}
-	_, err = task.WaitForResult(ctx)
-	if err != nil {
-		logger.Printf("Timeout to remove snapshot: %v", err)
-		return err
-	}
-	logger.Printf("Snapshot removed: %s", c.VddkConfig.SnapshotRef.Value)
-	return nil
-}
-
 // Migration Cycle
 func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
@@ -135,7 +100,7 @@ func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 		fmt.Sprintf("thumbprint=%s", thumbprint),
 		fmt.Sprintf("libdir=%s", c.Libdir),
 		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotRef.Value),
+		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
 		"compression=zlib",
 		"transports=file:nbdssl:nbd",
 		diskName,
@@ -173,17 +138,28 @@ func (s *NbdkitServer) Stop() error {
 }
 
 func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
+	var syncVol bool = false
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// Create snapshot
+	err := c.VddkConfig.CreateSnapshot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer c.VddkConfig.RemoveSnapshot(ctx)
+	var snapshot mo.VirtualMachineSnapshot
+	err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
+	if err != nil {
+		return "", err
+	}
 	// Create or update volume.
 	vmName, err := c.VddkConfig.VirtualMachine.ObjectName(ctx)
 	if err != nil {
 		logger.Printf("Failed to get VM name: %v", err)
 		return "", err
 	}
-
-	diskName, err := vmware.GetDiskKey(ctx, c.VddkConfig.VirtualMachine)
-	diskSize, err := vmware.GetDiskSizes(ctx, c.VddkConfig.VirtualMachine)
+	diskName, err := c.VddkConfig.GetDiskKey(ctx)
+	diskSize, err := c.VddkConfig.GetDiskSizes(ctx)
 	if err != nil {
 		logger.Printf("Failed to get disk key: %v", err)
 		return "", err
@@ -194,10 +170,23 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		logger.Printf("Failed to get volume: %v", err)
 		return "", err
 	}
+	if volume != nil && c.CBTSync {
+		logger.Printf("Volume exists, syncing volume..")
+		syncVol = true
+	}
+	var volMetadata map[string]string
 	if volume == nil && err == nil {
-		logger.Printf("Volume not found, creating new volume")
-		volMetadata := map[string]string{
-			"osm": "true",
+		if changeID, _ := c.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
+			logger.Printf("CBT enabled, creating new volume and set changeID: %s", changeID)
+			volMetadata = map[string]string{
+				"osm":      "true",
+				"changeID": changeID,
+			}
+		} else {
+			logger.Printf("Volume not found, creating new volume")
+			volMetadata = map[string]string{
+				"osm": "true",
+			}
 		}
 		// TODO:
 		// remove hardcoded BuSType:
@@ -229,35 +218,6 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 			return "", err
 		}
 	}
-	if volume != nil {
-		if c.CBTSync {
-			// Sync volume
-			logger.Printf("Syncing volume")
-
-			var conf mo.VirtualMachine
-			c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.VirtualMachine.Reference(), []string{"config.hardware"}, &conf)
-			if conf.Config.ChangeTrackingEnabled != nil && *conf.Config.ChangeTrackingEnabled {
-				logger.Printf("CBT enabled")
-				// Sync volume
-				logger.Printf("Syncing volume... (not yet implemented)")
-				logger.Printf("Volume synced")
-			} else {
-				logger.Printf("CBT not enabled")
-				return "", nil
-			}
-		}
-	}
-	// Create snapshot
-	err = c.CreateSnapshot(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer c.RemoveSnapshot(ctx)
-	var snapshot mo.VirtualMachineSnapshot
-	err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.SnapshotRef, []string{"config.hardware"}, &snapshot)
-	if err != nil {
-		return "", err
-	}
 	// Attach volume
 	instanceUUID, _ := osm_os.GetInstanceUUID()
 	err = osm_os.AttachVolume(c.OSClient, volume.ID, c.ConvHostName, instanceUUID)
@@ -266,13 +226,13 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer osm_os.DetachVolume(c.OSClient, volume.ID, "vmware-conv-host", "")
-
 	// Start nbdkit
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Printf("Failed to find device name: %v", err)
 		return "", err
 	}
+
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
@@ -284,8 +244,32 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 				logger.Printf("Failed to run nbdkit: %v", err)
 				return "", err
 			}
-			err = nbdkit.NbdCopy(devPath)
-
+			if syncVol {
+				// Check change id
+				osChangeID, err := osm_os.GetOSChangeID(c.OSClient, volume.ID)
+				if err != nil {
+					logger.Printf("Failed to get OS change ID: %v", err)
+					return "", err
+				}
+				vmChangeID, err := c.VddkConfig.GetCBTChangeID(ctx)
+				if err != nil {
+					logger.Printf("Failed to get VM change ID: %v", err)
+					return "", err
+				}
+				if osChangeID != vmChangeID {
+					logger.Printf("Change ID mismatch, syncing volume..")
+					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath)
+					if err != nil {
+						logger.Printf("Failed to sync volume: %v", err)
+						return "", err
+					}
+					logger.Printf("Volume synced successfully")
+				} else {
+					logger.Printf("No change in VM, skipping volume sync")
+				}
+			} else {
+				err = nbdkit.NbdCopy(devPath)
+			}
 			if err != nil {
 				logger.Printf("Failed to copy disk: %v", err)
 				nbdSrv.Stop()
@@ -342,7 +326,7 @@ func main() {
 	var osmdatadir string = "/tmp/"
 	var convHostName string = ""
 	// Use CBT for incremental sync
-	var cbtsync bool = false
+	var cbtsync bool = true
 
 	if moduleArgs.User != "" {
 		user = moduleArgs.User
@@ -428,9 +412,9 @@ func main() {
 		OSClient:     provider,
 		CBTSync:      cbtsync,
 		ConvHostName: convHostName,
-		VddkConfig: &VddkConfig{
-			VirtualMachine: vm,
-			SnapshotRef:    types.ManagedObjectReference{},
+		VddkConfig: &vmware.VddkConfig{
+			VirtualMachine:    vm,
+			SnapshotReference: types.ManagedObjectReference{},
 		},
 	}
 
