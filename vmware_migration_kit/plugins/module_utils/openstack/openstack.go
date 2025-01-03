@@ -133,6 +133,23 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
 }
 
+func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string, error) {
+	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
+	if err != nil {
+		logger.Printf("Failed to create block storage client: %w", err)
+		return "", err
+	}
+	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
+	if err != nil {
+		logger.Printf("Failed to get volume: %v", err)
+		return "", err
+	}
+	if changeID, ok := volume.Metadata["changeID"]; ok {
+		return changeID, nil
+	}
+	return "", nil
+}
+
 func GetVolumeID(client *gophercloud.ProviderClient, vm string, disk string) (*volumes.Volume, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
@@ -225,7 +242,6 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		}
 		for _, server := range serversList {
 			if server.Name == instanceName {
-				fmt.Printf("Found instance UUID: %s\n", server.ID)
 				instanceUUID = server.ID
 			}
 		}
