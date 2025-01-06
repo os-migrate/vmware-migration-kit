@@ -144,6 +144,7 @@ func (v *VddkConfig) GetDiskSizes(ctx context.Context) (map[string]int64, error)
 	var conf mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &conf)
 	if err != nil {
+		logger.Printf("Failed to retrieve VM properties: %v", err)
 		return nil, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 
@@ -161,6 +162,7 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	var conf mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config"}, &conf)
 	if err != nil {
+		logger.Printf("Failed to get VM config: %v", err)
 		return "", err
 	}
 	// Check if CBT is enabled
@@ -172,6 +174,7 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	var b mo.VirtualMachineSnapshot
 	err = v.VirtualMachine.Properties(ctx, v.SnapshotReference.Reference(), []string{"config.hardware"}, &b)
 	if err != nil {
+		logger.Printf("Failed to get Snapshot info for osm-snap: %v", err)
 		return "", fmt.Errorf("Failed to get Snapshot info for osm-snap: %s", err)
 	}
 
@@ -205,93 +208,93 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 			changeId = &b.ChangeId
 			break
 		}
-
+		logger.Printf("disk %d has backing info without .ChangeId: %t", disk.Key, d.Backing)
 		return "", fmt.Errorf("disk %d has backing info without .ChangeId: %t", disk.Key, d.Backing)
 	}
 	if changeId == nil || *changeId == "" {
+		logger.Printf("CBT is not enabled on disk %d", disk.Key)
 		return "", fmt.Errorf("CBT is not enabled on disk %d", disk.Key)
 	}
 
 	return *changeId, nil
 }
 
-func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, path string) error {
+func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string, changeID string) error {
+	// Fetch VM configuration
 	var vmConfig mo.VirtualMachine
 	if err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vmConfig); err != nil {
+		logger.Printf("Failed to retrieve VM properties: %v", err)
 		return fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
-
-	// Get CBT ChangeID and Disk Key
-	changeID, err := v.GetCBTChangeID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get CBT change ID: %w", err)
-	}
-	diskKey, err := v.GetDiskKey(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get disk key: %w", err)
-	}
-
-	// Determine Disk Size
+	var diskKey int32
 	var diskSize int64
 	for _, device := range vmConfig.Config.Hardware.Device {
 		if disk, ok := device.(*types.VirtualDisk); ok {
+			diskKey = disk.Key
 			diskSize = disk.CapacityInBytes
 			break
 		}
 	}
 	if diskSize == 0 {
-		return fmt.Errorf("failed to determine disk size")
+		logger.Printf("Failed to determine disk size or locate target disk")
+		return fmt.Errorf("failed to determine disk size or locate target disk")
 	}
-
-	// Open file for writing
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_EXCL|syscall.O_DIRECT, 0644)
+	file, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_EXCL|syscall.O_DIRECT, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
+		logger.Printf("Failed to open target file %s: %v", targetPath, err)
+		return fmt.Errorf("failed to open target file %s: %w", targetPath, err)
 	}
 	defer file.Close()
 	nbd, err := libnbd.Create()
 	if err != nil {
-		return err
+		logger.Printf("Failed to initialize NBD: %v", err)
+		return fmt.Errorf("failed to initialize NBD: %w", err)
 	}
 	defer nbd.Close()
 
 	if err := nbd.ConnectUri("nbd://localhost"); err != nil {
+		logger.Printf("Failed to connect to NBD server: %v", err)
 		return fmt.Errorf("failed to connect to NBD server: %w", err)
 	}
-
 	startOffset := int64(0)
 	for {
-		// Query Changed Disk Areas
 		query := types.QueryChangedDiskAreas{
 			This:        v.VirtualMachine.Reference(),
 			Snapshot:    &v.SnapshotReference,
-			DeviceKey:   diskKey[0],
+			DeviceKey:   diskKey,
 			StartOffset: startOffset,
 			ChangeId:    changeID,
 		}
+
 		result, err := methods.QueryChangedDiskAreas(ctx, v.VirtualMachine.Client(), &query)
 		if err != nil {
+			logger.Printf("Failed to query changed disk areas: %v", err)
 			return fmt.Errorf("failed to query changed disk areas: %w", err)
 		}
-		for _, area := range result.Returnval.ChangedArea {
-			for offset := area.Start; offset < area.Start+area.Length; {
+		changedAreas := result.Returnval.ChangedArea
+		if len(changedAreas) == 0 {
+			break
+		}
+		for _, area := range changedAreas {
+			offset := area.Start
+			for offset < area.Start+area.Length {
 				chunkSize := area.Length - (offset - area.Start)
 				if chunkSize > maxChunkSize {
 					chunkSize = maxChunkSize
 				}
-
-				buf := make([]byte, chunkSize)
-				if err := nbd.Pread(buf, uint64(offset), nil); err != nil {
+				// Read data from NBD
+				buffer := make([]byte, chunkSize)
+				if err := nbd.Pread(buffer, uint64(offset), nil); err != nil {
+					logger.Printf("Failed to read data from NBD: %v", err)
 					return fmt.Errorf("failed to read data from NBD: %w", err)
 				}
-
-				if _, err := file.WriteAt(buf, offset); err != nil {
-					return fmt.Errorf("failed to write data to file: %w", err)
+				if _, err := file.WriteAt(buffer, offset); err != nil {
+					logger.Printf("Failed to write data to target file: %v", err)
+					return fmt.Errorf("failed to write data to target file: %w", err)
 				}
 				offset += chunkSize
 			}
 		}
-
 		startOffset = result.Returnval.StartOffset + result.Returnval.Length
 		if startOffset >= diskSize {
 			break
