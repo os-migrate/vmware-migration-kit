@@ -286,7 +286,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		}
 		for _, server := range serversList {
 			if server.Name == instanceName {
-				fmt.Printf("Found instance UUID: %s\n", server.ID)
+				logger.Printf("Found instance UUID: %s\n", server.ID)
 				instanceUUID = server.ID
 			}
 		}
