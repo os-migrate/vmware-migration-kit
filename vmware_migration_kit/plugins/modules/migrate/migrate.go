@@ -139,6 +139,7 @@ func (s *NbdkitServer) Stop() error {
 
 func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 	var syncVol bool = false
+	var runV2V bool = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// Create snapshot
@@ -176,6 +177,9 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 	}
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
+		if c.CBTSync {
+			runV2V = false
+		}
 		if changeID, _ := c.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
 			logger.Printf("CBT enabled, creating new volume and set changeID: %s", changeID)
 			volMetadata = map[string]string{
@@ -258,7 +262,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 				}
 				if osChangeID != vmChangeID {
 					logger.Printf("Change ID mismatch, syncing volume..")
-					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath)
+					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
 					if err != nil {
 						logger.Printf("Failed to sync volume: %v", err)
 						return "", err
@@ -276,11 +280,13 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 				return "", err
 			}
 			nbdSrv.Stop()
-			err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
-			nbdSrv.Stop()
-			if err != nil {
-				logger.Printf("Failed to convert disk: %v", err)
-				return "", err
+			if runV2V {
+				err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
+				nbdSrv.Stop()
+				if err != nil {
+					logger.Printf("Failed to convert disk: %v", err)
+					return "", err
+				}
 			}
 		}
 	}
