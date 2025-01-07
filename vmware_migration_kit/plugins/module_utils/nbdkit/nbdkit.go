@@ -24,9 +24,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"syscall"
 	"time"
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/vmware"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/vmware/govmomi/object"
@@ -81,61 +79,6 @@ func WaitForNbdkit(host string, port string, timeout time.Duration) error {
 		time.Sleep(2 * time.Second)
 	}
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
-}
-
-func RunNbdKit(c MigrationConfig, diskName string) (*NbdkitServer, error) {
-	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := exec.Command(
-		"nbdkit",
-		"--readonly",
-		"--exit-with-parent",
-		"--foreground",
-		"vddk",
-		fmt.Sprintf("server=%s", c.Server),
-		fmt.Sprintf("user=%s", c.User),
-		fmt.Sprintf("password=%s", c.Password),
-		fmt.Sprintf("thumbprint=%s", thumbprint),
-		fmt.Sprintf("libdir=%s", c.Libdir),
-		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotRef.Value),
-		"compression=zlib",
-		"transports=file:nbdssl:nbd",
-		diskName,
-	)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	if err := cmd.Start(); err != nil {
-		logger.Printf("Failed to start nbdkit: %v", err)
-		return nil, err
-	}
-	logger.Printf("nbdkit started...")
-	logger.Printf("Command: %v", cmd)
-
-	time.Sleep(100 * time.Millisecond)
-	err = WaitForNbdkit("localhost", "10809", 30*time.Second)
-	if err != nil {
-		logger.Printf("Failed to wait for nbdkit: %v", err)
-		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		return nil, err
-	}
-
-	return &NbdkitServer{
-		cmd: cmd,
-	}, nil
-}
-
-func (s *NbdkitServer) Stop() error {
-	if err := syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL); err != nil {
-		logger.Printf("Failed to stop nbdkit server: %v", err)
-		return fmt.Errorf("failed to stop nbdkit server: %w", err)
-	}
-	return nil
 }
 
 func NbdCopy(device string) error {
