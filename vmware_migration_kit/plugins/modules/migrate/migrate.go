@@ -51,6 +51,7 @@ type MigrationConfig struct {
 	CBTSync      bool
 	OSClient     *gophercloud.ProviderClient
 	ConvHostName string
+	Compression  string
 }
 
 type NbdkitServer struct {
@@ -68,6 +69,7 @@ type ModuleArgs struct {
 	OSMDataDir   string
 	CBTSync      bool
 	ConvHostName string
+	Compression  string
 }
 
 var logger *log.Logger
@@ -101,7 +103,7 @@ func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 		fmt.Sprintf("libdir=%s", c.Libdir),
 		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
 		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		"compression=zlib",
+		fmt.Sprintf("compression=%s", c.Compression),
 		"transports=file:nbdssl:nbd",
 		diskName,
 	)
@@ -171,9 +173,14 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		logger.Printf("Failed to get volume: %v", err)
 		return "", err
 	}
-	if volume != nil && c.CBTSync {
-		logger.Printf("Volume exists, syncing volume..")
-		syncVol = true
+	if volume != nil {
+		if c.CBTSync {
+			logger.Printf("Volume exists, syncing volume..")
+			syncVol = true
+		} else {
+			logger.Printf("Volume already exists and CBT sync is disabled, skipping migration..")
+			return volume.ID, fmt.Errorf("volume already exists")
+		}
 	}
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
@@ -274,20 +281,24 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 				}
 			} else {
 				err = nbdkit.NbdCopy(devPath)
+				if err != nil {
+					logger.Printf("Failed to copy disk: %v", err)
+					nbdSrv.Stop()
+					return "", err
+
+				}
 			}
-			if err != nil {
-				logger.Printf("Failed to copy disk: %v", err)
-				nbdSrv.Stop()
-				return "", err
-			}
-			nbdSrv.Stop()
 			if runV2V {
+				logger.Printf("Running V2V conversion")
 				err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
 				nbdSrv.Stop()
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
 				}
+			} else {
+				logger.Printf("Skipping V2V conversion, stopping nbdkit server...")
+				nbdSrv.Stop()
 			}
 		}
 	}
@@ -332,6 +343,7 @@ func main() {
 	var vddkpath string = "/ha-datacenter/vm/"
 	var osmdatadir string = "/tmp/"
 	var convHostName string = ""
+	var compression string = "skipz"
 	// Use CBT for incremental sync
 	var cbtsync bool = true
 
@@ -369,12 +381,14 @@ func main() {
 	if moduleArgs.Libdir != "" {
 		libdir = moduleArgs.Libdir
 	}
-	if moduleArgs.CBTSync {
-		cbtsync = moduleArgs.CBTSync
-	}
 	if moduleArgs.ConvHostName != "" {
 		convHostName = moduleArgs.ConvHostName
 	}
+	if moduleArgs.Compression != "" {
+		compression = moduleArgs.Compression
+	}
+	cbtsync = moduleArgs.CBTSync
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	u, _ := url.Parse("https://" + server + "/sdk")
@@ -419,6 +433,7 @@ func main() {
 		OSClient:     provider,
 		CBTSync:      cbtsync,
 		ConvHostName: convHostName,
+		Compression:  compression,
 		VddkConfig: &vmware.VddkConfig{
 			VirtualMachine:    vm,
 			SnapshotReference: types.ManagedObjectReference{},
