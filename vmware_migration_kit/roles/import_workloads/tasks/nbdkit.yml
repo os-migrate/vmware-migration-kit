@@ -6,7 +6,7 @@
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
-    # cbtsync: "{{ cbt_sync }} | default(omit) | bool" # @TODO: Not implemented yet
+    cbtsync: "{{ cbt_sync }} | default(false) | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
 

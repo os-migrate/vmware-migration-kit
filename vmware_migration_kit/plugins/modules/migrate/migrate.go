@@ -260,6 +260,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 					logger.Printf("Failed to get VM change ID: %v", err)
 					return "", err
 				}
+				logger.Printf("OS Change ID: %s, VM Change ID: %s", osChangeID, vmChangeID)
 				if osChangeID != vmChangeID {
 					logger.Printf("Change ID mismatch, syncing volume..")
 					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
