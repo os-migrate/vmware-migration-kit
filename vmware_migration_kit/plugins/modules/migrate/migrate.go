@@ -136,6 +136,7 @@ func (s *NbdkitServer) Stop() error {
 		logger.Printf("Failed to stop nbdkit server: %v", err)
 		return fmt.Errorf("failed to stop nbdkit server: %w", err)
 	}
+	logger.Printf("Nbdkit server stopped.")
 	return nil
 }
 
@@ -144,17 +145,6 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 	var runV2V bool = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// Create snapshot
-	err := c.VddkConfig.CreateSnapshot(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer c.VddkConfig.RemoveSnapshot(ctx)
-	var snapshot mo.VirtualMachineSnapshot
-	err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
-	if err != nil {
-		return "", err
-	}
 	// Create or update volume.
 	vmName, err := c.VddkConfig.VirtualMachine.ObjectName(ctx)
 	if err != nil {
@@ -182,6 +172,32 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 			return volume.ID, fmt.Errorf("volume already exists")
 		}
 	}
+	isWin, err := c.VddkConfig.IsWindowsFamily(ctx)
+	if err != nil {
+		return "", err
+	}
+	// If syncVol is true, it means that CBT is enable and the VM should be shutting down before
+	// running V2V conversion
+	// Also, shutdown if OS is Windows, (@TODO) otherwise make it optional
+	if syncVol || isWin {
+		err = c.VddkConfig.PowerOffVM(ctx)
+		if err != nil {
+			logger.Printf("Failed to power off vm %v", err)
+			return "", err
+		}
+	}
+	// Create snapshot
+	err = c.VddkConfig.CreateSnapshot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer c.VddkConfig.RemoveSnapshot(ctx)
+	var snapshot mo.VirtualMachineSnapshot
+	err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
+	if err != nil {
+		return "", err
+	}
+
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
 		if c.CBTSync {
@@ -201,7 +217,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		}
 		// TODO:
 		// remove hardcoded BuSType:
-		// if opts.BusType == "scsi" {
+		// if busType == "scsi" {
 		// 	volumeMetadata["hw_disk_bus"] = "scsi"
 		// 	volumeMetadata["hw_scsi_model"] = "virtio-scsi"
 		// }
@@ -237,13 +253,13 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer osm_os.DetachVolume(c.OSClient, volume.ID, "vmware-conv-host", "")
-	// Start nbdkit
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Printf("Failed to find device name: %v", err)
 		return "", err
 	}
 
+	// Start copy
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
@@ -251,6 +267,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
 			nbdSrv, err := c.RunNbdKit(info.FileName)
+			defer nbdSrv.Stop()
 			if err != nil {
 				logger.Printf("Failed to run nbdkit: %v", err)
 				return "", err
@@ -291,14 +308,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 			if runV2V {
 				logger.Printf("Running V2V conversion")
 				err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
-				nbdSrv.Stop()
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
 				}
 			} else {
-				logger.Printf("Skipping V2V conversion, stopping nbdkit server...")
-				nbdSrv.Stop()
+				logger.Printf("Skipping V2V conversion...")
 			}
 		}
 	}
