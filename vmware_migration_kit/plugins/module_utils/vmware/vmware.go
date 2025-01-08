@@ -91,6 +91,49 @@ func GetThumbprint(host string, port string) (string, error) {
 	return strings.Join(thumbprint, ":"), nil
 }
 
+func (v *VddkConfig) IsWindowsFamily(ctx context.Context) (bool, error) {
+	var vmConfig mo.VirtualMachine
+	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.guestFullName", "config.guestId"}, &vmConfig)
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
+	}
+	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	if strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "windows") ||
+		strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "microsoft") {
+		return true, nil
+	}
+	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+	if strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "windows") ||
+		strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "microsoft") {
+		return true, nil
+	}
+
+	logger.Printf("No Windows OS found in Guest Full name or ID strings...")
+	return false, nil
+}
+
+func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
+	powerState, err := v.VirtualMachine.PowerState(ctx)
+	if err != nil {
+		return err
+	}
+	if powerState == types.VirtualMachinePowerStatePoweredOff {
+		logger.Printf("VM is already off, skipping...")
+		return nil
+	} else {
+		logger.Printf("Shutting down the VM...")
+		err = v.VirtualMachine.ShutdownGuest(ctx)
+		if err != nil {
+			return err
+		}
+		err = v.VirtualMachine.WaitForPowerState(ctx, types.VirtualMachinePowerStatePoweredOff)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (v *VddkConfig) CreateSnapshot(ctx context.Context) error {
 	task, err := v.VirtualMachine.CreateSnapshot(ctx, "osm-snap", "OS Migrate snapshot.", false, false)
 	if err != nil {
