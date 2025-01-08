@@ -11,7 +11,6 @@ vddk_thumbprint: XX:XX:XX:XX
 # Conversion host parameters:
 vddk_libdir: /usr/lib/vmware-vix-disklib
 already_deploy_conversion_host: true
-conversion_host_id: 459b2b84-fcde-4ad9-9db2-2aa8c4c61445
 
 # OpenStack destination cloud auth parameters:
 os_cloud_environ: psi-rhos-upgrades-ci
