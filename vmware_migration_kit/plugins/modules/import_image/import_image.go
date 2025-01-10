@@ -108,13 +108,14 @@ func main() {
 		response.Msg = fmt.Sprintf("Failed to authenticate: %v", err)
 		ansible.FailJson(response)
 	}
+	var ID []string
 	imageID, err := UploadImage(provider, args.Name, args.DiskPath)
 	if err != nil {
 		response.Msg = fmt.Sprintf("Failed to upload image: %v", err)
 		ansible.FailJson(response)
 	}
 
-	response.ID = imageID
+	response.ID = append(ID, imageID)
 	response.Msg = fmt.Sprintf("Image created successfully: %s", imageID)
 	ansible.ExitJson(response)
 }

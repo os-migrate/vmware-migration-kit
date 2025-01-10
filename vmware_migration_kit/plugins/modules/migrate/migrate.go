@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"strings"
+	"strconv"
 	"syscall"
 	"time"
 	moduleutils "vmware-migration-kit/vmware_migration_kit/plugins/module_utils"
@@ -140,9 +140,8 @@ func (s *NbdkitServer) Stop() error {
 	return nil
 }
 
-func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
+func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
 	var syncVol bool = false
-	var runV2V bool = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// Create or update volume.
@@ -151,13 +150,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 		logger.Printf("Failed to get VM name: %v", err)
 		return "", err
 	}
-	diskName, err := c.VddkConfig.GetDiskKey(ctx)
 	diskSize, err := c.VddkConfig.GetDiskSizes(ctx)
 	if err != nil {
-		logger.Printf("Failed to get disk key: %v", err)
+		logger.Printf("Failed to get disks key: %v", err)
 		return "", err
 	}
-	diskNameStr := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(diskName)), ","), "[]")
+	diskNameStr := strconv.Itoa(int(c.VddkConfig.DiskKey))
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
 		logger.Printf("Failed to get volume: %v", err)
@@ -263,6 +261,9 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
+			if device.GetVirtualDevice().Key != c.VddkConfig.DiskKey {
+				break
+			}
 			backing := disk.Backing.(types.BaseVirtualDeviceFileBackingInfo)
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
@@ -302,11 +303,10 @@ func (c *MigrationConfig) VMMigration(ctx context.Context) (string, error) {
 					logger.Printf("Failed to copy disk: %v", err)
 					nbdSrv.Stop()
 					return "", err
-
 				}
 			}
 			if runV2V {
-				logger.Printf("Running V2V conversion")
+				logger.Printf("Running V2V conversion with %v", volume.ID)
 				err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
@@ -349,60 +349,16 @@ func main() {
 	}
 
 	// Set parameters
-	var user string
-	var password string
-	var server string
-	var vmname string
-	// Default parameters
-	var libdir string = "/usr/lib/vmware-vix-disklib"
-	var vddkpath string = "/ha-datacenter/vm/"
-	var osmdatadir string = "/tmp/"
-	var convHostName string = ""
-	var compression string = "skipz"
-	// Use CBT for incremental sync
-	var cbtsync bool = true
-
-	if moduleArgs.User != "" {
-		user = moduleArgs.User
-	} else {
-		response.Msg = "User is required"
-		ansible.FailJson(response)
-	}
-	if moduleArgs.Password != "" {
-		password = moduleArgs.Password
-	} else {
-		response.Msg = "Password is required"
-		ansible.FailJson(response)
-	}
-	if moduleArgs.Server != "" {
-		server = moduleArgs.Server
-	} else {
-		response.Msg = "Server is required"
-		ansible.FailJson(response)
-	}
-	if moduleArgs.VmName != "" {
-		vmname = moduleArgs.VmName
-	} else {
-		response.Msg = "VM name is required"
-		ansible.FailJson(response)
-	}
-	if moduleArgs.VddkPath != "" {
-		vddkpath = moduleArgs.VddkPath
-	}
-	if moduleArgs.OSMDataDir != "" {
-		osmdatadir = moduleArgs.OSMDataDir
-	}
-
-	if moduleArgs.Libdir != "" {
-		libdir = moduleArgs.Libdir
-	}
-	if moduleArgs.ConvHostName != "" {
-		convHostName = moduleArgs.ConvHostName
-	}
-	if moduleArgs.Compression != "" {
-		compression = moduleArgs.Compression
-	}
-	cbtsync = moduleArgs.CBTSync
+	user := ansible.RequireField(moduleArgs.User, "User is required")
+	password := ansible.RequireField(moduleArgs.Password, "Password is required")
+	server := ansible.RequireField(moduleArgs.Server, "Server is required")
+	vmname := ansible.RequireField(moduleArgs.VmName, "VM name is required")
+	libdir := ansible.DefaultIfEmpty(moduleArgs.Libdir, "/usr/lib/vmware-vix-disklib")
+	vddkpath := ansible.DefaultIfEmpty(moduleArgs.VddkPath, "/ha-datacenter/vm/")
+	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
+	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
+	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
+	cbtsync := moduleArgs.CBTSync
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -438,31 +394,46 @@ func main() {
 	vmpath := vddkpath + "/" + vmname
 	finder := find.NewFinder(c.Client)
 	vm, _ := finder.VirtualMachine(ctx, vmpath)
-	VMMigration := MigrationConfig{
-		User:         user,
-		Password:     password,
-		Server:       server,
-		Libdir:       libdir,
-		VmName:       vmname,
-		OSMDataDir:   osmdatadir,
-		OSClient:     provider,
-		CBTSync:      cbtsync,
-		ConvHostName: convHostName,
-		Compression:  compression,
-		VddkConfig: &vmware.VddkConfig{
-			VirtualMachine:    vm,
-			SnapshotReference: types.ManagedObjectReference{},
-		},
-	}
-
-	disk, err := VMMigration.VMMigration(ctx)
+	var disks []int32
+	var volume []string
+	var runV2V = true
+	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
-		logger.Printf("Failed to migrate VM: %v", err)
-		response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + logFile
+		logger.Printf("Failed to get disks: %v", err)
+		response.Msg = "Failed to get disks: " + err.Error() + ". Check logs: " + logFile
 		ansible.FailJson(response)
+	}
+	for k, d := range disks {
+		if k != 0 {
+			runV2V = false
+		}
+		VMMigration := MigrationConfig{
+			User:         user,
+			Password:     password,
+			Server:       server,
+			Libdir:       libdir,
+			VmName:       vmname,
+			OSMDataDir:   osmdatadir,
+			OSClient:     provider,
+			CBTSync:      cbtsync,
+			ConvHostName: convHostName,
+			Compression:  compression,
+			VddkConfig: &vmware.VddkConfig{
+				VirtualMachine:    vm,
+				SnapshotReference: types.ManagedObjectReference{},
+				DiskKey:           d,
+			},
+		}
+		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
+		if err != nil {
+			logger.Printf("Failed to migrate VM: %v", err)
+			response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + logFile
+			ansible.FailJson(response)
+		}
+		volume = append(volume, volUUID)
 	}
 	response.Changed = true
 	response.Msg = "VM migrated successfully"
-	response.ID = disk
+	response.ID = volume
 	ansible.ExitJson(response)
 }

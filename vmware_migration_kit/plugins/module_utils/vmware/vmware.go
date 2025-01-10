@@ -40,6 +40,7 @@ import (
 type VddkConfig struct {
 	VirtualMachine    *object.VirtualMachine
 	SnapshotReference types.ManagedObjectReference
+	DiskKey           int32
 }
 
 const maxChunkSize = 64 * 1024 * 1024
@@ -167,10 +168,10 @@ func (v *VddkConfig) RemoveSnapshot(ctx context.Context) error {
 	return nil
 }
 
-func (v *VddkConfig) GetDiskKey(ctx context.Context) ([]int32, error) {
+func GetDiskKeys(ctx context.Context, v *object.VirtualMachine) ([]int32, error) {
 	var diskKeys []int32
 	var vm mo.VirtualMachine
-	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vm)
+	err := v.Properties(ctx, v.Reference(), []string{"config.hardware.device"}, &vm)
 	if err != nil {
 		logger.Printf("Failed to retrieve VM properties: %v", err)
 		return nil, err
@@ -178,6 +179,24 @@ func (v *VddkConfig) GetDiskKey(ctx context.Context) ([]int32, error) {
 	for _, device := range vm.Config.Hardware.Device {
 		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
 			diskKeys = append(diskKeys, virtualDisk.VirtualDevice.Key)
+		}
+	}
+	return diskKeys, nil
+}
+
+func (v *VddkConfig) GetDiskKey(ctx context.Context) (int32, error) {
+	var diskKeys int32
+	var vm mo.VirtualMachine
+	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vm)
+	if err != nil {
+		logger.Printf("Failed to retrieve VM properties: %v", err)
+		return -1, err
+	}
+	for _, device := range vm.Config.Hardware.Device {
+		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
+			if virtualDisk.VirtualDevice.Key == v.DiskKey {
+				diskKeys = virtualDisk.VirtualDevice.Key
+			}
 		}
 	}
 	return diskKeys, nil
@@ -222,9 +241,8 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	}
 
 	var disk *types.VirtualDisk
-	diskK, _ := v.GetDiskKey(ctx)
 	for _, device := range conf.Config.Hardware.Device {
-		if d, ok := device.(*types.VirtualDisk); ok && d.Key == diskK[0] {
+		if d, ok := device.(*types.VirtualDisk); ok && d.Key == v.DiskKey {
 			disk = d
 			break
 		}
