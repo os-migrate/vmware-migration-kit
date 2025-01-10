@@ -24,10 +24,22 @@ import (
 )
 
 type Response struct {
+	Msg     string   `json:"msg"`
+	Changed bool     `json:"changed"`
+	Failed  bool     `json:"failed"`
+	ID      []string `json:"id"`
+}
+
+type MigrateResponse struct {
 	Msg     string `json:"msg"`
 	Changed bool   `json:"changed"`
 	Failed  bool   `json:"failed"`
+	Disks   []Disk `json:"disks"`
+}
+
+type Disk struct {
 	ID      string `json:"id"`
+	Primary bool   `json:"primary"`
 }
 
 func ExitJson(responseBody Response) {
@@ -37,6 +49,25 @@ func ExitJson(responseBody Response) {
 func FailJson(responseBody Response) {
 	responseBody.Failed = true
 	returnResponse(responseBody)
+}
+
+func RequireField(field, errorMessage string) string {
+	if field == "" {
+		FailWithMessage(errorMessage)
+	}
+	return field
+}
+
+func DefaultIfEmpty(field, defaultValue string) string {
+	if field == "" {
+		return defaultValue
+	}
+	return field
+}
+
+func FailWithMessage(msg string) {
+	response := Response{Msg: msg}
+	FailJson(response)
 }
 
 func returnResponse(responseBody Response) {
@@ -51,5 +82,12 @@ func returnResponse(responseBody Response) {
 		os.Exit(1)
 	} else {
 		os.Exit(0)
+	}
+}
+
+func returnMResponse(responseBody Response) {
+	var disks []Disk
+	for _, id := range responseBody.ID {
+		disks = append(disks, Disk{ID: id, Primary: true})
 	}
 }
