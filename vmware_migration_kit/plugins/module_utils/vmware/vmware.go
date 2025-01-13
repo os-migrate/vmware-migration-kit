@@ -30,6 +30,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -54,6 +55,17 @@ func init() {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
 	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
+}
+
+func VMWareAuth(ctx context.Context, server string, user string, password string) (*govmomi.Client, error) {
+	u, _ := url.Parse("https://" + server + "/sdk")
+	ProcessUrl(u, user, password)
+	c, err := govmomi.NewClient(ctx, u, true)
+	if err != nil {
+		logger.Printf("Failed to authenticate to VMware client %v", err)
+		return nil, err
+	}
+	return c, nil
 }
 
 func ProcessUrl(u *url.URL, user string, password string) {
