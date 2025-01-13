@@ -1,4 +1,12 @@
 ---
+- name: run Prep for migrator
+  hosts: migrator
+  become: true
+  tasks:
+    - name: Run prep tasks
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.prelude
+
 - name: Import volumes from VMware to OpenStack
   hosts: conversion_host
   become: true
