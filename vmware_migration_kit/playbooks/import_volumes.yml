@@ -1,0 +1,20 @@
+---
+- name: Import volumes from VMware to OpenStack
+  hosts: conversion_host
+  become: true
+  vars:
+    os_migrate_nbkit: true
+    os_migrate_virt_v2v: false
+    os_migrate_create_network_port: false
+    os_migrate_create_os_instance: false
+    os_migrate_tear_down: false
+    vms: "{{ vms_list }}"
+  tasks:
+    - name: Run migration
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.import_workloads
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+      vars:
+        vm_name: "{{ vm }}"
