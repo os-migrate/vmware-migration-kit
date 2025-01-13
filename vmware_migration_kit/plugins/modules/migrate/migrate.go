@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -22,8 +19,6 @@ import (
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/vmware"
 
 	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack"
-	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -31,8 +26,27 @@ import (
 )
 
 /*
-example:
-{"user": "root", "password": "xxxx", "server": "10.0.0.10", "vmname": "rhel-9.4-1"}
+example for args.json file:
+{
+		"user": "root",
+		"password": "root",
+		"server": "10.0.0.7",
+		"vmname": "rhel-9.4-3",
+		"cbtsync": false,
+		"dst_cloud": {
+			"auth": {
+				"auth_url": "https://keystone-public-openstack.apps.ocp-4-16.standalone",
+				"username": "admin",
+				"project_id": "xyz",
+				"project_name": "admin",
+				"user_domain_name": "Default",
+				"password": "admin"
+			},
+			"region_name": "regionOne",
+			"interface": "public",
+			"identity_api_version": 3
+		}
+}
 */
 
 type VddkConfig struct {
@@ -60,6 +74,7 @@ type NbdkitServer struct {
 
 // Ansible
 type ModuleArgs struct {
+	DstCloud     osm_os.DstCloud `json:"dst_cloud"`
 	User         string
 	Password     string
 	Server       string
@@ -327,14 +342,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 
 func main() {
 	var response ansible.Response
-
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"
 		ansible.FailJson(response)
 	}
 
 	argsFile := os.Args[1]
-
 	text, err := ioutil.ReadFile(argsFile)
 	if err != nil {
 		response.Msg = "Could not read configuration file: " + argsFile
@@ -347,7 +360,6 @@ func main() {
 		response.Msg = "Configuration file not valid JSON: " + argsFile
 		ansible.FailJson(response)
 	}
-
 	// Set parameters
 	user := ansible.RequireField(moduleArgs.User, "User is required")
 	password := ansible.RequireField(moduleArgs.Password, "Password is required")
@@ -362,32 +374,17 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	u, _ := url.Parse("https://" + server + "/sdk")
-	vmware.ProcessUrl(u, user, password)
-	c, err := govmomi.NewClient(ctx, u, true)
+	c, err := vmware.VMWareAuth(ctx, server, user, password)
 	if err != nil {
 		logger.Printf("Failed to initiate Vmware client: %v", err)
 		response.Msg = "Failed to initiate Vmware client: " + err.Error()
 		ansible.FailJson(response)
 	}
 
-	// Connect to OpenStack
-	opts, err := openstack.AuthOptionsFromEnv()
+	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.DstCloud)
 	if err != nil {
-		response.Msg = fmt.Sprintf("Failed to get auth options: %v", err)
-		ansible.FailJson(response)
-	}
-	provider, err := openstack.NewClient(opts.IdentityEndpoint)
-	if err != nil {
-		response.Msg = fmt.Sprintf("Failed to authenticate: %v", err)
-		ansible.FailJson(response)
-	}
-	provider.HTTPClient.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	err = openstack.Authenticate(context.TODO(), provider, opts)
-	if err != nil {
-		response.Msg = fmt.Sprintf("Failed to get auth options: %v", err)
+		logger.Printf("Failed to authenticate Openstack client: %v", err)
+		response.Msg = "Failed to authenticate Openstack client: " + err.Error()
 		ansible.FailJson(response)
 	}
 

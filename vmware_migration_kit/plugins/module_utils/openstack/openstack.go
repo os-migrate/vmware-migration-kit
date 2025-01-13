@@ -19,6 +19,7 @@ package openstack
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,24 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
+	"github.com/gophercloud/gophercloud/v2/openstack/config"
 )
+
+type DstCloud struct {
+	Auth               `json:"auth"`
+	RegionName         string `json:"region_name"`
+	Interface          string `json:"interface"`
+	IdentityAPIVersion int    `json:"identity_api_version"`
+}
+
+type Auth struct {
+	AuthURL        string `json:"auth_url"`
+	Username       string `json:"username"`
+	ProjectID      string `json:"project_id"`
+	ProjectName    string `json:"project_name"`
+	UserDomainName string `json:"user_domain_name"`
+	Password       string `json:"password"`
+}
 
 type VolOpts struct {
 	Name       string
@@ -52,6 +70,36 @@ func init() {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
 	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
+}
+
+func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
+	var opts gophercloud.AuthOptions
+	authURL := os.Getenv("OS_AUTH_URL")
+	if authURL != "" {
+		err := fmt.Errorf("")
+		opts, err = openstack.AuthOptionsFromEnv()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		opts = gophercloud.AuthOptions{
+			IdentityEndpoint: moduleOpts.Auth.AuthURL,
+			Username:         moduleOpts.Auth.Username,
+			Password:         moduleOpts.Auth.Password,
+			TenantID:         moduleOpts.Auth.ProjectID,
+			TenantName:       moduleOpts.Auth.ProjectName,
+			DomainName:       moduleOpts.Auth.UserDomainName,
+		}
+	}
+	provider, err := config.NewProviderClient(ctx, opts, config.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+	if err != nil {
+		return nil, err
+	}
+	err = openstack.Authenticate(context.TODO(), provider, opts)
+	if err != nil {
+		return nil, err
+	}
+	return provider, nil
 }
 
 func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bool) (*volumes.Volume, error) {
