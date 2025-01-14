@@ -49,6 +49,7 @@ The following features are availables:
 * Migration with nbdkit server with change block tracking feature (CBT)
 * Migration with virt-v2v
 * Upload migrate volume via Glance
+* Multi disks migration
 
 
 ### Supported OS
