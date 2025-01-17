@@ -1,5 +1,6 @@
 ---
-- name: Create instance ports
+- name: Create instance ports for mapped networks
+  when: used_mapped_networks
   block:
     - name: Create network ports
       os_migrate.vmware_migration_kit.create_network_port:
@@ -11,6 +12,14 @@
       register: ports_uuid
       when: used_mapped_networks|default(true)|bool
 
+    - name: Extract port info
+      set_fact:
+        nics: "{{ ports_uuid.ports | default([]) }}"
+      when: os_migrate_create_network_port|default(true)|bool
+
+- name: Create instance ports for non mapped networks
+  when: not used_mapped_networks
+  block:
     - name: Create network port
       os_migrate.vmware_migration_kit.create_network_port:
         cloud: "{{ dst_cloud }}"
@@ -24,8 +33,8 @@
 
     - name: Extract port info
       set_fact:
-        nics: " {{ ports | default([]) }}"
-  when: os_migrate_create_network_port|default(true)|bool
+        nics: "{{ ports_uuid.ports | default([]) }}"
+      when: os_migrate_create_network_port|default(true)|bool
 
 - name: Set nics fact for os instance creation
   set_fact:

@@ -18,39 +18,53 @@
   register: volume_result
   when: os_migrate_virt_v2v
 
-- name: Set volume UUID as a fact
+- name: Set boot volume UUID as a fact
   set_fact:
-    volume_uuid: "{{ volume_result.volumes[0].id }}"
+    boot_volume_uuid: "{{ volume_result.volumes[0].id }}"
   when: os_migrate_virt_v2v
 
-- name: Create VM in Openstack
-  register: instance_uuid
-  openstack.cloud.server:
-    cloud: "{{ dst_cloud }}"
-    state: present
-    name: "{{ vm_name }}"
-    nics: "{{ nics }}"
-    volumes: "{{ vm_name }}-sda"
-    boot_volume: "{{ vm_name }}-sda"
-    security_groups: "{{ security_groups }}"
-    flavor: "{{ flavor_name_or_uuid }}"
-  when: used_mapped_networks|default(true)|bool
-
-- name: Create VM in Openstack
-  register: instance_uuid
-  openstack.cloud.server:
-    cloud: "{{ dst_cloud }}"
-    state: present
-    name: "{{ vm_name }}"
-    network: "{{ openstack_private_network }}"
-    boot_volume: "{{ volume_uuid }}"
-    security_groups: "{{ security_groups }}"
-    flavor: "{{ flavor_name_or_uuid }}"
-    userdata: |
-      #!/bin/sh
-      dhclient
-  when: not used_mapped_networks|default(true)|bool
-
-- name: Set fact for instance_uuid
+- name: Set boot volume UUID as a fact
   set_fact:
-    instance_uuid: "{{ instance_uuid.server.id }}"
+    boot_volume_uuid: "{{ volume_uuid[0] }}"
+  when: os_migrate_nbkit
+
+- name: Create OpenStack instance with mapped network
+  when: used_mapped_networks
+  block:
+  - name: Create VM in Openstack
+    register: instance_uuid
+    openstack.cloud.server:
+      cloud: "{{ dst_cloud }}"
+      state: present
+      name: "{{ vm_name }}"
+      nics: "{{ nics }}"
+      boot_volume: "{{ boot_volume_uuid }}"
+      security_groups: "{{ security_groups }}"
+      flavor: "{{ flavor_name_or_uuid }}"
+    when: used_mapped_networks|default(true)|bool
+
+  - name: Set fact for instance_uuid
+    set_fact:
+      instance_uuid: "{{ instance_uuid.server.id }}"
+
+- name: Create OpenStack instance with mapped network
+  when: not used_mapped_networks
+  block:
+  - name: Create VM in Openstack
+    register: instance_uuid
+    openstack.cloud.server:
+      cloud: "{{ dst_cloud }}"
+      state: present
+      name: "{{ vm_name }}"
+      network: "{{ openstack_private_network }}"
+      boot_volume: "{{ boot_volume_uuid }}"
+      security_groups: "{{ security_groups }}"
+      flavor: "{{ flavor_name_or_uuid }}"
+      userdata: |
+        #!/bin/sh
+        dhclient
+    when: not used_mapped_networks|default(true)|bool
+
+  - name: Set fact for instance_uuid
+    set_fact:
+      instance_uuid: "{{ instance_uuid.server.id }}"
