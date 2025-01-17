@@ -10,5 +10,19 @@
   openstack.cloud.volume:
     state: absent
     cloud: "{{ dst_cloud }}"
-    name: "{{ volume_uuid }}"
+    name: "{{ uuid }}"
+  loop: "{{ volume_uuid }}"
+  loop_control:
+    loop_var: uuid
   when: delete_os_volume|default(true)|bool
+
+- name: Delete neutron port
+  ignore_errors: true
+  openstack.cloud.port:
+    state: absent
+    cloud: "{{ dst_cloud }}"
+    name: "{{ ports_uuid.ports }}"
+  loop: "{{ nics }}"
+  loop_control:
+    loop_var: ports_uuid
+  when: delete_os_port|default(true)|bool
