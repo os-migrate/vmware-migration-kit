@@ -21,7 +21,7 @@
   openstack.cloud.port:
     state: absent
     cloud: "{{ dst_cloud }}"
-    name: "{{ ports_uuid.ports }}"
+    name: "{{ ports_uuid.port-id }}"
   loop: "{{ nics }}"
   loop_control:
     loop_var: ports_uuid

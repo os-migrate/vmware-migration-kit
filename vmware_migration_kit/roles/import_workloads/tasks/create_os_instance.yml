@@ -31,40 +31,44 @@
 - name: Create OpenStack instance with mapped network
   when: used_mapped_networks
   block:
-  - name: Create VM in Openstack
-    register: instance_uuid
-    openstack.cloud.server:
-      cloud: "{{ dst_cloud }}"
-      state: present
-      name: "{{ vm_name }}"
-      nics: "{{ nics }}"
-      boot_volume: "{{ boot_volume_uuid }}"
-      security_groups: "{{ security_groups }}"
-      flavor: "{{ flavor_name_or_uuid }}"
-    when: used_mapped_networks|default(true)|bool
+    - name: Create VM in Openstack
+      register: instance_output
+      openstack.cloud.server:
+        cloud: "{{ dst_cloud }}"
+        state: present
+        name: "{{ vm_name }}"
+        nics: "{{ nics }}"
+        boot_volume: "{{ boot_volume_uuid }}"
+        security_groups: "{{ security_groups }}"
+        flavor: "{{ flavor_name_or_uuid }}"
+      when: used_mapped_networks|default(true)|bool
 
-  - name: Set fact for instance_uuid
-    set_fact:
-      instance_uuid: "{{ instance_uuid.server.id }}"
+    - name: Set fact for instance_uuid
+      set_fact:
+        instance_uuid: "{{ instance_output.server.id }}"
+      when: used_mapped_networks|default(true)|bool
 
 - name: Create OpenStack instance with mapped network
   when: not used_mapped_networks
   block:
-  - name: Create VM in Openstack
-    register: instance_uuid
-    openstack.cloud.server:
-      cloud: "{{ dst_cloud }}"
-      state: present
-      name: "{{ vm_name }}"
-      network: "{{ openstack_private_network }}"
-      boot_volume: "{{ boot_volume_uuid }}"
-      security_groups: "{{ security_groups }}"
-      flavor: "{{ flavor_name_or_uuid }}"
-      userdata: |
-        #!/bin/sh
-        dhclient
-    when: not used_mapped_networks|default(true)|bool
+    - name: Create VM in Openstack
+      register: instance_output
+      openstack.cloud.server:
+        cloud: "{{ dst_cloud }}"
+        state: present
+        name: "{{ vm_name }}"
+        network: "{{ openstack_private_network }}"
+        boot_volume: "{{ boot_volume_uuid }}"
+        security_groups: "{{ security_groups }}"
+        flavor: "{{ flavor_name_or_uuid }}"
+        userdata: |
+          #!/bin/sh
+          dhclient
+      when: not used_mapped_networks|default(true)|bool
 
-  - name: Set fact for instance_uuid
-    set_fact:
-      instance_uuid: "{{ instance_uuid.server.id }}"
+    - name: Set fact for instance_uuid
+      set_fact:
+        instance_uuid: "{{ instance_output.server.id }}"
+      when:
+        not used_mapped_networks|default(true)|bool
+        'server' in instance_uuid
