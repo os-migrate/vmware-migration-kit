@@ -21,8 +21,8 @@
   openstack.cloud.port:
     state: absent
     cloud: "{{ dst_cloud }}"
-    name: "{{ ports_uuid.port-id }}"
+    name: "{{ ports.port-id }}"
   loop: "{{ nics }}"
   loop_control:
-    loop_var: ports_uuid
+    loop_var: ports
   when: delete_os_port|default(true)|bool
