@@ -3,8 +3,8 @@
   block:
     - name: Create network ports
       os_migrate.vmware_migration_kit.create_network_port:
-        cloud: "{{ dst_cloud }}"
-        os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/nics_{{ vm_name }}.json"
+        cloud: "{{ dst_cloud }}"
+        os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/nics.json"
         vm_name: "{{ vm_name }}"
         used_mapped_networks: true
         security_groups: ["{{ security_groups | default('default') }}"]
@@ -13,8 +13,8 @@
 
     - name: Create network port
       os_migrate.vmware_migration_kit.create_network_port:
-        cloud: "{{ dst_cloud }}"
-        os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/macs_{{ vm_name }}.json"
+        cloud: "{{ dst_cloud }}"
+        os_migrate_nics_file_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/macs.json"
         vm_name: "{{ vm_name }}"
         used_mapped_networks: false
         security_groups: ["{{ security_groups | default('default') }}"]
