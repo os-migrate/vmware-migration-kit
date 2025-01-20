@@ -327,6 +327,11 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
 				}
+				err = c.VddkConfig.PowerOffVM(ctx)
+				if err != nil {
+					logger.Printf("Failed to power off vm %v", err)
+					return "", err
+				}
 			} else {
 				logger.Printf("Skipping V2V conversion...")
 			}

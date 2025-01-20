@@ -50,6 +50,7 @@ The following features are availables:
 * Migration with virt-v2v
 * Upload migrate volume via Glance
 * Multi disks migration
+* Ansible Automation Platform (AAP)
 
 
 ### Supported OS
