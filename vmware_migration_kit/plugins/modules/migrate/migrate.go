@@ -322,7 +322,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			}
 			if runV2V {
 				logger.Printf("Running V2V conversion with %v", volume.ID)
-				err = nbdkit.V2VConversion(c.OSMDataDir, devPath)
+				err = nbdkit.V2VConversion(devPath)
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
