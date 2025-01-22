@@ -170,8 +170,8 @@ func versionIsLower(cVersion, rVersion string) bool {
 }
 
 func V2VConversion(path string) error {
-	virtV2VPath, err := findVirtV2v()
 	var opt string
+	_, err := findVirtV2v()
 	if err != nil {
 		logger.Printf("Failed to find virt-v2v-in-place: %v", err)
 		return err
@@ -188,7 +188,7 @@ func V2VConversion(path string) error {
 		opt = "--no-selinux-relabel"
 	}
 
-	v2vcmd := virtV2VPath + " " + opt + " -i disk " + path
+	v2vcmd := "virt-v2v-in-place " + opt + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Printf("Running virt-v2v: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
