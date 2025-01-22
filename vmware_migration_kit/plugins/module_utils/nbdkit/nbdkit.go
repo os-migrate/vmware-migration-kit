@@ -123,7 +123,7 @@ func NbdCopy(device string) error {
 func findVirtV2v() (string, error) {
 	paths := strings.Split(os.Getenv("PATH"), ":")
 	for _, path := range paths {
-		if _, err := os.Stat(path + "virt-v2v-in-place"); err == nil {
+		if _, err := os.Stat(path + "/virt-v2v-in-place"); err == nil {
 			logger.Printf("Found virt-v2v-in-place at: %s\n", path)
 			return path + "/", nil
 		}
