@@ -20,6 +20,10 @@ a very number of virtual machines as entry point, or can migrate sensitive virtu
 a near zero down time with the change block tracking VMWare option (CBT) and so perform the virtual
 machine migration in two steps. The migration can also be done without conversion host.
 
+### Nbdkit migration example
+
+![Alt text](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
+
 ## Workflow
 
 There is different ways to run the migration from VMWare to OpenStack.
