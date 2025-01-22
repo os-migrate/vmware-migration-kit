@@ -22,7 +22,7 @@
   ansible.builtin.package:
     name: python3-openstackclient
     state: present
-  when: os_migrate_virt_v2v
+  when: os_migrate_virt_v2v|default(false)|bool
 
 - name: Check if vmware-vix-disklib is present
   ansible.builtin.shell: rpm -q vmware-vix-disklib
