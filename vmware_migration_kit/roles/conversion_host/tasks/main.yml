@@ -26,20 +26,21 @@
   when: vmware_vix_disklib_installed.rc != 0
 
 - name: Check if virt-v2v-in-place exists in libexec
-  stat:
+  ansible.builtin.stat:
     path: /usr/libexec/virt-v2v-in-place
   register: libexec_stat
 
 - name: Check if virt-v2v-in-place is in $PATH
-  shell: "command -v virt-v2v-in-place || true"
+  ansible.builtin.shell: "command -v virt-v2v-in-place || true"
   register: virt_in_path
   changed_when: false
 
 - name: Copy /usr/libexec/virt-v2v-in-place to /usr/bin if not in $PATH
-  copy:
+  ansible.builtin.copy:
     src: /usr/libexec/virt-v2v-in-place
     dest: /usr/bin/virt-v2v-in-place
     mode: '0755'
+    remote_src: true
   when:
     - libexec_stat.stat.exists
     - virt_in_path.stdout == ""
