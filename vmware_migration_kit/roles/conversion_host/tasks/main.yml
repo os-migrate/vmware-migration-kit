@@ -25,6 +25,25 @@
     dnf localinstall -y {{ vmware_vix_disklib }}
   when: vmware_vix_disklib_installed.rc != 0
 
+- name: Check if virt-v2v-in-place exists in libexec
+  stat:
+    path: /usr/libexec/virt-v2v-in-place
+  register: libexec_stat
+
+- name: Check if virt-v2v-in-place is in $PATH
+  shell: "command -v virt-v2v-in-place || true"
+  register: virt_in_path
+  changed_when: false
+
+- name: Copy /usr/libexec/virt-v2v-in-place to /usr/bin if not in $PATH
+  copy:
+    src: /usr/libexec/virt-v2v-in-place
+    dest: /usr/bin/virt-v2v-in-place
+    mode: '0755'
+  when:
+    - libexec_stat.stat.exists
+    - virt_in_path.stdout == ""
+
 - name: Create configuration directory .config/openstack
   ansible.builtin.file:
     path: "~/.config/openstack"
