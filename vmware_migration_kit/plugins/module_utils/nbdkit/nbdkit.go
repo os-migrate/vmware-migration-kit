@@ -123,9 +123,9 @@ func NbdCopy(device string) error {
 func findVirtV2v() (string, error) {
 	paths := strings.Split(os.Getenv("PATH"), ":")
 	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
+		if _, err := os.Stat(path + "virt-v2v-in-place"); err == nil {
 			logger.Printf("Found virt-v2v-in-place at: %s\n", path)
-			return path, nil
+			return path + "/", nil
 		}
 	}
 	logger.Println("virt-v2v-in-place not found on the file system...")
@@ -187,7 +187,7 @@ func V2VConversion(path string) error {
 	} else {
 		opt = "--no-selinux-relabel"
 	}
-
+	os.Setenv("LIBGUESTFS_BACKEND", "direct")
 	v2vcmd := "virt-v2v-in-place " + opt + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Printf("Running virt-v2v: %v", cmd)

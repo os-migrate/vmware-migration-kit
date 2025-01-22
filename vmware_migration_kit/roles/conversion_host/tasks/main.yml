@@ -12,7 +12,6 @@
     - virt-v2v
     - qemu-kvm
     - python3-openstackclient
-    - wget
 
 - name: Check if vmware-vix-disklib is present
   ansible.builtin.shell: rpm -q vmware-vix-disklib
