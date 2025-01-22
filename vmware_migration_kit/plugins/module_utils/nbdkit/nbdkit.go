@@ -19,11 +19,14 @@ package nbdkit
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -117,10 +120,77 @@ func NbdCopy(device string) error {
 	return nil
 }
 
-func V2VConversion(v2vpath string, path string) error {
-	//@TODO: add function to search for virt-v2v-in-place, depending on the OS
-	// the binary could be in different locations
-	v2vcmd := "virt-v2v-in-place --no-selinux-relabel -i disk " + path
+func findVirtV2v() (string, error) {
+	rhelPath := "/usr/libexec/virt-v2v-in-place"
+	pathDirs := strings.Split(os.Getenv("PATH"), ":")
+	paths := append([]string{rhelPath}, pathDirs...)
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			logger.Printf("Found virt-v2v-in-place at: %s\n", path)
+			return path, nil
+		}
+	}
+	logger.Println("virt-v2v-in-place not found on the file system...")
+	return "", fmt.Errorf("virt-v2v-in-place not found on the file system...")
+}
+
+func checkLibvirtVersion() string {
+	cmd := exec.Command("libvirtd", "--version")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	if err := cmd.Run(); err != nil {
+		logger.Printf("Error checking libvirt version: %v\n", err)
+		return ""
+	}
+	output := strings.TrimSpace(out.String())
+	versionParts := strings.Fields(output)
+	if len(versionParts) > 1 {
+		logger.Printf("Libvirt version: %s\n", versionParts[len(versionParts)-1])
+		return versionParts[len(versionParts)-1]
+	}
+	return ""
+}
+
+func versionIsLower(cVersion, rVersion string) bool {
+	currentParts := strings.Split(cVersion, ".")
+	requiredParts := strings.Split(rVersion, ".")
+	for i := 0; i < len(requiredParts); i++ {
+		if i >= len(currentParts) {
+			return true
+		}
+		currentPart, _ := strconv.Atoi(currentParts[i])
+		requiredPart, _ := strconv.Atoi(requiredParts[i])
+		if currentPart < requiredPart {
+			return true
+		} else if currentPart > requiredPart {
+			return false
+		}
+	}
+	return false
+}
+
+func V2VConversion(path string) error {
+	virtV2VPath, err := findVirtV2v()
+	var opt string
+	if err != nil {
+		logger.Printf("Failed to find virt-v2v-in-place: %v", err)
+		return err
+	}
+	libvirtV := checkLibvirtVersion()
+	if libvirtV == "" {
+		logger.Println("Failed to check libvirt version...")
+		return fmt.Errorf("Failed to check libvirt version...")
+	}
+	if versionIsLower(libvirtV, "10.10") {
+		logger.Printf("Libvirt version is lower 10.10, we won't use --no-selinux-relabel option")
+		opt = ""
+	} else {
+		opt = "--no-selinux-relabel"
+	}
+
+	v2vcmd := virtV2VPath + " " + opt + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Printf("Running virt-v2v: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
