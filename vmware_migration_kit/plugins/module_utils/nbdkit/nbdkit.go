@@ -121,9 +121,7 @@ func NbdCopy(device string) error {
 }
 
 func findVirtV2v() (string, error) {
-	rhelPath := "/usr/libexec/virt-v2v-in-place"
-	pathDirs := strings.Split(os.Getenv("PATH"), ":")
-	paths := append([]string{rhelPath}, pathDirs...)
+	paths := strings.Split(os.Getenv("PATH"), ":")
 	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
 			logger.Printf("Found virt-v2v-in-place at: %s\n", path)
