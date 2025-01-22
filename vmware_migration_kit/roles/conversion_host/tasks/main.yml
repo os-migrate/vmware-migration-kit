@@ -1,6 +1,6 @@
 - name: Install Openstack SIG repo
   ansible.builtin.package:
-    name: centos-release-openstack-zed.noarch
+    name: centos-release-openstack-bobcat
     state: present
 
 - name: Make sure required package are installed
@@ -11,7 +11,18 @@
     - libvirt
     - virt-v2v
     - qemu-kvm
-    - python3-openstackclient
+    - python3.11
+    - python3-pip
+
+- name: Install openstacksdk
+  ansible.builtin.pip:
+    name: openstacksdk>1.0.0
+
+- name: Install openstack client
+  ansible.builtin.package:
+    name: python3-openstackclient
+    state: present
+  when: os_migrate_virt_v2v
 
 - name: Check if vmware-vix-disklib is present
   ansible.builtin.shell: rpm -q vmware-vix-disklib
