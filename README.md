@@ -54,6 +54,63 @@ And the live demo here:
 [![Alt Migration from VMware to OpenStack](https://img.youtube.com/vi/XnEQ8WVGW64/0.jpg)](https://www.youtube.com/watch?v=XnEQ8WVGW64)
 
 
+#### Variables files and Ansible command presented in the demo:
+
+**myvars.yaml:**
+
+```
+# osm working directory:
+os_migrate_data_dir: /opt/os-migrate
+copy_openstack_credentials_to_conv_host: false
+
+# Re-use an already deployed conversion host:
+already_deploy_conversion_host: true
+
+# If no mapped network then set the openstack network:
+openstack_private_network: private
+
+# Security groups for the instance:
+security_groups: ab7e2b1a-b9d3-4d31-9d2a-bab63f823243
+use_existing_flavor: true
+
+os_migrate_create_network_port: true
+copy_metadata_to_conv_host: true
+
+vms_list:
+  - rhel-9.4-1
+```
+
+**secrets.yaml:**
+
+```
+# VMware parameters:
+esxi_hostname: 10.0.0.7
+vcenter_hostname: 10.0.0.7
+vcenter_username: root
+vcenter_password: root
+vcenter_datacenter: Datacenter
+
+os_cloud_environ: psi-rhos-upgrades-ci
+dst_cloud:
+  auth:
+    auth_url: https://keystone-public-openstack.apps.ocp-4-16.standalone
+    username: admin
+    project_id: xyz
+    project_name: admin
+    user_domain_name: Default
+    password: openstack
+  region_name: regionOne
+  interface: public
+  insecure: true
+  identity_api_version: 3
+```
+
+**Ansible command:**
+
+```
+ansible-playbook -i inventory.yml vmware_migration_kit/migration.yml -e @secrets.yaml -e @myvars.yaml
+```
+
 ## Workflow
 
 There is different ways to run the migration from VMWare to OpenStack.
