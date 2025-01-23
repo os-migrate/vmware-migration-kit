@@ -22,7 +22,26 @@ machine migration in two steps. The migration can also be done without conversio
 
 ### Nbdkit migration example
 
-![Alt text](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
+![Alt Nbdkit](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
+
+
+### Nbdkit migration example with the Change Block Tracking
+
+#### Step 1: The data are copied and the change ID from the VMware disk are set to the Cinder volume as metadata
+
+> **Note:** The conversion cannot be made at this moment, and the OS instance is not created.
+This functionality can be used for large disks with a lot of data to transfer. It helps avoid a prolonged service interruption.
+
+![Alt CBT Step 1](doc/osm-migration-nbdkit-vmware-workflow-with-osm_cbt_step1.svg)
+
+#### Step 2: OSM compare the source (VMware disk) and the destination (Openstack Volume) change ID
+
+> **Note:** If the change IDs are not equal, the changed blocks between the source and destination are synced.
+Then, the conversion to libvirt/KVM is triggered, and the OpenStack instance is created.
+This allows for minimal downtime for the VMs.
+
+![Alt CBT Step 2](doc/osm-migration-nbdkit-vmware-workflow-with-osm_cbt_step2.svg)
+
 
 ### Migration demo from an AEE
 
