@@ -20,6 +20,56 @@ a very number of virtual machines as entry point, or can migrate sensitive virtu
 a near zero down time with the change block tracking VMWare option (CBT) and so perform the virtual
 machine migration in two steps. The migration can also be done without conversion host.
 
+## Workflow
+
+There is different ways to run the migration from VMWare to OpenStack.
+
+* The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
+This way allow the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
+* The second one by using virt-v2v binding with a conversion host. Here you can use a conversion
+host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
+for you.
+* A third way is available where you can skip the conversion host and perform the migration on a Linux machine, the volume
+migrated and converted will be upload a Glance image or can be use later as a Cinder volume. This way is not recommended if
+you have big disk or a huge amount of VMs to migrate: the performance are really slower than with the other ways.
+
+All of these are configurable with Ansible boolean variables.
+
+
+## Features and supported OS
+
+### Features
+
+The following features are availables:
+
+* Discovery mode
+* Network mapping
+* Port creation and mac addresses mapping
+* Openstack flavor mapping and creation
+* Migration with nbdkit server with change block tracking feature (CBT)
+* Migration with virt-v2v
+* Upload migrate volume via Glance
+* Multi disks migration
+* Ansible Automation Platform (AAP)
+
+
+### Supported OS
+
+Currently we are supporting the following matrice:
+
+| OS Family       | Version         | Supported & Tested | Not Tested Yet |
+|-----------------|-----------------|--------------------|----------------|
+| RHEL            | 9.4            | Yes                | -              |
+| RHEL            | 9.3 and lower  | Yes                | -              |
+| RHEL            | 8.5            | Yes                | -              |
+| RHEL            | 8.4 and lower  | -                  | Yes            |
+| CentOS          | 9              | Yes                | -              |
+| CentOS          | 8              | Yes                | -              |
+| Ubuntu Server   | -              | Yes                | -              |
+| Windows         | 10             | Yes                | -              |
+| Windows Server  | X              | -                  | Yes            |
+| Suse            | X              | -                  | Yes            |
+
 ### Nbdkit migration example
 
 ![Alt Nbdkit](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
@@ -110,56 +160,6 @@ dst_cloud:
 ```
 ansible-playbook -i inventory.yml vmware_migration_kit/migration.yml -e @secrets.yaml -e @myvars.yaml
 ```
-
-## Workflow
-
-There is different ways to run the migration from VMWare to OpenStack.
-
-* The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
-This way allow the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
-* The second one by using virt-v2v binding with a conversion host. Here you can use a conversion
-host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
-for you.
-* A third way is available where you can skip the conversion host and perform the migration on a Linux machine, the volume
-migrated and converted will be upload a Glance image or can be use later as a Cinder volume. This way is not recommended if
-you have big disk or a huge amount of VMs to migrate: the performance are really slower than with the other ways.
-
-All of these are configurable with Ansible boolean variables.
-
-
-## Features and supported OS
-
-### Features
-
-The following features are availables:
-
-* Discovery mode
-* Network mapping
-* Port creation and mac addresses mapping
-* Openstack flavor mapping and creation
-* Migration with nbdkit server with change block tracking feature (CBT)
-* Migration with virt-v2v
-* Upload migrate volume via Glance
-* Multi disks migration
-* Ansible Automation Platform (AAP)
-
-
-### Supported OS
-
-Currently we are supporting the following matrice:
-
-| OS Family       | Version         | Supported & Tested | Not Tested Yet |
-|-----------------|-----------------|--------------------|----------------|
-| RHEL            | 9.4            | Yes                | -              |
-| RHEL            | 9.3 and lower  | Yes                | -              |
-| RHEL            | 8.5            | Yes                | -              |
-| RHEL            | 8.4 and lower  | -                  | Yes            |
-| CentOS          | 9              | Yes                | -              |
-| CentOS          | 8              | Yes                | -              |
-| Ubuntu Server   | -              | Yes                | -              |
-| Windows         | 10             | Yes                | -              |
-| Windows Server  | X              | -                  | Yes            |
-| Suse            | X              | -                  | Yes            |
 
 ## Usage
 
