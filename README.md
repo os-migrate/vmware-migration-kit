@@ -24,6 +24,17 @@ machine migration in two steps. The migration can also be done without conversio
 
 ![Alt text](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
 
+### Migration demo from an AEE
+
+The content of the Ansible Execution Environment could be find here:
+
+https://github.com/os-migrate/aap/blob/main/aae-container-file
+
+And the live demo here:
+
+[![Alt Migration from VMware to OpenStack](https://img.youtube.com/vi/XnEQ8WVGW64/0.jpg)](https://www.youtube.com/watch?v=XnEQ8WVGW64)
+
+
 ## Workflow
 
 There is different ways to run the migration from VMWare to OpenStack.
