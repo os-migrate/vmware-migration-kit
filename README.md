@@ -123,8 +123,14 @@ openstack_private_network: private
 security_groups: ab7e2b1a-b9d3-4d31-9d2a-bab63f823243
 use_existing_flavor: true
 
+# network settings for openstack:
 os_migrate_create_network_port: true
 copy_metadata_to_conv_host: true
+used_mapped_networks: false
+
+# Use for settings rhel network device:
+target_os: rhel
+os_migrate_configure_network: true
 
 vms_list:
   - rhel-9.4-1
