@@ -60,5 +60,3 @@ main() {
   generate_udev_rules "${exdevices[@]}"
 }
 main
-
-#/usr/bin/virt-v2v-in-place --firstboot /home/cloud-user/udev.sh  -i disk /dev/vde -x -v
