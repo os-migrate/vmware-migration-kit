@@ -66,6 +66,7 @@ type MigrationConfig struct {
 	OSClient     *gophercloud.ProviderClient
 	ConvHostName string
 	Compression  string
+	FirstBoot    string
 }
 
 type NbdkitServer struct {
@@ -85,6 +86,7 @@ type ModuleArgs struct {
 	CBTSync      bool
 	ConvHostName string
 	Compression  string
+	FirstBoot    string
 }
 
 var logger *log.Logger
@@ -322,7 +324,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			}
 			if runV2V {
 				logger.Printf("Running V2V conversion with %v", volume.ID)
-				err = nbdkit.V2VConversion(devPath)
+				err = nbdkit.V2VConversion(devPath, c.FirstBoot)
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
@@ -375,6 +377,7 @@ func main() {
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
+	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -420,6 +423,7 @@ func main() {
 			CBTSync:      cbtsync,
 			ConvHostName: convHostName,
 			Compression:  compression,
+			FirstBoot:    firsBoot,
 			VddkConfig: &vmware.VddkConfig{
 				VirtualMachine:    vm,
 				SnapshotReference: types.ManagedObjectReference{},

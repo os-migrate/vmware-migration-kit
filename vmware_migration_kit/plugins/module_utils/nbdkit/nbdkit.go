@@ -169,8 +169,8 @@ func versionIsLower(cVersion, rVersion string) bool {
 	return false
 }
 
-func V2VConversion(path string) error {
-	var opt string
+func V2VConversion(path, bsPath string) error {
+	var opts string
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Printf("Failed to find virt-v2v-in-place: %v", err)
@@ -183,12 +183,15 @@ func V2VConversion(path string) error {
 	}
 	if versionIsLower(libvirtV, "10.10") {
 		logger.Printf("Libvirt version is lower 10.10, we won't use --no-selinux-relabel option")
-		opt = ""
+		opts = ""
 	} else {
-		opt = "--no-selinux-relabel"
+		opts = "--no-selinux-relabel"
+	}
+	if bsPath != "" {
+		opts = opts + " --firstboot " + bsPath
 	}
 	os.Setenv("LIBGUESTFS_BACKEND", "direct")
-	v2vcmd := "virt-v2v-in-place " + opt + " -i disk " + path
+	v2vcmd := "virt-v2v-in-place " + opts + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Printf("Running virt-v2v: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()

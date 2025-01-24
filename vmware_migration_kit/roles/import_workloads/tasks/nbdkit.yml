@@ -1,4 +1,13 @@
 ---
+- name: Push network config file to the conversion host
+  ansible.builtin.copy:
+    src: "network_config.sh"
+    dest: "{{ os_migrate_data_dir }}/network_config.sh"
+    mode: '0755'
+  when:
+    - os_migrate_configure_network|default(false)|bool
+    - target_os == 'rhel'
+
 - name: Migrate Guest from Vmware using nbdkit
   os_migrate.vmware_migration_kit.migrate.migrate:
     dst_cloud: "{{ dst_cloud }}"
