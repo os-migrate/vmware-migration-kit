@@ -29,8 +29,14 @@ dst_cloud:
 # OpenStack migration parameters:
 # Use mapped networks or not:
 used_mapped_networks: false
-network_map:
-  VM Network: provider_network_1
+
+# @TODO: set value as dict or detect the OS type directly with VMware
+# vms_list:
+#   name: rhel-1, os_type: rhel
+# For rhel family system (rhel and centos 8 and 9)
+# you need to set this option to true for setting the
+# correct udev rules:
+os_migrate_configure_network: true
 
 # If no mapped network then set the openstack network:
 openstack_private_network: provider_network_1
@@ -39,7 +45,7 @@ openstack_private_network: provider_network_1
 security_groups: 4f077e64-bdf6-4d2a-9f2c-c5588f4948ce
 use_existing_flavor: true
 
-os_migrate_create_network_port: false
+os_migrate_create_network_port: true
 
 # OS-migrate parameters:
 # osm working directory:
