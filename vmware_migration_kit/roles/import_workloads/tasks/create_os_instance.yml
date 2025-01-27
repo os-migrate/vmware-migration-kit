@@ -40,6 +40,7 @@
         state: present
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
+        volumes: "{{ volume_uuid[1:] }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
@@ -62,6 +63,7 @@
         state: present
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
+        volumes: "{{ volume_uuid[1:] }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
