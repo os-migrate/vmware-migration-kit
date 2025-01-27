@@ -325,7 +325,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			if runV2V {
 				logger.Printf("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
-				if ok, _ := c.VddkConfig.IsRhelCentosFamily(ctx); ok {
+				if ok, _ := c.VddkConfig.IsRhelCentosFamily(ctx); ok && c.FirstBoot != "" {
 					netConfScript = c.FirstBoot
 				} else {
 					netConfScript = ""
@@ -383,7 +383,7 @@ func main() {
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
-	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "/opt/os-migrate/network_config.sh")
+	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 
 	ctx, cancel := context.WithCancel(context.Background())
