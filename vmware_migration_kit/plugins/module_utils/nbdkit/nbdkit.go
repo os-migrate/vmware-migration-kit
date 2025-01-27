@@ -188,6 +188,11 @@ func V2VConversion(path, bsPath string) error {
 		opts = "--no-selinux-relabel"
 	}
 	if bsPath != "" {
+		_, err := os.Stat(bsPath)
+		if err != nil {
+			logger.Printf("Failed to find firstboot script: %v", err)
+			return err
+		}
 		opts = opts + " --firstboot " + bsPath
 	}
 	os.Setenv("LIBGUESTFS_BACKEND", "direct")

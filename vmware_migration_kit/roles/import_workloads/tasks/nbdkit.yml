@@ -7,14 +7,13 @@
       dest: "{{ os_migrate_data_dir }}/network_config.sh"
       mode: '0755'
     when:
-      - os_migrate_configure_network|default(false)|bool
-      - target_os == 'rhel'
+      - os_migrate_configure_network|default(true)|bool
+
   - name: Set fact for network config script
     set_fact:
       network_config_script: "{{ os_migrate_data_dir }}/network_config.sh"
     when:
-      - os_migrate_configure_network|default(false)|bool
-      - target_os == 'rhel'
+      - os_migrate_configure_network|default(true)|bool
 
 - name: Migrate Guest from Vmware using nbdkit
   os_migrate.vmware_migration_kit.migrate.migrate:
@@ -24,7 +23,7 @@
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
-    firstboot: "{{ network_config_script | default('') }}"
+    firstboot: "{{ network_config_script | default('/opt/os-migrate/network_config.sh') }}"
     # cbtsync: "{{ cbt_sync }} | default(false) | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output

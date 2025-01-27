@@ -125,6 +125,34 @@ func (v *VddkConfig) IsWindowsFamily(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+func (v *VddkConfig) IsRhelCentosFamily(ctx context.Context) (bool, error) {
+	var vmConfig mo.VirtualMachine
+	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.guestFullName", "config.guestId"}, &vmConfig)
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
+	}
+
+	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
+	guestId := strings.ToLower(vmConfig.Config.GuestId)
+
+	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+
+	if strings.Contains(guestFullName, "red hat") || strings.Contains(guestFullName, "centos") || strings.Contains(guestFullName, "rhel") ||
+		strings.Contains(guestId, "rhel") || strings.Contains(guestId, "centos") {
+		if strings.Contains(guestFullName, "8") || strings.Contains(guestFullName, "9") ||
+			strings.Contains(guestId, "8") || strings.Contains(guestId, "9") {
+			logger.Printf("Detected RHEL/CentOS family (8 or newer).")
+			return true, nil
+		}
+		logger.Printf("Detected RHEL/CentOS family but version is not 8 or newer.")
+		return false, nil
+	}
+
+	logger.Printf("No RHEL/CentOS family detected in Guest Full name or ID.")
+	return false, nil
+}
+
 func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
 	powerState, err := v.VirtualMachine.PowerState(ctx)
 	if err != nil {

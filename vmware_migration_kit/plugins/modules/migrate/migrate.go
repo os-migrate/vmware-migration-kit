@@ -324,15 +324,21 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			}
 			if runV2V {
 				logger.Printf("Running V2V conversion with %v", volume.ID)
-				err = nbdkit.V2VConversion(devPath, c.FirstBoot)
+				var netConfScript string
+				if ok, _ := c.VddkConfig.IsRhelCentosFamily(ctx); ok {
+					netConfScript = c.FirstBoot
+				} else {
+					netConfScript = ""
+				}
+				err = nbdkit.V2VConversion(devPath, netConfScript)
 				if err != nil {
 					logger.Printf("Failed to convert disk: %v", err)
 					return "", err
 				}
 				err = c.VddkConfig.PowerOffVM(ctx)
 				if err != nil {
-					logger.Printf("Failed to power off vm %v", err)
-					return "", err
+					logger.Printf("Warning: Failed to power off vm %v", err)
+					logger.Printf("You will have to power off the vm manually...")
 				}
 			} else {
 				logger.Printf("Skipping V2V conversion...")
@@ -377,7 +383,7 @@ func main() {
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
-	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
+	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "/opt/os-migrate/network_config.sh")
 	cbtsync := moduleArgs.CBTSync
 
 	ctx, cancel := context.WithCancel(context.Background())
