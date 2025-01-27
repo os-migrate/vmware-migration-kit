@@ -170,22 +170,11 @@ func versionIsLower(cVersion, rVersion string) bool {
 }
 
 func V2VConversion(path, bsPath string) error {
-	var opts string
+	var opts string = ""
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Printf("Failed to find virt-v2v-in-place: %v", err)
 		return err
-	}
-	libvirtV := checkLibvirtVersion()
-	if libvirtV == "" {
-		logger.Println("Failed to check libvirt version...")
-		return fmt.Errorf("Failed to check libvirt version...")
-	}
-	if versionIsLower(libvirtV, "10.10") {
-		logger.Printf("Libvirt version is lower 10.10, we won't use --no-selinux-relabel option")
-		opts = ""
-	} else {
-		opts = "--no-selinux-relabel"
 	}
 	if bsPath != "" {
 		_, err := os.Stat(bsPath)
