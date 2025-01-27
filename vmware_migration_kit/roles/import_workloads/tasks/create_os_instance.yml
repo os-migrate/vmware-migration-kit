@@ -52,7 +52,7 @@
   when: not used_mapped_networks
   block:
     - name: Create VM in Openstack
-      register: instance_output
+      register: instance_output_non_mapped
       openstack.cloud.server:
         cloud: "{{ dst_cloud }}"
         state: present
@@ -68,7 +68,7 @@
 
     - name: Set fact for instance_uuid
       set_fact:
-        instance_uuid: "{{ instance_output.server.id }}"
+        instance_uuid: "{{ instance_output_non_mapped.server.id }}"
       when:
         not used_mapped_networks|default(true)|bool
         'server' in instance_uuid
