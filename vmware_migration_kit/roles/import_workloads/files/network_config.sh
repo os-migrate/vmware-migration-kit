@@ -50,7 +50,7 @@ generate_udev_rules() {
 }
 
 main() {
-  exdevices=($(extract_network_devices))
+  exdevices=($(extract_ifconfig))
 
   if [[ ${#exdevices[@]} -eq 0 ]]; then
     echo "No network devices found. Exiting."
