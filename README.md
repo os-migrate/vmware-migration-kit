@@ -172,7 +172,7 @@ Clone repository or install from ansible galaxy
 
 ```
 git clone https://github.com/os-migrate/vmware-migration-kit
-ansible-galaxy install collection os_migrate.vmware_migration_kit
+ansible-galaxy collection install os_migrate.vmware_migration_kit
 ```
 
 ### Nbdkit (default)
