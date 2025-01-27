@@ -23,7 +23,7 @@
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
-    firstboot: "{{ network_config_script | default('/opt/os-migrate/network_config.sh') }}"
+    firstboot: "{{ network_config_script | default('') }}"
     # cbtsync: "{{ cbt_sync }} | default(false) | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
