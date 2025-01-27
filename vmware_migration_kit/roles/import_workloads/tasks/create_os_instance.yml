@@ -30,8 +30,8 @@
 
 - name: Create OpenStack instance with mapped network
   when:
-    used_mapped_networks
-    os_migrate_create_network_port
+    - used_mapped_networks
+    - os_migrate_create_network_port
   block:
     - name: Create VM in Openstack
       register: instance_output
@@ -52,8 +52,8 @@
 
 - name: Create OpenStack instance with mapped network
   when:
-    not used_mapped_networks
-    os_migrate_create_network_port
+    - not used_mapped_networks
+    - os_migrate_create_network_port
   block:
     - name: Create VM in Openstack
       register: instance_output_non_mapped
@@ -61,7 +61,7 @@
         cloud: "{{ dst_cloud }}"
         state: present
         name: "{{ vm_name }}"
-        network: "{{ nics }}"
+        nics: "{{ nics }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
@@ -76,8 +76,8 @@
 
 - name: Create OpenStack instance with mapped network
   when:
-    not os_migrate_create_network_port
-    not used_mapped_networks
+    - not os_migrate_create_network_port
+    - not used_mapped_networks
   block:
     - name: Create VM in Openstack
       register: instance_output_without_port
