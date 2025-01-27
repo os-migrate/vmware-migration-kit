@@ -71,4 +71,4 @@
   ansible.builtin.copy:
     src: "{{ os_migrate_clouds_path|default(os_migrate_data_dir ~ '/clouds.yaml') }}"
     dest: "~/.config/openstack/clouds.yaml"
-  when: copy_openstack_credentials_to_conv_host|default(true)|bool
+  when: copy_openstack_credentials_to_conv_host|default(false)|bool
