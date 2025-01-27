@@ -44,7 +44,7 @@
 - name: Dump guest_mac to json file
   copy:
     content: "{{ guest_mac }}"
-    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/macs.json"
+    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/nics.json"
   delegate_to: localhost
   run_once: true
   when: not used_mapped_networks|default(true)|bool
