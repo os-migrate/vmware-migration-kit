@@ -182,7 +182,7 @@ func V2VConversion(path, bsPath string) error {
 			logger.Printf("Failed to find firstboot script: %v", err)
 			return err
 		}
-		opts = opts + " --firstboot " + bsPath
+		opts = opts + " --run " + bsPath
 	}
 	os.Setenv("LIBGUESTFS_BACKEND", "direct")
 	v2vcmd := "virt-v2v-in-place " + opts + " -i disk " + path
