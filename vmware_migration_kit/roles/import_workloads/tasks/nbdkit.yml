@@ -54,7 +54,7 @@
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
     firstboot: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
-    # cbtsync: "{{ cbt_sync }} | default(false) | bool"
+    #cbtsync: "{{ cbt_sync }} | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
 

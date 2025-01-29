@@ -1,4 +1,5 @@
-used_mapped_networks: true
+cbt_sync: false
+used_mapped_networks: false
 image_metadata:
   - hw_rng_model='virtio'
   - os_type='linux'
