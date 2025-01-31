@@ -404,7 +404,12 @@ func main() {
 
 	vmpath := vddkpath + "/" + vmname
 	finder := find.NewFinder(c.Client)
-	vm, _ := finder.VirtualMachine(ctx, vmpath)
+	vm, err := finder.VirtualMachine(ctx, vmpath)
+	if err != nil {
+		logger.Printf("Failed to find VM: %v, in vm path: %v", err, vmpath)
+		response.Msg = "Failed to find VM: " + err.Error() + " in vm path: " + vmpath
+		ansible.FailJson(response)
+	}
 	var disks []int32
 	var volume []string
 	var runV2V = true
