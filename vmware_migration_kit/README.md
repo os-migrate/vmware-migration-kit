@@ -160,7 +160,7 @@ dst_cloud:
 **Ansible command:**
 
 ```
-ansible-playbook -i inventory.yml vmware_migration_kit/migration.yml -e @secrets.yaml -e @myvars.yaml
+ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @secrets.yaml -e @myvars.yaml
 ```
 
 ## Usage
@@ -285,8 +285,7 @@ conversion_host:
 Then run the migration with:
 
 ```
-pushd vmware_migration_kit
-ansible-playbook -i localhost_inventory.yml migration.yml -e @vars.yaml
+ansible-playbook -i localhost_inventory.yml os_migrate.vmware_migration_kit.migration -e @vars.yaml
 ```
 
 ### Running Migration outside of Ansible
