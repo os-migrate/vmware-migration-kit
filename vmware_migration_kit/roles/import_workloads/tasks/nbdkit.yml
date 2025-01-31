@@ -45,6 +45,19 @@
         comment_start_string: '{='
         comment_end_string: '=}'
 
+- name: Read the JSON file
+  ansible.builtin.slurp:
+    src: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
+  register: guest_info
+
+- name: Parse JSON content
+  set_fact:
+    instance_data: "{{ guest_info.content | b64decode | from_json }}"
+
+- name: Extract vddkpath from guest_info.json
+  set_fact:
+    vddkpath: "{{ instance_data.instance.hw_folder }}"
+
 - name: Migrate Guest from Vmware using nbdkit
   os_migrate.vmware_migration_kit.migrate.migrate:
     dst_cloud: "{{ dst_cloud }}"
@@ -54,6 +67,7 @@
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_data_dir }}"
     firstboot: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
+    vddkpath: "{{ vddkpath }}"
     #cbtsync: "{{ cbt_sync }} | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
