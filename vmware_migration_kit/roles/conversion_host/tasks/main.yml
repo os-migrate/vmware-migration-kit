@@ -13,6 +13,7 @@
     - qemu-kvm
     - python3.11
     - python3-pip
+    - wget
 
 - name: Install openstacksdk
   ansible.builtin.pip:

@@ -1,17 +1,17 @@
 - name: Run setup requirements
-  import_playbook: playbooks/setup_requirements.yml
+  import_playbook: setup_requirements.yml
 
 - name: Make sure already deployed conversion host is set up correctly
-  import_playbook: playbooks/conversion_host_content.yml
+  import_playbook: conversion_host_content.yml
 
 - name: Fetch vmware metadata
-  import_playbook: playbooks/gather_guest_metadata.yml
+  import_playbook: gather_guest_metadata.yml
   vars:
     vms: "{{ vms_list }}"
   when: fetch_vmware_metadata | default(true) | bool
 
 - name: Convert vmware metadata
-  import_playbook: playbooks/convert_metadata.yml
+  import_playbook: convert_metadata.yml
   vars:
     vms: "{{ vms_list }}"
   when: convert_metadata | default(true) | bool
@@ -22,7 +22,7 @@
 #    * Data copy
 #    * VM creation
 - name: Run full migration with nbdkit
-  import_playbook: playbooks/run_migration_from_conversion_host.yml
+  import_playbook: run_migration_from_conversion_host.yml
   vars:
     vms: "{{ vms_list }}"
     os_migrate_virt_v2v: false
