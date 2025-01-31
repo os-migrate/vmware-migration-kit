@@ -49,14 +49,21 @@
     register: vm_info_file
     when: not used_mapped_networks|default(true)|bool
 
-  - name: Set mac_addresses fact
+  - name: Initialize guest_mac variable
     set_fact:
-      guest_mac: >-
-            {{ vm_info_file.content
-              | b64decode
-              | from_json
-              | json_query("virtual_machines[?guest_name=='{{ vm_name }}'].mac_address[]")
-            }}
+      guest_mac: []
+    when: not used_mapped_networks|default(true)|bool
+
+  - name: Loop through MAC addresses and build guest_mac list
+    set_fact:
+      guest_mac: "{{ guest_mac + [{'mac': item}] }}"
+    loop: >-
+      {{
+        vm_info.virtual_machines
+        | selectattr('guest_name', 'equalto', vm_name)
+        | map(attribute='mac_address')
+        | flatten
+      }}
     when: not used_mapped_networks|default(true)|bool
 
   - name: Dump guest_mac to json file

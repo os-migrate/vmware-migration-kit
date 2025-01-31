@@ -77,7 +77,7 @@ extract_sysconfig_connections() {
 }
 
 main() {
-  macs=({% for mac in macs_list %}"{{ mac }}" {% endfor %})
+  macs=({% for mac in macs_list %}"{{ mac }}"{% endfor %})
   log $macs
   exdevices=($(extract_nm_connections "${macs[@]}"))
   if [[ ${#exdevices[@]} -eq 0 ]]; then
