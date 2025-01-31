@@ -88,7 +88,7 @@ main() {
       exdevices=($(extract_ifconfig))
       if [[ ${#exdevices[@]} -eq 0 ]]; then
         log "No network devices... existing"
-        exit 1
+        exit 0
         fi
     fi
   fi
