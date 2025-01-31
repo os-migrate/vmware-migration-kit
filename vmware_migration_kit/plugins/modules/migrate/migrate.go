@@ -267,7 +267,8 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		logger.Printf("Failed to attach volume: %v", err)
 		return "", err
 	}
-	defer osm_os.DetachVolume(c.OSClient, volume.ID, "vmware-conv-host", "")
+	// TODO: remove instanceName or handle it properly
+	defer osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID)
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Printf("Failed to find device name: %v", err)
