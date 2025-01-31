@@ -2,7 +2,6 @@
 - name: Load metadata files
   set_fact:
     vm_info: "{{ lookup('file', '{{ vm_info_path }}') | from_json }}"
-    network_info: "{{ lookup('file', '{{ network_info_path }}') | from_json }}"
     guest_info: "{{ lookup('file', '{{ guest_info_path }}') | from_json }}"
     disk_info: "{{ lookup('file', '{{ disk_info_path }}') | from_json }}"
 
