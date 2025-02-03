@@ -153,6 +153,28 @@ func (v *VddkConfig) IsRhelCentosFamily(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+func (v *VddkConfig) IsLinuxFamily(ctx context.Context) (bool, error) {
+	var vmConfig mo.VirtualMachine
+	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.guestFullName", "config.guestId"}, &vmConfig)
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
+	}
+
+	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
+	guestId := strings.ToLower(vmConfig.Config.GuestId)
+
+	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+
+	if strings.Contains(guestFullName, "linux") || strings.Contains(guestId, "linux") {
+		logger.Printf("Detected Linux family.")
+		return true, nil
+	}
+
+	logger.Printf("No Linux OS detected in Guest Full name or ID.")
+	return false, nil
+}
+
 func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
 	powerState, err := v.VirtualMachine.PowerState(ctx)
 	if err != nil {

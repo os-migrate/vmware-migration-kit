@@ -76,6 +76,32 @@ extract_sysconfig_connections() {
   done
 }
 
+extract_netplan_connections() {
+  declare -A devices
+  local macs=("$@")
+  local i=0
+  for file in /etc/netplan/*.yaml; do
+    if [[ -f "$file" ]]; then
+      interface=$(awk '/ethernets:/{flag=1;next} flag && /^[[:space:]]+[a-zA-Z0-9_-]+:/{gsub(":", "", $1); print $1; flag=0}' "$file")
+      log "Netplan file: $file, Extracted interface: $interface"
+      if [[ -n "$interface" ]]; then
+        mac=${macs[i]}
+        log "Device: $interface, MAC: $mac"
+        if [[ -n "$mac" ]]; then
+          devices["$interface"]="$mac"
+        fi
+        i=$((i + 1))
+      fi
+    fi
+  done
+
+  log "Devices from netplan: ${devices[@]}"
+  for device in "${!devices[@]}"; do
+    log "$device:${devices[$device]}"
+    echo "$device:${devices[$device]}"
+  done
+}
+
 main() {
   macs=({% for mac in macs_list %}"{{ mac }}"{% endfor %})
   log $macs
@@ -84,12 +110,18 @@ main() {
     log "No network devices found in NetworkManager. Trying sysconfig..."
     exdevices=($(extract_sysconfig_connections))
     if [[ ${#exdevices[@]} -eq 0 ]]; then
-      log "No network devices found. Trying . Ifcfg..."
-      exdevices=($(extract_ifconfig))
+      log "No network devices found in sysconfig. Trying netplan..."
+      if [[ -d /etc/netplan ]]; then
+        exdevices=($(extract_netplan_connections "${macs[@]}"))
+      fi
       if [[ ${#exdevices[@]} -eq 0 ]]; then
-        log "No network devices... existing"
-        exit 0
+        log "No network devices found. Trying . Ifcfg..."
+        exdevices=($(extract_ifconfig))
+        if [[ ${#exdevices[@]} -eq 0 ]]; then
+          log "No network devices... existing"
+          exit 0
         fi
+      fi
     fi
   fi
 
