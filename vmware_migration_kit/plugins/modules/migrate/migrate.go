@@ -326,7 +326,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			if runV2V {
 				logger.Printf("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
-				if ok, _ := c.VddkConfig.IsRhelCentosFamily(ctx); ok && c.FirstBoot != "" {
+				if ok, _ := c.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
 					netConfScript = c.FirstBoot
 				} else {
 					netConfScript = ""
