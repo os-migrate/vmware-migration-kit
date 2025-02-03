@@ -12,15 +12,14 @@ generate_udev_rules() {
 
   echo "Generating udev rules..."
   echo "# Persistent network device rules" > "$UDEV_RULES_FILE"
-
-  echo "$devices" | while IFS= read -r entry; do
+  echo "$devices" | tr ';' '\n' | while IFS= read -r entry; do
+    [ -z "$entry" ] && continue
     device="${entry%%:*}"
-    mac="${entry#*:*}"
+    mac="${entry#*:}"
     if [ -n "$device" ] && [ -n "$mac" ]; then
       echo "SUBSYSTEM==\"net\",ACTION==\"add\",ATTR{address}==\"$mac\",NAME=\"$device\"" >> "$UDEV_RULES_FILE"
     fi
   done
-
   echo "Udev rules written to $UDEV_RULES_FILE"
 }
 
@@ -40,7 +39,7 @@ extract_nm_connections() {
         log "Device: $device, MAC: $mac"
 
         if [ -n "$mac" ]; then
-          result="$result\n$device:$mac"
+          result="$result;$device:$mac"
         fi
       fi
     fi
@@ -57,7 +56,7 @@ extract_sysconfig_connections() {
       log "File: $file, Device: $device"
       mac="$(grep '^HWADDR=' "$file" | cut -d'=' -f2 | tr -d '"')"
       if [ -n "$device" ] && [ -n "$mac" ]; then
-        result="$result\n$device:$mac"
+        result="$result;$device:$mac"
       fi
     fi
   done
@@ -80,7 +79,7 @@ extract_netplan_connections() {
         shift
         log "Device: $interface, MAC: $mac"
         if [ -n "$mac" ]; then
-          result="$result\n$interface:$mac"
+          result="$result;$interface:$mac"
         fi
       fi
     fi
