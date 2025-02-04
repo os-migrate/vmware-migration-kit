@@ -24,10 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
 
 	gophercloud "github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
@@ -59,17 +60,6 @@ type VolOpts struct {
 	VolumeType string
 	BusType    string
 	Metadata   map[string]string
-}
-
-var logger *log.Logger
-var logFile string = "/tmp/osm-nbdkit.log"
-
-func init() {
-	logFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
 }
 
 func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
@@ -107,7 +97,7 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
 	if err != nil {
-		logger.Printf("Failed to create block storage client: %v", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return nil, err
 	}
 
@@ -120,13 +110,13 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 
 	volume, err := volumes.Create(context.TODO(), client, createOpts, nil).Extract()
 	if err != nil {
-		logger.Printf("Failed to create volume: %v", err)
+		logger.Log.Infof("Failed to create volume: %v", err)
 		return nil, err
 	}
 
 	err = WaitForVolumeStatus(client, volume.ID, "available", 3000)
 	if err != nil {
-		logger.Printf("Failed to wait for volume to become available: %v", err)
+		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
 		return nil, err
 	}
 	// Set bootable
@@ -138,11 +128,11 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 		panic(err)
 	}
 	if err != nil {
-		logger.Printf("Failed to set volume as bootable: %v", err)
+		logger.Log.Infof("Failed to set volume as bootable: %v", err)
 		return nil, err
 	}
 	if err != nil {
-		logger.Printf("Failed to set volume as bootable: %v", err)
+		logger.Log.Infof("Failed to set volume as bootable: %v", err)
 		return nil, err
 	}
 	if setUEFI {
@@ -156,7 +146,7 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 		}
 		err = volumes.SetImageMetadata(context.TODO(), client, volume.ID, ImageMetadataOpts).ExtractErr()
 		if err != nil {
-			logger.Printf("Failed to set image metadata: %v", err)
+			logger.Log.Infof("Failed to set image metadata: %v", err)
 			return nil, err
 		}
 	}
@@ -167,7 +157,7 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 	for i := 0; i < timeout; i++ {
 		volume, err := volumes.Get(context.TODO(), client, volumeID).Extract()
 		if err != nil {
-			logger.Printf("Failed to get volume status: %v", err)
+			logger.Log.Infof("Failed to get volume status: %v", err)
 			return err
 		}
 
@@ -177,19 +167,19 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 
 		time.Sleep(5 * time.Second)
 	}
-	logger.Printf("Volume %s did not reach status %s within the timeout", volumeID, status)
+	logger.Log.Infof("Volume %s did not reach status %s within the timeout", volumeID, status)
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
 }
 
 func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Printf("Failed to create block storage client: %w", err)
+		logger.Log.Infof("Failed to create block storage client: %w", err)
 		return "", err
 	}
 	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
 	if err != nil {
-		logger.Printf("Failed to get volume: %v", err)
+		logger.Log.Infof("Failed to get volume: %v", err)
 		return "", err
 	}
 	if changeID, ok := volume.Metadata["changeID"]; ok {
@@ -201,7 +191,7 @@ func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string,
 func GetVolumeID(client *gophercloud.ProviderClient, vm string, disk string) (*volumes.Volume, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Printf("Failed to create block storage client: %w", err)
+		logger.Log.Infof("Failed to create block storage client: %w", err)
 		return nil, err
 	}
 
@@ -214,22 +204,22 @@ func GetVolumeID(client *gophercloud.ProviderClient, vm string, disk string) (*v
 
 	pages, err := volumes.List(blockStorageClient, volumeListOpts).AllPages(context.TODO())
 	if err != nil {
-		logger.Printf("Failed to list volumes: %v", err)
+		logger.Log.Infof("Failed to list volumes: %v", err)
 		return nil, err
 	}
 	volumeList, err := volumes.ExtractVolumes(pages)
 	if err != nil {
-		logger.Printf("Failed to extract volumes: %v", err)
+		logger.Log.Infof("Failed to extract volumes: %v", err)
 		return nil, err
 	}
 
 	// Filter volumes
 	if len(volumeList) == 0 {
-		logger.Printf("No volumes found")
+		logger.Log.Infof("No volumes found")
 		return nil, nil
 	}
 	if len(volumeList) > 1 {
-		logger.Printf("More than one volumes found")
+		logger.Log.Infof("More than one volumes found")
 		return nil, errors.New("More than one volumes found")
 	}
 	return &volumeList[0], nil
@@ -239,30 +229,30 @@ func GetInstanceUUID() (string, error) {
 	const metadataURL = "http://169.254.169.254/openstack/latest/meta_data.json"
 	resp, err := http.Get(metadataURL)
 	if err != nil {
-		logger.Printf("Failed to fetch metadata: %v", err)
+		logger.Log.Infof("Failed to fetch metadata: %v", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Printf("Unexpected status code: %d", resp.StatusCode)
+		logger.Log.Infof("Unexpected status code: %d", resp.StatusCode)
 		return "", err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logger.Printf("Failed to read metadata response: %v", err)
+		logger.Log.Infof("Failed to read metadata response: %v", err)
 		return "", err
 	}
 	var metaData struct {
 		UUID string `json:"uuid"`
 	}
 	if err := json.Unmarshal(body, &metaData); err != nil {
-		logger.Printf("Failed to parse metadata JSON: %v", err)
+		logger.Log.Infof("Failed to parse metadata JSON: %v", err)
 		return "", err
 	}
 	if metaData.UUID == "" {
-		logger.Printf("Instance UUID not found in metadata")
+		logger.Log.Infof("Instance UUID not found in metadata")
 		return "", err
 	}
 	return metaData.UUID, nil
@@ -270,22 +260,22 @@ func GetInstanceUUID() (string, error) {
 
 func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceName string, instanceUUID string) error {
 	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
-	logger.Printf("Volume ID: %s", volumeID)
+	logger.Log.Infof("Volume ID: %s", volumeID)
 	if err != nil {
-		logger.Printf("Failed to create compute client: %v", err)
+		logger.Log.Infof("Failed to create compute client: %v", err)
 		return err
 	}
 	if instanceUUID == "" {
 		// Get conversion host UUID
-		logger.Printf("Instance name: %s", instanceName)
+		logger.Log.Infof("Instance name: %s", instanceName)
 		allServers, err := servers.List(computeClient, nil).AllPages(context.TODO())
 		if err != nil {
-			logger.Printf("Failed to list servers: %v", err)
+			logger.Log.Infof("Failed to list servers: %v", err)
 			return err
 		}
 		serversList, err := servers.ExtractServers(allServers)
 		if err != nil {
-			logger.Printf("Failed to extract servers: %v", err)
+			logger.Log.Infof("Failed to extract servers: %v", err)
 			return err
 		}
 		for _, server := range serversList {
@@ -298,9 +288,9 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		VolumeID: volumeID,
 	}
 	result, err := volumeattach.Create(context.TODO(), computeClient, instanceUUID, createOpts).Extract()
-	logger.Printf("Volume attached: %v", result)
+	logger.Log.Infof("Volume attached: %v", result)
 	if err != nil {
-		logger.Printf("Failed to attach volume: %v", err)
+		logger.Log.Infof("Failed to attach volume: %v", err)
 		return err
 	}
 	volumeClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{
@@ -308,7 +298,7 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 	})
 	err = WaitForVolumeStatus(volumeClient, volumeID, "in-use", 3000)
 	if err != nil {
-		logger.Printf("Failed to wait for volume to become in-use: %v", err)
+		logger.Log.Infof("Failed to wait for volume to become in-use: %v", err)
 		return err
 	}
 	return nil
@@ -317,24 +307,24 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceName string, instanceUUID string) error {
 	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Printf("Failed to create compute client: %v", err)
+		logger.Log.Infof("Failed to create compute client: %v", err)
 		return err
 	}
 	if instanceUUID == "" {
 		// Get conversion host UUID
 		allServers, err := servers.List(computeClient, nil).AllPages(context.TODO())
 		if err != nil {
-			logger.Printf("Failed to list servers: %v", err)
+			logger.Log.Infof("Failed to list servers: %v", err)
 			return err
 		}
 		serversList, err := servers.ExtractServers(allServers)
 		if err != nil {
-			logger.Printf("Failed to extract servers: %v", err)
+			logger.Log.Infof("Failed to extract servers: %v", err)
 			return err
 		}
 		for _, server := range serversList {
 			if server.Name == instanceName {
-				logger.Printf("Found instance UUID: %s\n", server.ID)
+				logger.Log.Infof("Found instance UUID: %s\n", server.ID)
 				instanceUUID = server.ID
 			}
 		}
@@ -342,7 +332,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 
 	err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
 	if err != nil {
-		logger.Printf("Failed to detach volume: %v", err)
+		logger.Log.Infof("Failed to detach volume: %v", err)
 		return err
 	}
 	volumeClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{
@@ -350,7 +340,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 	})
 	err = WaitForVolumeStatus(volumeClient, volumeID, "available", 3000)
 	if err != nil {
-		logger.Printf("Failed to wait for volume to become available: %v", err)
+		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
 		return err
 	}
 	return nil
