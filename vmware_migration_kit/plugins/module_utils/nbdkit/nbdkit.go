@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -40,14 +41,25 @@ type NbdkitConfig struct {
 	Libdir      string
 	VmName      string
 	Compression string
+	UUID        string
+	UseSocks    bool
 	VddkConfig  *vmware.VddkConfig
 }
 
 type NbdkitServer struct {
-	cmd *exec.Cmd
+	cmd    *exec.Cmd
+	socket string
 }
 
 func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
+	if c.UseSocks {
+		return c.RunNbdKitSocks(diskName)
+	} else {
+		return c.RunNbdKitURI(diskName)
+	}
+}
+
+func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
 	if err != nil {
 		return nil, err
@@ -80,7 +92,7 @@ func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 	logger.Log.Infof("Command: %v", cmd)
 
 	time.Sleep(100 * time.Millisecond)
-	err = WaitForNbdkit("localhost", "10809", 30*time.Second)
+	err = WaitForNbdkitURI("localhost", "10809", 30*time.Second)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
@@ -90,7 +102,58 @@ func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 	}
 
 	return &NbdkitServer{
-		cmd: cmd,
+		cmd:    cmd,
+		socket: "",
+	}, nil
+}
+
+func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
+	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
+	if err != nil {
+		return nil, err
+	}
+	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
+	cmd := exec.Command(
+		"nbdkit",
+		"--readonly",
+		"--exit-with-parent",
+		"--foreground",
+		"--unix", socket,
+		"vddk",
+		fmt.Sprintf("server=%s", c.Server),
+		fmt.Sprintf("user=%s", c.User),
+		fmt.Sprintf("password=%s", c.Password),
+		fmt.Sprintf("thumbprint=%s", thumbprint),
+		fmt.Sprintf("libdir=%s", c.Libdir),
+		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+		fmt.Sprintf("compression=%s", c.Compression),
+		"transports=file:nbdssl:nbd",
+		diskName,
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		logger.Log.Infof("Failed to start nbdkit: %v", err)
+		return nil, err
+	}
+	logger.Log.Infof("nbdkit started...")
+	logger.Log.Infof("Command: %v", cmd)
+
+	time.Sleep(100 * time.Millisecond)
+	err = WaitForNbdkit(socket, 30*time.Second)
+	if err != nil {
+		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			removeSocket(socket)
+		}
+		return nil, err
+	}
+
+	return &NbdkitServer{
+		cmd:    cmd,
+		socket: socket,
 	}, nil
 }
 
@@ -100,10 +163,26 @@ func (s *NbdkitServer) Stop() error {
 		return fmt.Errorf("failed to stop nbdkit server: %w", err)
 	}
 	logger.Log.Infof("Nbdkit server stopped.")
+	removeSocket(s.socket)
 	return nil
 }
 
-func WaitForNbdkit(host string, port string, timeout time.Duration) error {
+func (s *NbdkitServer) GetSocketPath() string {
+	if s.socket == "" {
+		return ""
+	}
+	return fmt.Sprintf("nbd+unix:///?socket=%s", s.socket)
+}
+
+func removeSocket(socketPath string) {
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		logger.Log.Infof("Failed to remove Unix socket: %v", err)
+	} else {
+		logger.Log.Infof("Unix socket %s removed successfully.", socketPath)
+	}
+}
+
+func WaitForNbdkitURI(host string, port string, timeout time.Duration) error {
 	address := net.JoinHostPort(host, port)
 	deadline := time.Now().Add(timeout)
 
@@ -120,8 +199,27 @@ func WaitForNbdkit(host string, port string, timeout time.Duration) error {
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-func NbdCopy(device string) error {
-	nbdcopy := "/usr/bin/nbdcopy nbd://localhost " + device + " --destination-is-zero --progress"
+func WaitForNbdkit(socket string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(socket); err == nil {
+			logger.Log.Infof("nbdkit is ready.")
+			return nil
+		}
+		logger.Log.Infof("Waiting for nbdkit to be ready...")
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("timed out waiting for nbdkit to be ready")
+}
+
+func NbdCopy(socket, device string) error {
+	var nbdcopy string
+	if socket == "" {
+		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s --destination-is-zero --progress", device)
+	} else {
+		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy %s %s --destination-is-zero --progress", socket, device)
+	}
 	cmd := exec.Command("bash", "-c", nbdcopy)
 	logger.Log.Infof("Running nbdcopy: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
@@ -149,11 +247,24 @@ func NbdCopy(device string) error {
 			logger.Log.Infof("Error reading stderr: %v\n", err)
 		}
 	}()
+	// // Logging stdout and stderr
+	// go streamLogs(stdoutPipe, "stdout")
+	// go streamLogs(stderrPipe, "stderr")
 	if err := cmd.Wait(); err != nil {
 		logger.Log.Infof("Failed to run nbdcopy: %v", err)
 		return err
 	}
 	return nil
+}
+
+func streamLogs(pipe io.ReadCloser, label string) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		logger.Log.Infof("[nbdcopy %s] %s", label, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		logger.Log.Infof("Error reading %s: %v", label, err)
+	}
 }
 
 func findVirtV2v() (string, error) {

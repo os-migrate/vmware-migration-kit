@@ -86,6 +86,7 @@ type ModuleArgs struct {
 	ConvHostName string
 	Compression  string
 	FirstBoot    string
+	UseSocks     bool
 }
 
 func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
@@ -247,7 +248,8 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(devPath)
+				sock := nbdSrv.GetSocketPath()
+				err = nbdkit.NbdCopy(sock, devPath)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					nbdSrv.Stop()
@@ -305,15 +307,6 @@ func main() {
 		response.Msg = "Configuration file not valid JSON: " + argsFile
 		ansible.FailJson(response)
 	}
-
-	// Handle logging
-	randStr, err := moduleutils.GenRandom(8)
-	if err != nil {
-		response.Msg = "Failed to generate random string"
-		ansible.FailJson(response)
-	}
-	LogFile := "/tmp/osm-nbdkit-" + randStr + ".log"
-	logger.InitLogger(LogFile)
 	// Set parameters
 	user := ansible.RequireField(moduleArgs.User, "User is required")
 	password := ansible.RequireField(moduleArgs.Password, "Password is required")
@@ -326,7 +319,16 @@ func main() {
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
+	socks := moduleArgs.UseSocks
 
+	// Handle logging
+	randStr, err := moduleutils.GenRandom(8)
+	if err != nil {
+		response.Msg = "Failed to generate random string"
+		ansible.FailJson(response)
+	}
+	LogFile := "/tmp/osm-nbdkit-" + vmname + "-" + randStr + ".log"
+	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	c, err := vmware.VMWareAuth(ctx, server, user, password)
@@ -372,6 +374,8 @@ func main() {
 				Libdir:      libdir,
 				VmName:      vmname,
 				Compression: compression,
+				UUID:        randStr,
+				UseSocks:    socks,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
 					SnapshotReference: types.ManagedObjectReference{},

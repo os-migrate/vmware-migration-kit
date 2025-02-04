@@ -68,6 +68,7 @@
     osmdatadir: "{{ os_migrate_data_dir }}"
     firstboot: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
     vddkpath: "{{ vddkpath }}"
+    usesocks: true
     #cbtsync: "{{ cbt_sync }} | bool"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
