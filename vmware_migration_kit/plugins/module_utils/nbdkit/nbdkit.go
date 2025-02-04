@@ -26,35 +26,81 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
-
-	"github.com/gophercloud/gophercloud"
-	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25/types"
+	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/vmware"
 )
 
-type VddkConfig struct {
-	VirtualMachine *object.VirtualMachine
-	SnapshotRef    types.ManagedObjectReference
-}
-
-type MigrationConfig struct {
-	User         string
-	Password     string
-	Server       string
-	Libdir       string
-	VmName       string
-	OSMDataDir   string
-	VddkConfig   *VddkConfig
-	CBTSync      bool
-	OSClient     *gophercloud.ProviderClient
-	ConvHostName string
+type NbdkitConfig struct {
+	User        string
+	Password    string
+	Server      string
+	Libdir      string
+	VmName      string
+	Compression string
+	VddkConfig  *vmware.VddkConfig
 }
 
 type NbdkitServer struct {
 	cmd *exec.Cmd
+}
+
+func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
+	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(
+		"nbdkit",
+		"--readonly",
+		"--exit-with-parent",
+		"--foreground",
+		"vddk",
+		fmt.Sprintf("server=%s", c.Server),
+		fmt.Sprintf("user=%s", c.User),
+		fmt.Sprintf("password=%s", c.Password),
+		fmt.Sprintf("thumbprint=%s", thumbprint),
+		fmt.Sprintf("libdir=%s", c.Libdir),
+		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+		fmt.Sprintf("compression=%s", c.Compression),
+		"transports=file:nbdssl:nbd",
+		diskName,
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		logger.Log.Infof("Failed to start nbdkit: %v", err)
+		return nil, err
+	}
+	logger.Log.Infof("nbdkit started...")
+	logger.Log.Infof("Command: %v", cmd)
+
+	time.Sleep(100 * time.Millisecond)
+	err = WaitForNbdkit("localhost", "10809", 30*time.Second)
+	if err != nil {
+		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return nil, err
+	}
+
+	return &NbdkitServer{
+		cmd: cmd,
+	}, nil
+}
+
+func (s *NbdkitServer) Stop() error {
+	if err := syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL); err != nil {
+		logger.Log.Infof("Failed to stop nbdkit server: %v", err)
+		return fmt.Errorf("failed to stop nbdkit server: %w", err)
+	}
+	logger.Log.Infof("Nbdkit server stopped.")
+	return nil
 }
 
 func WaitForNbdkit(host string, port string, timeout time.Duration) error {

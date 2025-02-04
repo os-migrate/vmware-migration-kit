@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
-	"time"
 	moduleutils "vmware-migration-kit/vmware_migration_kit/plugins/module_utils"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
@@ -55,6 +53,7 @@ type VddkConfig struct {
 }
 
 type MigrationConfig struct {
+	NbdkitConfig *nbdkit.NbdkitConfig
 	User         string
 	Password     string
 	Server       string
@@ -89,79 +88,22 @@ type ModuleArgs struct {
 	FirstBoot    string
 }
 
-// Migration Cycle
-func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
-	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := exec.Command(
-		"nbdkit",
-		"--readonly",
-		"--exit-with-parent",
-		"--foreground",
-		"vddk",
-		fmt.Sprintf("server=%s", c.Server),
-		fmt.Sprintf("user=%s", c.User),
-		fmt.Sprintf("password=%s", c.Password),
-		fmt.Sprintf("thumbprint=%s", thumbprint),
-		fmt.Sprintf("libdir=%s", c.Libdir),
-		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		fmt.Sprintf("compression=%s", c.Compression),
-		"transports=file:nbdssl:nbd",
-		diskName,
-	)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	if err := cmd.Start(); err != nil {
-		logger.Log.Infof("Failed to start nbdkit: %v", err)
-		return nil, err
-	}
-	logger.Log.Infof("nbdkit started...")
-	logger.Log.Infof("Command: %v", cmd)
-
-	time.Sleep(100 * time.Millisecond)
-	err = nbdkit.WaitForNbdkit("localhost", "10809", 30*time.Second)
-	if err != nil {
-		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
-		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		return nil, err
-	}
-
-	return &NbdkitServer{
-		cmd: cmd,
-	}, nil
-}
-
-func (s *NbdkitServer) Stop() error {
-	if err := syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL); err != nil {
-		logger.Log.Infof("Failed to stop nbdkit server: %v", err)
-		return fmt.Errorf("failed to stop nbdkit server: %w", err)
-	}
-	logger.Log.Infof("Nbdkit server stopped.")
-	return nil
-}
-
 func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
 	var syncVol bool = false
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// Create or update volume.
-	vmName, err := c.VddkConfig.VirtualMachine.ObjectName(ctx)
+	vmName, err := c.NbdkitConfig.VddkConfig.VirtualMachine.ObjectName(ctx)
 	if err != nil {
 		logger.Log.Infof("Failed to get VM name: %v", err)
 		return "", err
 	}
-	diskSize, err := c.VddkConfig.GetDiskSizes(ctx)
+	diskSize, err := c.NbdkitConfig.VddkConfig.GetDiskSizes(ctx)
 	if err != nil {
 		logger.Log.Infof("Failed to get disks key: %v", err)
 		return "", err
 	}
-	diskNameStr := strconv.Itoa(int(c.VddkConfig.DiskKey))
+	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey))
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
@@ -176,7 +118,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			return volume.ID, fmt.Errorf("volume already exists")
 		}
 	}
-	isWin, err := c.VddkConfig.IsWindowsFamily(ctx)
+	isWin, err := c.NbdkitConfig.VddkConfig.IsWindowsFamily(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -184,20 +126,20 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	// running V2V conversion
 	// Also, shutdown if OS is Windows, (@TODO) otherwise make it optional
 	if syncVol || isWin {
-		err = c.VddkConfig.PowerOffVM(ctx)
+		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
 			logger.Log.Infof("Failed to power off vm %v", err)
 			return "", err
 		}
 	}
 	// Create snapshot
-	err = c.VddkConfig.CreateSnapshot(ctx)
+	err = c.NbdkitConfig.VddkConfig.CreateSnapshot(ctx)
 	if err != nil {
 		return "", err
 	}
-	defer c.VddkConfig.RemoveSnapshot(ctx)
+	defer c.NbdkitConfig.VddkConfig.RemoveSnapshot(ctx)
 	var snapshot mo.VirtualMachineSnapshot
-	err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
+	err = c.NbdkitConfig.VddkConfig.VirtualMachine.Properties(ctx, c.NbdkitConfig.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
 	if err != nil {
 		return "", err
 	}
@@ -207,7 +149,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		if c.CBTSync {
 			runV2V = false
 		}
-		if changeID, _ := c.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
+		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
 			logger.Log.Infof("CBT enabled, creating new volume and set changeID: %s", changeID)
 			volMetadata = map[string]string{
 				"osm":      "true",
@@ -235,7 +177,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		var fw mo.VirtualMachine
 		var uefi bool
 		uefi = false
-		err = c.VddkConfig.VirtualMachine.Properties(ctx, c.VddkConfig.VirtualMachine.Reference(), []string{"config.firmware"}, &fw)
+		err = c.NbdkitConfig.VddkConfig.VirtualMachine.Properties(ctx, c.NbdkitConfig.VddkConfig.VirtualMachine.Reference(), []string{"config.firmware"}, &fw)
 		if err != nil {
 			return "", err
 		}
@@ -268,13 +210,13 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
-			if device.GetVirtualDevice().Key != c.VddkConfig.DiskKey {
+			if device.GetVirtualDevice().Key != c.NbdkitConfig.VddkConfig.DiskKey {
 				break
 			}
 			backing := disk.Backing.(types.BaseVirtualDeviceFileBackingInfo)
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
-			nbdSrv, err := c.RunNbdKit(info.FileName)
+			nbdSrv, err := c.NbdkitConfig.RunNbdKit(info.FileName)
 			defer nbdSrv.Stop()
 			if err != nil {
 				logger.Log.Infof("Failed to run nbdkit: %v", err)
@@ -287,7 +229,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Log.Infof("Failed to get OS change ID: %v", err)
 					return "", err
 				}
-				vmChangeID, err := c.VddkConfig.GetCBTChangeID(ctx)
+				vmChangeID, err := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx)
 				if err != nil {
 					logger.Log.Infof("Failed to get VM change ID: %v", err)
 					return "", err
@@ -295,7 +237,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				logger.Log.Infof("OS Change ID: %s, VM Change ID: %s", osChangeID, vmChangeID)
 				if osChangeID != vmChangeID {
 					logger.Log.Infof("Change ID mismatch, syncing volume..")
-					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
+					err = c.NbdkitConfig.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
 					if err != nil {
 						logger.Log.Infof("Failed to sync volume: %v", err)
 						return "", err
@@ -315,7 +257,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			if runV2V {
 				logger.Log.Infof("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
-				if ok, _ := c.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
+				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
 					netConfScript = c.FirstBoot
 				} else {
 					netConfScript = ""
@@ -325,7 +267,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Log.Infof("Failed to convert disk: %v", err)
 					return "", err
 				}
-				err = c.VddkConfig.PowerOffVM(ctx)
+				err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 				if err != nil {
 					logger.Log.Infof("Warning: Failed to power off vm %v", err)
 					logger.Log.Infof("You will have to power off the vm manually...")
@@ -423,22 +365,25 @@ func main() {
 			runV2V = false
 		}
 		VMMigration := MigrationConfig{
-			User:         user,
-			Password:     password,
-			Server:       server,
-			Libdir:       libdir,
-			VmName:       vmname,
+			NbdkitConfig: &nbdkit.NbdkitConfig{
+				User:        user,
+				Password:    password,
+				Server:      server,
+				Libdir:      libdir,
+				VmName:      vmname,
+				Compression: compression,
+				VddkConfig: &vmware.VddkConfig{
+					VirtualMachine:    vm,
+					SnapshotReference: types.ManagedObjectReference{},
+					DiskKey:           d,
+				},
+			},
 			OSMDataDir:   osmdatadir,
 			OSClient:     provider,
 			CBTSync:      cbtsync,
 			ConvHostName: convHostName,
 			Compression:  compression,
 			FirstBoot:    firsBoot,
-			VddkConfig: &vmware.VddkConfig{
-				VirtualMachine:    vm,
-				SnapshotReference: types.ManagedObjectReference{},
-				DiskKey:           d,
-			},
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
