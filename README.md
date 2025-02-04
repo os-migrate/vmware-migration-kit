@@ -50,6 +50,8 @@ The following features are availables:
 * Migration with virt-v2v
 * Upload migrate volume via Glance
 * Multi disks migration
+* Multi nics
+* Parallel migration on a same conversion host
 * Ansible Automation Platform (AAP)
 
 
