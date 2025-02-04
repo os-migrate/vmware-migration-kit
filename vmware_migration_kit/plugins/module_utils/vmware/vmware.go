@@ -23,12 +23,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
@@ -46,23 +47,12 @@ type VddkConfig struct {
 
 const maxChunkSize = 64 * 1024 * 1024
 
-var logger *log.Logger
-var logFile string = "/tmp/osm-nbdkit.log"
-
-func init() {
-	logFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
-}
-
 func VMWareAuth(ctx context.Context, server string, user string, password string) (*govmomi.Client, error) {
 	u, _ := url.Parse("https://" + server + "/sdk")
 	ProcessUrl(u, user, password)
 	c, err := govmomi.NewClient(ctx, u, true)
 	if err != nil {
-		logger.Printf("Failed to authenticate to VMware client %v", err)
+		logger.Log.Infof("Failed to authenticate to VMware client %v", err)
 		return nil, err
 	}
 	return c, nil
@@ -89,7 +79,7 @@ func GetThumbprint(host string, port string) (string, error) {
 	defer conn.Close()
 
 	if len(conn.ConnectionState().PeerCertificates) == 0 {
-		logger.Printf("No certificates found")
+		logger.Log.Infof("No certificates found")
 		return "", errors.New("no certificates found")
 	}
 
@@ -110,18 +100,18 @@ func (v *VddkConfig) IsWindowsFamily(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
-	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
 	if strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "windows") ||
 		strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "microsoft") {
 		return true, nil
 	}
-	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
 	if strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "windows") ||
 		strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "microsoft") {
 		return true, nil
 	}
 
-	logger.Printf("No Windows OS found in Guest Full name or ID strings...")
+	logger.Log.Infof("No Windows OS found in Guest Full name or ID strings...")
 	return false, nil
 }
 
@@ -135,21 +125,21 @@ func (v *VddkConfig) IsRhelCentosFamily(ctx context.Context) (bool, error) {
 	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
 	guestId := strings.ToLower(vmConfig.Config.GuestId)
 
-	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
-	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
 
 	if strings.Contains(guestFullName, "red hat") || strings.Contains(guestFullName, "centos") || strings.Contains(guestFullName, "rhel") ||
 		strings.Contains(guestId, "rhel") || strings.Contains(guestId, "centos") {
 		if strings.Contains(guestFullName, "8") || strings.Contains(guestFullName, "9") ||
 			strings.Contains(guestId, "8") || strings.Contains(guestId, "9") {
-			logger.Printf("Detected RHEL/CentOS family (8 or newer).")
+			logger.Log.Infof("Detected RHEL/CentOS family (8 or newer).")
 			return true, nil
 		}
-		logger.Printf("Detected RHEL/CentOS family but version is not 8 or newer.")
+		logger.Log.Infof("Detected RHEL/CentOS family but version is not 8 or newer.")
 		return false, nil
 	}
 
-	logger.Printf("No RHEL/CentOS family detected in Guest Full name or ID.")
+	logger.Log.Infof("No RHEL/CentOS family detected in Guest Full name or ID.")
 	return false, nil
 }
 
@@ -163,15 +153,15 @@ func (v *VddkConfig) IsLinuxFamily(ctx context.Context) (bool, error) {
 	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
 	guestId := strings.ToLower(vmConfig.Config.GuestId)
 
-	logger.Printf("Guest Full name: %v", vmConfig.Config.GuestFullName)
-	logger.Printf("Guest ID: %v", vmConfig.Config.GuestId)
+	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
+	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
 
 	if strings.Contains(guestFullName, "linux") || strings.Contains(guestId, "linux") {
-		logger.Printf("Detected Linux family.")
+		logger.Log.Infof("Detected Linux family.")
 		return true, nil
 	}
 
-	logger.Printf("No Linux OS detected in Guest Full name or ID.")
+	logger.Log.Infof("No Linux OS detected in Guest Full name or ID.")
 	return false, nil
 }
 
@@ -181,10 +171,10 @@ func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
 		return err
 	}
 	if powerState == types.VirtualMachinePowerStatePoweredOff {
-		logger.Printf("VM is already off, skipping...")
+		logger.Log.Infof("VM is already off, skipping...")
 		return nil
 	} else {
-		logger.Printf("Shutting down the VM...")
+		logger.Log.Infof("Shutting down the VM...")
 		err = v.VirtualMachine.ShutdownGuest(ctx)
 		if err != nil {
 			return err
@@ -200,17 +190,17 @@ func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
 func (v *VddkConfig) CreateSnapshot(ctx context.Context) error {
 	task, err := v.VirtualMachine.CreateSnapshot(ctx, "osm-snap", "OS Migrate snapshot.", false, false)
 	if err != nil {
-		logger.Printf("Failed to create snapshot: %v", err)
+		logger.Log.Infof("Failed to create snapshot: %v", err)
 		return err
 	}
 	info, err := task.WaitForResult(ctx)
 	if err != nil {
-		logger.Printf("Timeout to create snapshot: %v", err)
+		logger.Log.Infof("Timeout to create snapshot: %v", err)
 		return err
 	}
 
 	v.SnapshotReference = info.Result.(types.ManagedObjectReference)
-	logger.Printf("Snapshot created: %s", v.SnapshotReference.Value)
+	logger.Log.Infof("Snapshot created: %s", v.SnapshotReference.Value)
 	return nil
 }
 
@@ -218,15 +208,15 @@ func (v *VddkConfig) RemoveSnapshot(ctx context.Context) error {
 	consolidate := true
 	task, err := v.VirtualMachine.RemoveSnapshot(ctx, v.SnapshotReference.Value, false, &consolidate)
 	if err != nil {
-		logger.Printf("Failed to remove snapshot: %v", err)
+		logger.Log.Infof("Failed to remove snapshot: %v", err)
 		return err
 	}
 	_, err = task.WaitForResult(ctx)
 	if err != nil {
-		logger.Printf("Timeout to remove snapshot: %v", err)
+		logger.Log.Infof("Timeout to remove snapshot: %v", err)
 		return err
 	}
-	logger.Printf("Snapshot removed: %s", v.SnapshotReference.Value)
+	logger.Log.Infof("Snapshot removed: %s", v.SnapshotReference.Value)
 	return nil
 }
 
@@ -235,7 +225,7 @@ func GetDiskKeys(ctx context.Context, v *object.VirtualMachine) ([]int32, error)
 	var vm mo.VirtualMachine
 	err := v.Properties(ctx, v.Reference(), []string{"config.hardware.device"}, &vm)
 	if err != nil {
-		logger.Printf("Failed to retrieve VM properties: %v", err)
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
 		return nil, err
 	}
 	for _, device := range vm.Config.Hardware.Device {
@@ -251,7 +241,7 @@ func (v *VddkConfig) GetDiskKey(ctx context.Context) (int32, error) {
 	var vm mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vm)
 	if err != nil {
-		logger.Printf("Failed to retrieve VM properties: %v", err)
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
 		return -1, err
 	}
 	for _, device := range vm.Config.Hardware.Device {
@@ -268,7 +258,7 @@ func (v *VddkConfig) GetDiskSizes(ctx context.Context) (map[string]int64, error)
 	var conf mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &conf)
 	if err != nil {
-		logger.Printf("Failed to retrieve VM properties: %v", err)
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
 		return nil, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 
@@ -286,19 +276,19 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	var conf mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config"}, &conf)
 	if err != nil {
-		logger.Printf("Failed to get VM config: %v", err)
+		logger.Log.Infof("Failed to get VM config: %v", err)
 		return "", err
 	}
 	// Check if CBT is enabled
 	if conf.Config.ChangeTrackingEnabled == nil || !*conf.Config.ChangeTrackingEnabled {
 		return "", nil
 	} else {
-		logger.Printf("CBT is enabled")
+		logger.Log.Infof("CBT is enabled")
 	}
 	var b mo.VirtualMachineSnapshot
 	err = v.VirtualMachine.Properties(ctx, v.SnapshotReference.Reference(), []string{"config.hardware"}, &b)
 	if err != nil {
-		logger.Printf("Failed to get Snapshot info for osm-snap: %v", err)
+		logger.Log.Infof("Failed to get Snapshot info for osm-snap: %v", err)
 		return "", fmt.Errorf("Failed to get Snapshot info for osm-snap: %s", err)
 	}
 
@@ -331,11 +321,11 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 			changeId = &b.ChangeId
 			break
 		}
-		logger.Printf("disk %d has backing info without .ChangeId: %t", disk.Key, d.Backing)
+		logger.Log.Infof("disk %d has backing info without .ChangeId: %t", disk.Key, d.Backing)
 		return "", fmt.Errorf("disk %d has backing info without .ChangeId: %t", disk.Key, d.Backing)
 	}
 	if changeId == nil || *changeId == "" {
-		logger.Printf("CBT is not enabled on disk %d", disk.Key)
+		logger.Log.Infof("CBT is not enabled on disk %d", disk.Key)
 		return "", fmt.Errorf("CBT is not enabled on disk %d", disk.Key)
 	}
 
@@ -346,7 +336,7 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string,
 	// Fetch VM configuration
 	var vmConfig mo.VirtualMachine
 	if err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vmConfig); err != nil {
-		logger.Printf("Failed to retrieve VM properties: %v", err)
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
 		return fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 	var diskKey int32
@@ -359,24 +349,24 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string,
 		}
 	}
 	if diskSize == 0 {
-		logger.Printf("Failed to determine disk size or locate target disk")
+		logger.Log.Infof("Failed to determine disk size or locate target disk")
 		return fmt.Errorf("failed to determine disk size or locate target disk")
 	}
 	file, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_EXCL|syscall.O_DIRECT, 0644)
 	if err != nil {
-		logger.Printf("Failed to open target file %s: %v", targetPath, err)
+		logger.Log.Infof("Failed to open target file %s: %v", targetPath, err)
 		return fmt.Errorf("failed to open target file %s: %w", targetPath, err)
 	}
 	defer file.Close()
 	nbd, err := libnbd.Create()
 	if err != nil {
-		logger.Printf("Failed to initialize NBD: %v", err)
+		logger.Log.Infof("Failed to initialize NBD: %v", err)
 		return fmt.Errorf("failed to initialize NBD: %w", err)
 	}
 	defer nbd.Close()
 
 	if err := nbd.ConnectUri("nbd://localhost"); err != nil {
-		logger.Printf("Failed to connect to NBD server: %v", err)
+		logger.Log.Infof("Failed to connect to NBD server: %v", err)
 		return fmt.Errorf("failed to connect to NBD server: %w", err)
 	}
 	startOffset := int64(0)
@@ -391,7 +381,7 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string,
 
 		result, err := methods.QueryChangedDiskAreas(ctx, v.VirtualMachine.Client(), &query)
 		if err != nil {
-			logger.Printf("Failed to query changed disk areas: %v", err)
+			logger.Log.Infof("Failed to query changed disk areas: %v", err)
 			return fmt.Errorf("failed to query changed disk areas: %w", err)
 		}
 		changedAreas := result.Returnval.ChangedArea
@@ -408,11 +398,11 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string,
 				// Read data from NBD
 				buffer := make([]byte, chunkSize)
 				if err := nbd.Pread(buffer, uint64(offset), nil); err != nil {
-					logger.Printf("Failed to read data from NBD: %v", err)
+					logger.Log.Infof("Failed to read data from NBD: %v", err)
 					return fmt.Errorf("failed to read data from NBD: %w", err)
 				}
 				if _, err := file.WriteAt(buffer, offset); err != nil {
-					logger.Printf("Failed to write data to target file: %v", err)
+					logger.Log.Infof("Failed to write data to target file: %v", err)
 					return fmt.Errorf("failed to write data to target file: %w", err)
 				}
 				offset += chunkSize

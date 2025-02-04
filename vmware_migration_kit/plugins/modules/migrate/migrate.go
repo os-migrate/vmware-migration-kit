@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"time"
 	moduleutils "vmware-migration-kit/vmware_migration_kit/plugins/module_utils"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
+	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/nbdkit"
 	osm_os "vmware-migration-kit/vmware_migration_kit/plugins/module_utils/openstack"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/vmware"
@@ -89,17 +89,6 @@ type ModuleArgs struct {
 	FirstBoot    string
 }
 
-var logger *log.Logger
-var logFile string = "/tmp/osm-nbdkit.log"
-
-func init() {
-	logFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	logger = log.New(logFile, "osm-nbdkit: ", log.LstdFlags|log.Lshortfile)
-}
-
 // Migration Cycle
 func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
@@ -127,16 +116,16 @@ func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
-		logger.Printf("Failed to start nbdkit: %v", err)
+		logger.Log.Infof("Failed to start nbdkit: %v", err)
 		return nil, err
 	}
-	logger.Printf("nbdkit started...")
-	logger.Printf("Command: %v", cmd)
+	logger.Log.Infof("nbdkit started...")
+	logger.Log.Infof("Command: %v", cmd)
 
 	time.Sleep(100 * time.Millisecond)
 	err = nbdkit.WaitForNbdkit("localhost", "10809", 30*time.Second)
 	if err != nil {
-		logger.Printf("Failed to wait for nbdkit: %v", err)
+		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
 			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
@@ -150,10 +139,10 @@ func (c *MigrationConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 
 func (s *NbdkitServer) Stop() error {
 	if err := syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL); err != nil {
-		logger.Printf("Failed to stop nbdkit server: %v", err)
+		logger.Log.Infof("Failed to stop nbdkit server: %v", err)
 		return fmt.Errorf("failed to stop nbdkit server: %w", err)
 	}
-	logger.Printf("Nbdkit server stopped.")
+	logger.Log.Infof("Nbdkit server stopped.")
 	return nil
 }
 
@@ -164,26 +153,26 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	// Create or update volume.
 	vmName, err := c.VddkConfig.VirtualMachine.ObjectName(ctx)
 	if err != nil {
-		logger.Printf("Failed to get VM name: %v", err)
+		logger.Log.Infof("Failed to get VM name: %v", err)
 		return "", err
 	}
 	diskSize, err := c.VddkConfig.GetDiskSizes(ctx)
 	if err != nil {
-		logger.Printf("Failed to get disks key: %v", err)
+		logger.Log.Infof("Failed to get disks key: %v", err)
 		return "", err
 	}
 	diskNameStr := strconv.Itoa(int(c.VddkConfig.DiskKey))
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
-		logger.Printf("Failed to get volume: %v", err)
+		logger.Log.Infof("Failed to get volume: %v", err)
 		return "", err
 	}
 	if volume != nil {
 		if c.CBTSync {
-			logger.Printf("Volume exists, syncing volume..")
+			logger.Log.Infof("Volume exists, syncing volume..")
 			syncVol = true
 		} else {
-			logger.Printf("Volume already exists and CBT sync is disabled, skipping migration..")
+			logger.Log.Infof("Volume already exists and CBT sync is disabled, skipping migration..")
 			return volume.ID, fmt.Errorf("volume already exists")
 		}
 	}
@@ -197,7 +186,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	if syncVol || isWin {
 		err = c.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
-			logger.Printf("Failed to power off vm %v", err)
+			logger.Log.Infof("Failed to power off vm %v", err)
 			return "", err
 		}
 	}
@@ -219,13 +208,13 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			runV2V = false
 		}
 		if changeID, _ := c.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
-			logger.Printf("CBT enabled, creating new volume and set changeID: %s", changeID)
+			logger.Log.Infof("CBT enabled, creating new volume and set changeID: %s", changeID)
 			volMetadata = map[string]string{
 				"osm":      "true",
 				"changeID": changeID,
 			}
 		} else {
-			logger.Printf("Volume not found, creating new volume")
+			logger.Log.Infof("Volume not found, creating new volume")
 			volMetadata = map[string]string{
 				"osm": "true",
 			}
@@ -251,12 +240,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			return "", err
 		}
 		if types.GuestOsDescriptorFirmwareType(fw.Config.Firmware) == types.GuestOsDescriptorFirmwareTypeEfi {
-			logger.Printf("UEFI firmware detected")
+			logger.Log.Infof("UEFI firmware detected")
 			uefi = true
 		}
 		volume, err = osm_os.CreateVolume(c.OSClient, volOpts, uefi)
 		if err != nil {
-			logger.Printf("Failed to create volume: %v", err)
+			logger.Log.Infof("Failed to create volume: %v", err)
 			return "", err
 		}
 	}
@@ -264,14 +253,14 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	instanceUUID, _ := osm_os.GetInstanceUUID()
 	err = osm_os.AttachVolume(c.OSClient, volume.ID, c.ConvHostName, instanceUUID)
 	if err != nil {
-		logger.Printf("Failed to attach volume: %v", err)
+		logger.Log.Infof("Failed to attach volume: %v", err)
 		return "", err
 	}
 	// TODO: remove instanceName or handle it properly
 	defer osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID)
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
-		logger.Printf("Failed to find device name: %v", err)
+		logger.Log.Infof("Failed to find device name: %v", err)
 		return "", err
 	}
 
@@ -288,43 +277,43 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			nbdSrv, err := c.RunNbdKit(info.FileName)
 			defer nbdSrv.Stop()
 			if err != nil {
-				logger.Printf("Failed to run nbdkit: %v", err)
+				logger.Log.Infof("Failed to run nbdkit: %v", err)
 				return "", err
 			}
 			if syncVol {
 				// Check change id
 				osChangeID, err := osm_os.GetOSChangeID(c.OSClient, volume.ID)
 				if err != nil {
-					logger.Printf("Failed to get OS change ID: %v", err)
+					logger.Log.Infof("Failed to get OS change ID: %v", err)
 					return "", err
 				}
 				vmChangeID, err := c.VddkConfig.GetCBTChangeID(ctx)
 				if err != nil {
-					logger.Printf("Failed to get VM change ID: %v", err)
+					logger.Log.Infof("Failed to get VM change ID: %v", err)
 					return "", err
 				}
-				logger.Printf("OS Change ID: %s, VM Change ID: %s", osChangeID, vmChangeID)
+				logger.Log.Infof("OS Change ID: %s, VM Change ID: %s", osChangeID, vmChangeID)
 				if osChangeID != vmChangeID {
-					logger.Printf("Change ID mismatch, syncing volume..")
+					logger.Log.Infof("Change ID mismatch, syncing volume..")
 					err = c.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
 					if err != nil {
-						logger.Printf("Failed to sync volume: %v", err)
+						logger.Log.Infof("Failed to sync volume: %v", err)
 						return "", err
 					}
-					logger.Printf("Volume synced successfully")
+					logger.Log.Infof("Volume synced successfully")
 				} else {
-					logger.Printf("No change in VM, skipping volume sync")
+					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
 				err = nbdkit.NbdCopy(devPath)
 				if err != nil {
-					logger.Printf("Failed to copy disk: %v", err)
+					logger.Log.Infof("Failed to copy disk: %v", err)
 					nbdSrv.Stop()
 					return "", err
 				}
 			}
 			if runV2V {
-				logger.Printf("Running V2V conversion with %v", volume.ID)
+				logger.Log.Infof("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
 				if ok, _ := c.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
 					netConfScript = c.FirstBoot
@@ -333,24 +322,24 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				}
 				err = nbdkit.V2VConversion(devPath, netConfScript)
 				if err != nil {
-					logger.Printf("Failed to convert disk: %v", err)
+					logger.Log.Infof("Failed to convert disk: %v", err)
 					return "", err
 				}
 				err = c.VddkConfig.PowerOffVM(ctx)
 				if err != nil {
-					logger.Printf("Warning: Failed to power off vm %v", err)
-					logger.Printf("You will have to power off the vm manually...")
+					logger.Log.Infof("Warning: Failed to power off vm %v", err)
+					logger.Log.Infof("You will have to power off the vm manually...")
 				}
 			} else {
-				logger.Printf("Skipping V2V conversion...")
+				logger.Log.Infof("Skipping V2V conversion...")
 			}
 		}
 	}
 	if devPath == "" {
-		logger.Printf("No disk found")
+		logger.Log.Infof("No disk found")
 		return "", errors.New("No disk found")
 	}
-	logger.Printf("Disk copied and converted successfully: %s", devPath)
+	logger.Log.Infof("Disk copied and converted successfully: %s", devPath)
 	return volume.ID, nil
 }
 
@@ -374,6 +363,15 @@ func main() {
 		response.Msg = "Configuration file not valid JSON: " + argsFile
 		ansible.FailJson(response)
 	}
+
+	// Handle logging
+	randStr, err := moduleutils.GenRandom(8)
+	if err != nil {
+		response.Msg = "Failed to generate random string"
+		ansible.FailJson(response)
+	}
+	LogFile := "/tmp/osm-nbdkit-" + randStr + ".log"
+	logger.InitLogger(LogFile)
 	// Set parameters
 	user := ansible.RequireField(moduleArgs.User, "User is required")
 	password := ansible.RequireField(moduleArgs.Password, "Password is required")
@@ -391,14 +389,14 @@ func main() {
 	defer cancel()
 	c, err := vmware.VMWareAuth(ctx, server, user, password)
 	if err != nil {
-		logger.Printf("Failed to initiate Vmware client: %v", err)
+		logger.Log.Infof("Failed to initiate Vmware client: %v", err)
 		response.Msg = "Failed to initiate Vmware client: " + err.Error()
 		ansible.FailJson(response)
 	}
 
 	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.DstCloud)
 	if err != nil {
-		logger.Printf("Failed to authenticate Openstack client: %v", err)
+		logger.Log.Infof("Failed to authenticate Openstack client: %v", err)
 		response.Msg = "Failed to authenticate Openstack client: " + err.Error()
 		ansible.FailJson(response)
 	}
@@ -407,7 +405,7 @@ func main() {
 	finder := find.NewFinder(c.Client)
 	vm, err := finder.VirtualMachine(ctx, vmpath)
 	if err != nil {
-		logger.Printf("Failed to find VM: %v, in vm path: %v", err, vmpath)
+		logger.Log.Infof("Failed to find VM: %v, in vm path: %v", err, vmpath)
 		response.Msg = "Failed to find VM: " + err.Error() + " in vm path: " + vmpath
 		ansible.FailJson(response)
 	}
@@ -416,8 +414,8 @@ func main() {
 	var runV2V = true
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
-		logger.Printf("Failed to get disks: %v", err)
-		response.Msg = "Failed to get disks: " + err.Error() + ". Check logs: " + logFile
+		logger.Log.Infof("Failed to get disks: %v", err)
+		response.Msg = "Failed to get disks: " + err.Error() + ". Check logs: " + LogFile
 		ansible.FailJson(response)
 	}
 	for k, d := range disks {
@@ -444,8 +442,8 @@ func main() {
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
-			logger.Printf("Failed to migrate VM: %v", err)
-			response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + logFile
+			logger.Log.Infof("Failed to migrate VM: %v", err)
+			response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + LogFile
 			ansible.FailJson(response)
 		}
 		volume = append(volume, volUUID)
