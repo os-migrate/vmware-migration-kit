@@ -225,6 +225,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
 			nbdSrv, err := c.NbdkitConfig.RunNbdKit(info.FileName)
+			sock := nbdSrv.GetSocketPath()
 			defer nbdSrv.Stop()
 			if err != nil {
 				logger.Log.Infof("Failed to run nbdkit: %v", err)
@@ -245,7 +246,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				logger.Log.Infof("OS Change ID: %s, VM Change ID: %s", osChangeID, vmChangeID)
 				if osChangeID != vmChangeID {
 					logger.Log.Infof("Change ID mismatch, syncing volume..")
-					err = c.NbdkitConfig.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID)
+					err = c.NbdkitConfig.VddkConfig.SyncChangedDiskData(ctx, devPath, osChangeID, sock)
 					if err != nil {
 						logger.Log.Infof("Failed to sync volume: %v", err)
 						return "", err
@@ -255,7 +256,6 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				sock := nbdSrv.GetSocketPath()
 				err = nbdkit.NbdCopy(sock, devPath)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
@@ -281,7 +281,10 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 					logger.Log.Infof("Warning: Failed to power off vm %v", err)
 					logger.Log.Infof("You will have to power off the vm manually...")
 				}
-				volMetadata["converted"] = "true"
+				volMetadata = map[string]string{
+					"osm":       "true",
+					"converted": "true",
+				}
 				err = osm_os.UpdateVolumeMetadata(c.OSClient, volume.ID, volMetadata)
 				if err != nil {
 					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
