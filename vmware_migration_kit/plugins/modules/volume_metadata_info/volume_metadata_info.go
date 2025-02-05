@@ -28,7 +28,7 @@ import (
 // Ansible
 type ModuleArgs struct {
 	DstCloud osm_os.DstCloud `json:"dst_cloud"`
-	VolumeID string
+	VolumeID string          `json:"volume_id"`
 }
 type Response struct {
 	Msg       string `json:"msg"`
@@ -97,7 +97,7 @@ func main() {
 	}
 	converted, err := osm_os.IsVolumeConverted(provider, moduleArgs.VolumeID)
 	if err != nil {
-		response.Msg = "Failed to get volume metadata: " + err.Error()
+		response.Msg = "Failed to get volume metadata: " + moduleArgs.VolumeID + " error: " + err.Error()
 		FailJson(response)
 	}
 	response.Changed = true
