@@ -343,9 +343,11 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, change
 	var diskSize int64
 	for _, device := range vmConfig.Config.Hardware.Device {
 		if disk, ok := device.(*types.VirtualDisk); ok {
-			diskKey = disk.Key
-			diskSize = disk.CapacityInBytes
-			break
+			if disk.Key == v.DiskKey {
+				diskKey = disk.Key
+				diskSize = disk.CapacityInBytes
+				break
+			}
 		}
 	}
 	if diskSize == 0 {
@@ -366,7 +368,7 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, change
 	defer nbd.Close()
 
 	if sock != "" {
-		if err := nbd.SetExportName(sock); err != nil {
+		if err := nbd.ConnectUri(sock); err != nil {
 			logger.Log.Infof("Failed to set export name: %v", err)
 			return fmt.Errorf("failed to set export name: %w", err)
 		}
@@ -385,7 +387,6 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, change
 			StartOffset: startOffset,
 			ChangeId:    changeID,
 		}
-
 		result, err := methods.QueryChangedDiskAreas(ctx, v.VirtualMachine.Client(), &query)
 		if err != nil {
 			logger.Log.Infof("Failed to query changed disk areas: %v", err)
