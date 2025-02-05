@@ -332,7 +332,7 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	return *changeId, nil
 }
 
-func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string, changeID string) error {
+func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, changeID, sock string) error {
 	// Fetch VM configuration
 	var vmConfig mo.VirtualMachine
 	if err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.hardware.device"}, &vmConfig); err != nil {
@@ -365,9 +365,16 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath string,
 	}
 	defer nbd.Close()
 
-	if err := nbd.ConnectUri("nbd://localhost"); err != nil {
-		logger.Log.Infof("Failed to connect to NBD server: %v", err)
-		return fmt.Errorf("failed to connect to NBD server: %w", err)
+	if sock != "" {
+		if err := nbd.SetExportName(sock); err != nil {
+			logger.Log.Infof("Failed to set export name: %v", err)
+			return fmt.Errorf("failed to set export name: %w", err)
+		}
+	} else {
+		if err := nbd.ConnectUri("nbd://localhost"); err != nil {
+			logger.Log.Infof("Failed to connect to NBD server: %v", err)
+			return fmt.Errorf("failed to connect to NBD server: %w", err)
+		}
 	}
 	startOffset := int64(0)
 	for {
