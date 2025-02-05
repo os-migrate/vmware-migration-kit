@@ -88,4 +88,4 @@
 
 - name: Set fact for volume metadata
   set_fact:
-    converted: "{{ volume_info_metadata.converted }}"
+    converted: "{{ volume_info_metadata.results[0].converted }}"
