@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package volume_metadata_info
+package main
 
 import (
 	"context"
