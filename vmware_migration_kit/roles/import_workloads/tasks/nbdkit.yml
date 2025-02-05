@@ -76,3 +76,13 @@
 - name: Set fact for disk ID
   set_fact:
     volume_uuid: "{{ migrate_output.id }}"
+
+- name: Get volume metadata info
+  register: volume_info_metadata
+  os_migrate.vmware_migration_kit.volume_info_metadata:
+    cloud: "{{ dst_cloud }}"
+    volume_id: "{{ volume_uuid }}"
+
+- name: Set fact for volume metadata
+  set_fact:
+    converted: "{{ volume_info_metadata.converted }}"
