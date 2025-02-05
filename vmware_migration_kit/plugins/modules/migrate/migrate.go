@@ -1,3 +1,19 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Copyright 2025 Red Hat, Inc.
+ *
+ */
 package main
 
 import (
@@ -7,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"strconv"
 	moduleutils "vmware-migration-kit/vmware_migration_kit/plugins/module_utils"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
@@ -18,7 +33,6 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/vmware/govmomi/find"
-	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -47,11 +61,6 @@ example for args.json file:
 }
 */
 
-type VddkConfig struct {
-	VirtualMachine    *object.VirtualMachine
-	SnapshotReference types.ManagedObjectReference
-}
-
 type MigrationConfig struct {
 	NbdkitConfig *nbdkit.NbdkitConfig
 	User         string
@@ -66,10 +75,6 @@ type MigrationConfig struct {
 	ConvHostName string
 	Compression  string
 	FirstBoot    string
-}
-
-type NbdkitServer struct {
-	cmd *exec.Cmd
 }
 
 // Ansible
@@ -153,13 +158,15 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
 			logger.Log.Infof("CBT enabled, creating new volume and set changeID: %s", changeID)
 			volMetadata = map[string]string{
-				"osm":      "true",
-				"changeID": changeID,
+				"osm":       "true",
+				"changeID":  changeID,
+				"converted": "false",
 			}
 		} else {
 			logger.Log.Infof("Volume not found, creating new volume")
 			volMetadata = map[string]string{
-				"osm": "true",
+				"osm":       "true",
+				"converted": "false",
 			}
 		}
 		// TODO:
@@ -273,6 +280,11 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				if err != nil {
 					logger.Log.Infof("Warning: Failed to power off vm %v", err)
 					logger.Log.Infof("You will have to power off the vm manually...")
+				}
+				volMetadata["converted"] = "true"
+				err = osm_os.UpdateVolumeMetadata(c.OSClient, volume.ID, volMetadata)
+				if err != nil {
+					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
 				}
 			} else {
 				logger.Log.Infof("Skipping V2V conversion...")
