@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
@@ -160,15 +161,52 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 			logger.Log.Infof("Failed to get volume status: %v", err)
 			return err
 		}
-
 		if volume.Status == status {
 			return nil
 		}
-
 		time.Sleep(5 * time.Second)
 	}
 	logger.Log.Infof("Volume %s did not reach status %s within the timeout", volumeID, status)
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
+}
+
+func UpdateVolumeMetadata(client *gophercloud.ProviderClient, volumeID string, metadata map[string]string) error {
+	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return err
+	}
+	updateOpts := volumes.UpdateOpts{
+		Metadata: metadata,
+	}
+	_, err = volumes.Update(context.TODO(), blockStorageClient, volumeID, updateOpts).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to update volume metadata: %v", err)
+		return err
+	}
+	return nil
+}
+
+func IsVolumeConverted(client *gophercloud.ProviderClient, volumeID string) (bool, error) {
+	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %w", err)
+		return false, err
+	}
+	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get volume: %v", err)
+		return false, err
+	}
+	if prop, ok := volume.Metadata["converted"]; ok {
+		converted, err := strconv.ParseBool(prop)
+		if err != nil {
+			logger.Log.Infof("Failed to cast metadata to bool, make sure the converted property is bool: %v", err)
+			return false, err
+		}
+		return converted, nil
+	}
+	return false, nil
 }
 
 func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string, error) {

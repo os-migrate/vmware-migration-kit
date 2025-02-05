@@ -1,3 +1,4 @@
+use_socks: true
 cbt_sync: false
 used_mapped_networks: false
 image_metadata:
