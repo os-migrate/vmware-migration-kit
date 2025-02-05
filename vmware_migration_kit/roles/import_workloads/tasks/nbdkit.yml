@@ -80,8 +80,11 @@
 - name: Get volume metadata info
   register: volume_info_metadata
   os_migrate.vmware_migration_kit.volume_metadata_info.volume_metadata_info:
-    cloud: "{{ dst_cloud }}"
-    volume_id: "{{ volume_uuid }}"
+    dst_cloud: "{{ dst_cloud }}"
+    volume_id: "{{ uuid }}"
+  loop: "{{ volume_uuid }}"
+  loop_control:
+    loop_var: uuid
 
 - name: Set fact for volume metadata
   set_fact:
