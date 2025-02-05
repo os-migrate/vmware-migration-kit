@@ -116,6 +116,15 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		return "", err
 	}
 	if volume != nil {
+		converted, err := osm_os.IsVolumeConverted(c.OSClient, volume.ID)
+		if err != nil {
+			logger.Log.Infof("Failed to get volume metadata: %v", err)
+			return "", err
+		}
+		if converted {
+			logger.Log.Infof("Volume already converted, skipping migration..")
+			return volume.ID, nil
+		}
 		if c.CBTSync {
 			logger.Log.Infof("Volume exists, syncing volume..")
 			syncVol = true
@@ -213,7 +222,6 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		logger.Log.Infof("Failed to find device name: %v", err)
 		return "", err
 	}
-
 	// Start copy
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
@@ -337,12 +345,12 @@ func main() {
 	socks := moduleArgs.UseSocks
 
 	// Handle logging
-	randStr, err := moduleutils.GenRandom(8)
+	r, err := moduleutils.GenRandom(8)
 	if err != nil {
 		response.Msg = "Failed to generate random string"
 		ansible.FailJson(response)
 	}
-	LogFile := "/tmp/osm-nbdkit-" + vmname + "-" + randStr + ".log"
+	LogFile := "/tmp/osm-nbdkit-" + vmname + "-" + r + ".log"
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -389,7 +397,7 @@ func main() {
 				Libdir:      libdir,
 				VmName:      vmname,
 				Compression: compression,
-				UUID:        randStr,
+				UUID:        r,
 				UseSocks:    socks,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
