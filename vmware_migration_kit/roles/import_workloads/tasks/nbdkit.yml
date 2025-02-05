@@ -79,7 +79,7 @@
 
 - name: Get volume metadata info
   register: volume_info_metadata
-  os_migrate.vmware_migration_kit.volume_info_metadata.volume_info_metadata:
+  os_migrate.vmware_migration_kit.volume_metadata_info.volume_metadata_info:
     cloud: "{{ dst_cloud }}"
     volume_id: "{{ volume_uuid }}"
 
