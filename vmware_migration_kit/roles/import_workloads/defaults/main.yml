@@ -1,5 +1,7 @@
 use_socks: true
 cbt_sync: false
+converted: false
+
 used_mapped_networks: false
 image_metadata:
   - hw_rng_model='virtio'

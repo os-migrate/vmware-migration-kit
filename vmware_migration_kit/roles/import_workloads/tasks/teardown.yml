@@ -4,7 +4,9 @@
     state: absent
     name: "{{ instance_uuid }}"
     cloud: "{{ dst_cloud }}"
-  when: delete_os_instance|default(true)|bool
+  when:
+    - delete_os_instance|default(true)|bool
+    - instance_uuid is defined
 
 - name: Delete Cinder Volume
   openstack.cloud.volume:
@@ -14,7 +16,9 @@
   loop: "{{ volume_uuid }}"
   loop_control:
     loop_var: uuid
-  when: delete_os_volume|default(true)|bool
+  when:
+    - delete_os_volume|default(true)|bool
+    - volume_uuid is defined
 
 - name: Delete neutron port
   ignore_errors: true
@@ -25,4 +29,6 @@
   loop: "{{ nics }}"
   loop_control:
     loop_var: port
-  when: delete_os_port|default(true)|bool
+  when:
+    - delete_os_port|default(true)|bool
+    - nics is defined
