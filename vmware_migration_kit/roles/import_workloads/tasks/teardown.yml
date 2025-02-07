@@ -34,7 +34,7 @@
     - nics is defined
 
 - name: Delete flavor
-  openstack.cloud.flavor:
+  openstack.cloud.compute_flavor:
     state: absent
     cloud: "{{ dst_cloud }}"
     name: "{{ flavor_name_or_uuid }}"
