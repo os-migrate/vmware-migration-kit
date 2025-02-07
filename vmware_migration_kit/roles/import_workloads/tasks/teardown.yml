@@ -32,3 +32,12 @@
   when:
     - delete_os_port|default(true)|bool
     - nics is defined
+
+- name: Delete flavor
+  openstack.cloud.flavor:
+    state: absent
+    cloud: "{{ dst_cloud }}"
+    name: "{{ flavor_name_or_uuid }}"
+  when:
+    - create_flavor|default(true)|bool
+    - flavor_name_or_uuid is defined

@@ -1,13 +1,15 @@
-vm_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/vm_info.json"
-guest_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
-disk_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/disk_info.json"
-flavor_name_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/flavors.yml"
-network_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
-import_workloads_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/import_workloads.json"
+vm_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
+guest_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
+disk_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
+flavor_name_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
+network_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
+import_workloads_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/import_workloads.json"
 
 flavor_name: "{{ flavor_name }}"
 security_groups: "default"
 nics: ""
+
+create_flavor: false
 
 # Migration
 strategy: "cold"

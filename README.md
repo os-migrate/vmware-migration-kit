@@ -112,7 +112,7 @@ And the live demo here:
 
 ```
 # osm working directory:
-os_migrate_data_dir: /opt/os-migrate
+os_migrate_vmw_data_dir: /opt/os-migrate
 copy_openstack_credentials_to_conv_host: false
 
 # Re-use an already deployed conversion host:
@@ -230,7 +230,7 @@ os_migrate_create_network_port: false
 
 # OS-migrate parameters:
 # osm working directory:
-os_migrate_data_dir: /opt/os-migrate
+os_migrate_vmw_data_dir: /opt/os-migrate
 
 # Set this to true if the Openstack "dst_cloud" is a clouds.yaml file
 # other, if the dest_cloud is a dict of authentication parameters, set

@@ -11,7 +11,7 @@
 - name: Dump vm_info file
   copy:
     content: "{{ vm_info }}"
-    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/vm_info.json"
+    dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
   delegate_to: localhost
   run_once: true
 
@@ -28,7 +28,7 @@
 - name: Dump guest_info file
   copy:
     content: "{{ guest_info }}"
-    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
+    dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
   delegate_to: localhost
   run_once: true
 
@@ -45,6 +45,6 @@
 - name: Dump guest_info file
   copy:
     content: "{{ disk_info }}"
-    dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/disk_info.json"
+    dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
   delegate_to: localhost
   run_once: true

@@ -1,5 +1,5 @@
 # Important: This playbook should be run once the vmware metadata steps has been
-# and the metadata file should be present in the {{ os_migrate_data_dir }} directory
+# and the metadata file should be present in the {{ os_migrate_vmw_data_dir }} directory
 
 # Create instances in openstack from cinder volumes and vmware metadata
 - name: Migrate vmware virtual machines
@@ -13,7 +13,7 @@
       ansible.builtin.set_fact:
         merged_vm_data: "{{ merged_vm_data + [json_data] }}"
       vars:
-        json_data: "{{ lookup('file', os_migrate_data_dir ~ '/' ~ vm_name ~ '/import_workloads.json') | from_json }}"
+        json_data: "{{ lookup('file', os_migrate_vmw_data_dir ~ '/' ~ vm_name ~ '/import_workloads.json') | from_json }}"
       loop: "{{ vms }}"
       loop_control:
         loop_var: vm_name

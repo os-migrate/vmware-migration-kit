@@ -107,7 +107,7 @@ def run_module():
 
     # Dump flavor data structure filled with guest_info and disk_info
     data = {
-    'os_migrate_version': '0.17.0',
+    'os_migrate_version': '1.0.1',
     'resources': [
         {
             '_info': {
