@@ -10,7 +10,7 @@
     cloud: "{{ dst_cloud }}"
     guest_info_path: "{{ guest_info_path }}"
     disk_info_path: "{{ disk_info_path }}"
-  register: flavor_name_or_uuid
+  register: flavor_name
   when: use_existing_flavor|default(true)|bool
 
 - name: Export flavor
@@ -19,11 +19,20 @@
     disk_info_path: "{{ disk_info_path }}"
     flavor_name: "osm-vmware-{{ vm_name }}"
     path: "{{ flavor_name_path }}"
-  when: not use_existing_flavor|default(true)|bool
+  when: not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid
+
+- name: Set fact for flavor path
+  set_fact:
+    flavor_name_path: "{{ flavor_name_path }}"
+  when: not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid
 
 - name: Set fact for flavor
   set_fact:
-    flavor_name_or_uuid: "{{ flavor_name_or_uuid.openstack_flavor_uuid | default('osm-vmware-' + vm_name) }}"
+    flavor_name_or_uuid: "{{ flavor_name.openstack_flavor_uuid | default('osm-vmware-' + vm_name) }}"
+
+- name: Set fact for create flavor
+  set_fact:
+    create_flavor: "{{ not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid }}"
 
 - name: Create import_workload template
   template:

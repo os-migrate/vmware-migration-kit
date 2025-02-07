@@ -5,7 +5,7 @@
   block:
     - name: Read macs file
       ansible.builtin.slurp:
-        src: "{{ os_migrate_data_dir }}/{{ vm_name }}/macs.json"
+        src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/macs.json"
       register: macs_file
 
     - name: Parse JSON content
@@ -15,7 +15,7 @@
     - name: Create import_workload template
       template:
         src: "network_config.sh.j2"
-        dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
+        dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
         mode: '0755'
         comment_start_string: '{='
         comment_end_string: '=}'
@@ -26,7 +26,7 @@
   block:
     - name: Read macs file
       ansible.builtin.slurp:
-        src: "{{ os_migrate_data_dir }}/{{ vm_name }}/nics.json"
+        src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/nics.json"
       register: nics_file
 
     - name: Parse JSON content
@@ -40,14 +40,14 @@
     - name: Create import_workload template
       template:
         src: "network_config.sh.j2"
-        dest: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
+        dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
         mode: '0755'
         comment_start_string: '{='
         comment_end_string: '=}'
 
 - name: Read the JSON file
   ansible.builtin.slurp:
-    src: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
+    src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
   register: guest_info
 
 - name: Parse JSON content
@@ -65,8 +65,8 @@
     password: "{{ vcenter_password }}"
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
-    osmdatadir: "{{ os_migrate_data_dir }}"
-    firstboot: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_config.sh"
+    osmdatadir: "{{ os_migrate_vmw_data_dir }}"
+    firstboot: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
     vddkpath: "{{ vddkpath }}"
     usesocks: "{{ use_socks | bool }}"
     cbtsync: "{{ cbt_sync | bool }}"

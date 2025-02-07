@@ -10,23 +10,37 @@
       loop_control:
         loop_var: vm_name
       vars:
-        vm_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/vm_info.json"
-        guest_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/guest_info.json"
-        disk_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/disk_info.json"
-        flavor_name_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/flavors.yml"
-        network_info_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/network_info.json"
-        import_workloads_path: "{{ os_migrate_data_dir }}/{{ vm_name }}/import_workloads.json"
+        vm_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
+        guest_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
+        disk_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
+        flavor_name_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
+        network_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
+        import_workloads_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/import_workloads.json"
+
+    - name: Import flavor
+      ansible.builtin.include_role:
+        name: os_migrate.os_migrate.import_flavors
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm_name
+      vars:
+        resource_files:
+          - "{{ os_migrate_data_dir }}/flavors.yml"
+        path: "/opt/os-migrate//{{ vm_name }}"
+        os_migrate_data_dir: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}"
+        os_migrate_dst_filter_current_project: false
+      when: create_flavor
 
 - name: Sync to conversion host
   hosts: conversion_host
   tasks:
     - name: Set OSM base dir
       ansible.builtin.set_fact:
-        conv_host_data_base_path: "{{ os_migrate_data_dir | regex_replace('/[^/]+$', '') }}"
+        conv_host_data_base_path: "{{ os_migrate_vmw_data_dir | regex_replace('/[^/]+$', '') }}"
 
     - name: Sync to conversion host
       become: yes
       ansible.builtin.synchronize:
-        src: "{{ os_migrate_data_dir }}"
+        src: "{{ os_migrate_vmw_data_dir }}"
         dest: "{{ conv_host_data_base_path }}"
       when: copy_metadata_to_conv_host|default(false)|bool

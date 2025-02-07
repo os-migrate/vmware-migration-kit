@@ -76,10 +76,11 @@
       when:
         not used_mapped_networks|default(true)|bool
 
-- name: Create OpenStack instance with mapped network
+- name: Create OpenStack instance with existing network
   when:
     - not os_migrate_create_network_port
     - not used_mapped_networks
+    - openstack_private_network is defined
   block:
     - name: Create VM in Openstack
       register: instance_output_without_port
@@ -87,20 +88,48 @@
         cloud: "{{ dst_cloud }}"
         state: present
         name: "{{ vm_name }}"
-        network: "{{ nics }}"
+        network: "{{ openstack_private_network }}"
         boot_volume: "{{ boot_volume_uuid }}"
+        volumes: "{{ volume_uuid[1:] }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
-        userdata: |
-          #!/bin/sh
-          dhclient
       when:
-        not used_mapped_networks|default(true)|bool
-        not os_migrate_create_network_port
+        - not used_mapped_networks|default(true)|bool
+        - not os_migrate_create_network_port
 
     - name: Set fact for instance_uuid
       set_fact:
         instance_uuid: "{{ instance_output_without_port.server.id }}"
       when:
-        not used_mapped_networks|default(true)|bool
-        not os_migrate_create_network_port
+        - not used_mapped_networks|default(true)|bool
+        - not os_migrate_create_network_port
+        - openstack_private_network is defined
+
+- name: Create OpenStack instance with existing port
+  when:
+    - not os_migrate_create_network_port
+    - not used_mapped_networks
+    - nics is defined
+  block:
+    - name: Create VM in Openstack
+      register: instance_output_without_port
+      openstack.cloud.server:
+        cloud: "{{ dst_cloud }}"
+        state: present
+        name: "{{ vm_name }}"
+        nics: "{{ nics }}"
+        boot_volume: "{{ boot_volume_uuid }}"
+        volumes: "{{ volume_uuid[1:] }}"
+        security_groups: "{{ security_groups }}"
+        flavor: "{{ flavor_name_or_uuid }}"
+      when:
+        - not used_mapped_networks|default(true)|bool
+        - not os_migrate_create_network_port
+
+    - name: Set fact for instance_uuid
+      set_fact:
+        instance_uuid: "{{ instance_output_without_port.server.id }}"
+      when:
+        - not used_mapped_networks|default(true)|bool
+        - not os_migrate_create_network_port
+        - nics is defined

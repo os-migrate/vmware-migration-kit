@@ -49,7 +49,7 @@ os_migrate_create_network_port: true
 
 # OS-migrate parameters:
 # osm working directory:
-os_migrate_data_dir: /opt/os-migrate
+os_migrate_vmw_data_dir: /opt/os-migrate
 
 # Set this to true if the Openstack "dst_cloud" is a clouds.yaml file
 # other, if the dest_cloud is a dict of authentication parameters, set
