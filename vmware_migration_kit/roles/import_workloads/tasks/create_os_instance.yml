@@ -28,6 +28,11 @@
     boot_volume_uuid: "{{ volume_uuid[0] }}"
   when: os_migrate_nbkit
 
+- name: Set boot volume UUID as a fact
+  set_fact:
+    volumes_list: "{{ volume_uuid[1:] | default([]) }}"
+  when: os_migrate_nbkit
+
 - name: Create OpenStack instance with mapped network
   when:
     - used_mapped_networks
@@ -40,7 +45,7 @@
         state: present
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
-        volumes: "{{ volume_uuid[1:] }}"
+        volumes: "{{ volumes_list }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
@@ -63,7 +68,7 @@
         state: present
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
-        volumes: "{{ volume_uuid[1:] }}"
+        volumes: "{{ volumes_list }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
@@ -90,7 +95,7 @@
         name: "{{ vm_name }}"
         network: "{{ openstack_private_network }}"
         boot_volume: "{{ boot_volume_uuid }}"
-        volumes: "{{ volume_uuid[1:] }}"
+        volumes: "{{ volumes_list }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
       when:
@@ -119,7 +124,7 @@
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
         boot_volume: "{{ boot_volume_uuid }}"
-        volumes: "{{ volume_uuid[1:] }}"
+        volumes: "{{ volumes_list }}"
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
       when:
