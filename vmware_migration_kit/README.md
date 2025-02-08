@@ -124,7 +124,8 @@ openstack_private_network: private
 # Security groups for the instance:
 security_groups: ab7e2b1a-b9d3-4d31-9d2a-bab63f823243
 use_existing_flavor: true
-
+# key pair name, could be left blank
+ssh_key_name: default
 # network settings for openstack:
 os_migrate_create_network_port: true
 copy_metadata_to_conv_host: true
