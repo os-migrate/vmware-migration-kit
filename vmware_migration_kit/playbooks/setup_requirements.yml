@@ -8,3 +8,20 @@
         dest: "{{ os_migrate_vmw_data_dir }}"
         mode: '0644'
       when: not already_deploy_conversion_host
+
+    - name: Make sure required package are installed
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - python3.11
+        - python3-pip
+
+    - name: Install openstacksdk
+      ansible.builtin.pip:
+        name: "{{ item }}"
+      with_items:
+        - openstacksdk>1.0.0
+        - requests
+        - pyVim
+        - pyVmomi
