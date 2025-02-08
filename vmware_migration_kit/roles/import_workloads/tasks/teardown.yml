@@ -39,5 +39,5 @@
     cloud: "{{ dst_cloud }}"
     name: "{{ flavor_name_or_uuid }}"
   when:
-    - create_flavor|default(false)|bool
+    - not use_existing_flavor|default(true)|bool
     - flavor_name_or_uuid is defined
