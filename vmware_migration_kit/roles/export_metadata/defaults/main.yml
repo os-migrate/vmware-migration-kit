@@ -1,4 +1,5 @@
 ---
+used_mapped_networks: false
 network_map:
   # Map network from vmware to current openstack networks
   "VM Network": "public"
