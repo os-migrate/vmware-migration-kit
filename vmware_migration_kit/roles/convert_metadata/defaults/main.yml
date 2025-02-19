@@ -10,7 +10,7 @@ security_groups: "default"
 nics: ""
 
 create_flavor: false
-
+os_migrate_vmw_data_dir: /opt/os-migrate
 # Migration
 strategy: "cold"
 dry_run: false
