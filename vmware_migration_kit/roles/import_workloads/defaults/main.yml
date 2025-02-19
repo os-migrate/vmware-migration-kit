@@ -3,6 +3,7 @@ cbt_sync: false
 converted: false
 
 used_mapped_networks: false
+os_migrate_vmw_data_dir: /opt/os-migrate
 image_metadata:
   - hw_rng_model='virtio'
   - os_type='linux'

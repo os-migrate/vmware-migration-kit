@@ -33,6 +33,8 @@
 
 - name: Sync to conversion host
   hosts: conversion_host
+  vars:
+    os_migrate_vmw_data_dir: /opt/os-migrate
   tasks:
     - name: Set OSM base dir
       ansible.builtin.set_fact:
