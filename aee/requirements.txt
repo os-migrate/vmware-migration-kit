@@ -1,0 +1,4 @@
+requests
+pyVim
+pyVmomi
+openstacksdk
