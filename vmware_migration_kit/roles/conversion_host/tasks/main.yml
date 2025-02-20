@@ -2,6 +2,7 @@
   ansible.builtin.package:
     name: centos-release-openstack-bobcat
     state: present
+  when: os_migrate_virt_v2v|default(false)|bool
 
 - name: Make sure required package are installed
   ansible.builtin.package:
@@ -11,9 +12,19 @@
     - libvirt
     - virt-v2v
     - qemu-kvm
-    - python3.11
+    - python3
     - python3-pip
     - wget
+
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Check virtio-win version
+  ansible.builtin.fail:
+    msg: "The package virtio-win is not installed or the version is lower than 1.9.40"
+  when:
+    - "'virtio-win' not in ansible_facts.packages or ansible_facts.packages['virtio-win'][0].version is version('1.9.40', '<')"
 
 - name: Install openstacksdk
   ansible.builtin.pip:
