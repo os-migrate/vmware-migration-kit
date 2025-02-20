@@ -123,7 +123,8 @@ curl -O -k https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream
 openstack image create --disk-format qcow2 --file CentOS-Stream-GenericCloud-10-20250217.0.x86_64.qcow2 CentOS-Stream-GenericCloud-10-20250217.0.x86_64.qcow2
 
 # Create flavor, security group and network if needed
-openstack server create --flavor x.medium --image 14b1a895-5003-4396-888e-1fa55cd4adf8  --key-name default --network private   vmware-conv-host
+openstack server create --flavor x.medium --image 14b1a895-5003-4396-888e-1fa55cd4adf8  \
+  --key-name default --network private   vmware-conv-host
 openstack server add floating ip vmware-conv-host 192.168.18.205
 ```
 
