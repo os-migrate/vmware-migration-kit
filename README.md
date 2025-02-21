@@ -230,7 +230,6 @@ vcenter_datacenter: Datacenter
 If you already have a conversion host, or if you want to re-used a previously deployed one:
 
 ```
-vddk_libdir: /usr/lib/vmware-vix-disklib
 already_deploy_conversion_host: true
 ```
 
@@ -238,7 +237,6 @@ Then specify the Openstack credentials:
 
 ```
 # OpenStack destination cloud auth parameters:
-os_cloud_environ: psi-rhos-upgrades-ci
 dst_cloud:
   auth:
     auth_url: https://openstack.dst.cloud:13000/v3
@@ -253,12 +251,12 @@ dst_cloud:
 
 # OpenStack migration parameters:
 # Use mapped networks or not:
-used_mapped_networks: false
+used_mapped_networks: true
 network_map:
-  VM Network: provider_network_1
+  VM Network: private
 
 # If no mapped network then set the openstack network:
-openstack_private_network: provider_network_1
+openstack_private_network: private
 
 # Security groups for the instance:
 security_groups: 4f077e64-bdf6-4d2a-9f2c-c5588f4948ce
@@ -280,7 +278,7 @@ copy_openstack_credentials_to_conv_host: false
 os_migrate_tear_down: true
 
 # VMs list
-vms_lisr:
+vms_list:
   - rhel-1
   - rhel-2
 ```
@@ -350,10 +348,24 @@ Then create the argument json file, for example:
 ```
 cat <<EOF > args.json
 {
-  "user": "root",
-  "password": "root",
-  "server": "10.0.0.7",
-  "vmname": "rhel-9.4-1"
+		"user": "root",
+		"password": "root",
+		"server": "10.0.0.7",
+		"vmname": "rhel-9.4-3",
+		"cbtsync": false,
+		"dst_cloud": {
+			"auth": {
+				"auth_url": "https://keystone-public-openstack.apps.ocp-4-16.standalone",
+				"username": "admin",
+				"project_id": "xyz",
+				"project_name": "admin",
+				"user_domain_name": "Default",
+				"password": "admin"
+			},
+			"region_name": "regionOne",
+			"interface": "public",
+			"identity_api_version": 3
+		}
 }
 EOF
 ```
