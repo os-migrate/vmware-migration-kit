@@ -148,6 +148,10 @@ conversion_host:
 **myvars.yml:**
 
 ```
+# if you run the migration from an Ansible Execution Environment (AEE)
+# set this to true:
+runner_from_aee: true
+
 # osm working directory:
 os_migrate_vmw_data_dir: /opt/os-migrate
 copy_openstack_credentials_to_conv_host: false
