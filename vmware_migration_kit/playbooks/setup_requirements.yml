@@ -17,6 +17,7 @@
       with_items:
         - python3
         - python3-pip
+      when: not runner_from_aee | default(false)
 
     - name: Install openstacksdk
       ansible.builtin.pip:
@@ -27,3 +28,4 @@
         - requests
         - pyVim
         - pyVmomi
+      when: not runner_from_aee | default(false)
