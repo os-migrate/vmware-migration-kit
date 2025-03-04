@@ -10,7 +10,7 @@ workflow:
 
 stages:
   - build
-  - test
+  - deploy
 
 image: fedora
 
