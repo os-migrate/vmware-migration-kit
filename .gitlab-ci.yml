@@ -15,7 +15,7 @@ build-job:
     - echo "Hello, $GITLAB_USER_LOGIN!"
 
 job2:on-schedule:
-  stage: test
+  stage: deploy
   tags:
     - osm-ci-heat-bot
   rules:
