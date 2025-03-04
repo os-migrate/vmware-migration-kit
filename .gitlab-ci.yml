@@ -8,14 +8,19 @@ workflow:
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
 
+stages:
+  - build
+  - test
 
-build-job:
+image: fedora
+
+job1:on-schedule:
   stage: build
   script:
     - echo "Hello, $GITLAB_USER_LOGIN!"
 
 job2:on-schedule:
-  stage: test
+  stage: deploy
   tags:
     - osm-ci-heat-bot
   rules:
