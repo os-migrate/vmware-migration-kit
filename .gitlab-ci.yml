@@ -1,9 +1,40 @@
-stages:
-  - deploy
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
 
-deploy_job:
-  stage: deploy
+
+build-job:
+  stage: build
   script:
-    podman pull quay.io/rhn_engineering_mbultel/osm-fedora
-    image_id=$(podman image list  | grep 'localhost/osm-fedora' | awk '{print $3}')
-    podman run -t -v $PWD:/runner/env $image_id  ansible-playbook os_migrate.vmware_migration_kit.migration -i /runner/env/inventory.yml -e @vars.yml
+    - echo "Hello, $GITLAB_USER_LOGIN!"
+
+job2:on-schedule:
+  stage: test
+  tags:
+    - osm-ci-heat-bot
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        PERIODIC_JOB: '1'
+    - when: always
+  script:
+    - |
+      podman pull quay.io/rhn_engineering_mbultel/osm-fedora;
+      image_id=$(podman image list  | grep 'rhn_engineering_mbultel/osm-fedora' | awk '{print $3}');
+      echo $image_id
+      cp -R /home/cloud-user/env $PWD/
+      podman run --rm -t -v $PWD/env:/runner/env:z \
+        --secret conv_host_key,target=/runner/key,mode=0600,type=mount --user root \
+        $image_id ansible-playbook os_migrate.vmware_migration_kit.migration -i /runner/env/inventory.yml -e @/runner/env/vars.yml
+  artifacts:
+    name: "$CI_JOB_ID"
+    untracked: true
+    expire_in: 1 week
+    when: on_failure
+
