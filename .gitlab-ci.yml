@@ -29,16 +29,7 @@ job2:on-schedule:
         PERIODIC_JOB: '1'
     - when: always
   script:
-    - |
-      podman pull quay.io/rhn_engineering_mbultel/osm-fedora
-
-      image_id=$(podman image list  | grep 'rhn_engineering_mbultel/osm-fedora' | awk '{print $3}')
-
-      cp -R /home/cloud-user/env $PWD/
-
-      podman run --rm -t -v $PWD/env:/runner/env:z \
-        --secret conv_host_key,target=/runner/key,mode=0600,type=mount --user root \
-        $image_id ansible-playbook os_migrate.vmware_migration_kit.migration -i /runner/env/inventory.yml -e @/runner/env/vars.yml
+    - /home/cloud-user/build.sh
   artifacts:
     name: "$CI_JOB_ID"
     untracked: true
