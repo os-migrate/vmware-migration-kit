@@ -23,11 +23,9 @@ job2:on-schedule:
   stage: deploy
   tags:
     - osm-ci-heat-bot
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      variables:
-        PERIODIC_JOB: '1'
-    - when: always
+  only:
+    - merge_requests
+    - branches
   script:
     - /home/cloud-user/build.sh
   artifacts:
@@ -35,4 +33,3 @@ job2:on-schedule:
     untracked: true
     expire_in: 1 week
     when: on_failure
-
