@@ -8,6 +8,7 @@ vcenter_datacenter: Datacenter
 # Only useful for v2v workflow
 vddk_thumbprint: XX:XX:XX:XX
 
+# this is a test
 # Conversion host parameters:
 vddk_libdir: /usr/lib/vmware-vix-disklib
 already_deploy_conversion_host: true
