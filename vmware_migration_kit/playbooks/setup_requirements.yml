@@ -8,7 +8,9 @@
         dest: "{{ os_migrate_vmw_data_dir }}"
         mode: '0644'
       when: not already_deploy_conversion_host
-
+    - name: fail
+      fail:
+        msg: Fail another test
     - name: Make sure required package are installed
       ansible.builtin.package:
         name: "{{ item }}"
