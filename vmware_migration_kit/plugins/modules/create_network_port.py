@@ -88,7 +88,7 @@ EXAMPLES = '''
         used_mapped_networks: true
         security_groups: ["default"]
       register: ports_uuid
- 
+
     - name: Create network port
       os_migrate.vmware_migration_kit.create_network_port:
         cloud: dst

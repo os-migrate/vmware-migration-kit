@@ -3,8 +3,8 @@
     "openstack": {
       "flavor_name_or_uuid": "{{ flavor_name_or_uuid }}",
       "openstack_private_network": "",
-      "nics": {% if nics %}"{{ nics }}"{% else %}""{% endif %},
-      "security_groups": "{{ security_groups }}"
+      "nics": {% if convert_metadata_nics %}"{{ convert_metadata_nics }}"{% else %}""{% endif %},
+      "security_groups": "{{ convert_metadata_security_groups }}"
     },
     "vmware_guest_info": {},
     "migration": {

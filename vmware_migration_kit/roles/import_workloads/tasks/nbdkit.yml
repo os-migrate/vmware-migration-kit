@@ -1,7 +1,7 @@
 ---
 - name: Extract macs addresses for non mapped networks
   when:
-    - not used_mapped_networks
+    - not import_workloads_used_mapped_networks
   block:
     - name: Read macs file
       ansible.builtin.slurp:
@@ -9,11 +9,11 @@
       register: macs_file
 
     - name: Parse JSON content
-      set_fact:
+      ansible.builtin.set_fact:
         macs_list: "{{ macs_file.content | b64decode | from_json | map(attribute='mac') | list }}"
 
     - name: Create import_workload template
-      template:
+      ansible.builtin.template:
         src: "network_config.sh.j2"
         dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
         mode: '0755'
@@ -22,7 +22,7 @@
 
 - name: Extract macs addresses for mapped networks
   when:
-    - used_mapped_networks
+    - import_workloads_used_mapped_networks
   block:
     - name: Read macs file
       ansible.builtin.slurp:
@@ -30,15 +30,15 @@
       register: nics_file
 
     - name: Parse JSON content
-      set_fact:
+      ansible.builtin.set_fact:
         nics_list: "{{ nics_file.content | b64decode | from_json }}"
 
     - name: Extract MAC addresses
-      set_fact:
+      ansible.builtin.set_fact:
         macs_list: "{{ nics_list | map(attribute='mac') | list }}"
 
     - name: Create import_workload template
-      template:
+      ansible.builtin.template:
         src: "network_config.sh.j2"
         dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
         mode: '0755'
@@ -51,30 +51,30 @@
   register: guest_info
 
 - name: Parse JSON content
-  set_fact:
+  ansible.builtin.set_fact:
     instance_data: "{{ guest_info.content | b64decode | from_json }}"
 
 - name: Extract vddkpath from guest_info.json
-  set_fact:
+  ansible.builtin.set_fact:
     vddkpath: "{{ instance_data.instance.hw_folder }}"
 
 - name: Migrate Guest from Vmware using nbdkit
   os_migrate.vmware_migration_kit.migrate.migrate:
     dst_cloud: "{{ dst_cloud }}"
-    user:  "{{ vcenter_username }}"
+    user: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
     osmdatadir: "{{ os_migrate_vmw_data_dir }}"
     firstboot: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
     vddkpath: "{{ vddkpath }}"
-    usesocks: "{{ use_socks | bool }}"
-    cbtsync: "{{ cbt_sync | bool }}"
+    usesocks: "{{ import_workloads_use_socks | bool }}"
+    cbtsync: "{{ import_workloads_cbt_sync | bool }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
 
 - name: Set fact for disk ID
-  set_fact:
+  ansible.builtin.set_fact:
     volume_uuid: "{{ migrate_output.id }}"
 
 - name: Get volume metadata info
@@ -87,5 +87,5 @@
     loop_var: uuid
 
 - name: Set fact for volume metadata
-  set_fact:
-    converted: "{{ volume_info_metadata.results[0].converted }}"
+  ansible.builtin.set_fact:
+    import_workloads_converted: "{{ volume_info_metadata.results[0].converted }}"

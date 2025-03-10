@@ -3,39 +3,42 @@
   ansible.builtin.file:
     path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}"
     state: directory
-    recurse: yes
+    recurse: true
 
 - name: Create Cloud config dir for os_migrate.os_migrate roles
-  file:
+  ansible.builtin.file:
     path: "~/.config/openstack"
     state: directory
     mode: "0755"
 
 - name: Ensure Cloud config file exsits for os_migrate.os_migrate roles
-  copy:
+  ansible.builtin.copy:
     dest: "~/.config/openstack/clouds.yaml"
     content: "{{ {'clouds': {}} | to_nice_yaml(indent=2) }}"
-    force: no
+    force: false
     mode: "0600"
 
 - name: Read clouds.yaml
-  slurp:
+  ansible.builtin.slurp:
     src: "~/.config/openstack/clouds.yaml"
   register: clouds_yaml
 
 - name: Load YAML content
-  set_fact:
+  ansible.builtin.set_fact:
     clouds_data: "{{ clouds_yaml['content'] | b64decode | from_yaml }}"
 
 - name: Add or update dst cloud in clouds.yaml
-  set_fact:
+  ansible.builtin.set_fact:
     clouds_data: "{{ clouds_data | combine({'clouds': clouds_data.clouds | combine({'dst': dst_cloud})}, recursive=True) }}"
 
 - name: Write back updated clouds.yaml
-  copy:
+  ansible.builtin.copy:
     dest: "~/.config/openstack/clouds.yaml"
     content: "{{ clouds_data | to_nice_yaml(indent=2) }}"
     mode: "0600"
 
-- include_tasks: vm_info.yml
-- include_tasks: network.yml
+- name: Export vm info
+  ansible.builtin.include_tasks: vm_info.yml
+
+- name: Export network info
+  ansible.builtin.include_tasks: network.yml

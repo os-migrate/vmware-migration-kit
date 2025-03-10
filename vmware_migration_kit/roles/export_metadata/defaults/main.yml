@@ -1,6 +1,6 @@
 ---
-used_mapped_networks: false
-os_migrate_vmw_data_dir: /opt/os-migrate
-network_map:
+export_metadata_used_mapped_networks: "{{ used_mapped_networks | default(false) | bool }}"
+export_metadata_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
+export_metadata_network_map:
   # Map network from vmware to current openstack networks
   "VM Network": "public"

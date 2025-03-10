@@ -2,11 +2,13 @@
 - name: Find vddk-libdir
   ansible.builtin.shell: |
     find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
+  executable: /bin/bash
   register: vddk_libdir
 
 - name: Dump passwd file
   ansible.builtin.shell: |
     echo "{{ vcenter_password }}" > /tmp/passwd
+  changed_when: false
 
 - name: Make sure virtqemud is started
   ansible.builtin.service:
