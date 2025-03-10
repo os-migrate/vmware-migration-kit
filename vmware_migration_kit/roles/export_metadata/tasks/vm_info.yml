@@ -9,9 +9,10 @@
   register: vm_info
 
 - name: Dump vm_info file
-  copy:
+  ansible.builtin.copy:
     content: "{{ vm_info }}"
     dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
+    mode: '0644'
   delegate_to: localhost
   run_once: true
 
@@ -26,9 +27,10 @@
   register: guest_info
 
 - name: Dump guest_info file
-  copy:
+  ansible.builtin.copy:
     content: "{{ guest_info }}"
     dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
+    mode: '0644'
   delegate_to: localhost
   run_once: true
 
@@ -43,8 +45,9 @@
   register: disk_info
 
 - name: Dump guest_info file
-  copy:
+  ansible.builtin.copy:
     content: "{{ disk_info }}"
     dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
+    mode: '0644'
   delegate_to: localhost
   run_once: true
