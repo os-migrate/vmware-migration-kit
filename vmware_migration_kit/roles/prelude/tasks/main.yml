@@ -1,8 +1,9 @@
-  - name: Add OpenShift and OpenStack entries to /etc/hosts
-    become: true
-    ansible.builtin.lineinfile:
-      path: /etc/hosts
-      line: "{{ item }}"
-      create: yes
-      state: present
-    loop: "{{ host_entries }}"
+- name: Add OpenShift and OpenStack entries to /etc/hosts
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    create: true
+    state: present
+    mode: '0644'
+  loop: "{{ prelude_host_entries }}"
