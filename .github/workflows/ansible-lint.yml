@@ -25,4 +25,6 @@ jobs:
           pip install ansible ansible-lint
 
       - name: Run ansible-lint
-        run: ansible-lint
+        run: |
+          cd vmware_migration_kit
+          ansible-lint
