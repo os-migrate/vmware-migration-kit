@@ -17,7 +17,7 @@
   when: convert_metadata | default(true) | bool
 
 # Run full migration from conversion host
-# Full: 
+# Full:
 #    * Guest conversion
 #    * Data copy
 #    * VM creation

@@ -41,8 +41,8 @@
         conv_host_data_base_path: "{{ os_migrate_vmw_data_dir | regex_replace('/[^/]+$', '') }}"
 
     - name: Sync to conversion host
-      become: yes
-      ansible.builtin.synchronize:
+      become: true
+      ansible.posix.synchronize:
         src: "{{ os_migrate_vmw_data_dir }}"
         dest: "{{ conv_host_data_base_path }}"
-      when: copy_metadata_to_conv_host|default(false)|bool
+      when: copy_metadata_to_conv_host | default(false) | bool

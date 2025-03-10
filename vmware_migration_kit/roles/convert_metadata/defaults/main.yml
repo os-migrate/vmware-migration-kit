@@ -1,17 +1,15 @@
-vm_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
-guest_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
-disk_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
-flavor_name_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
-network_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
-import_workloads_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/import_workloads.json"
+convert_metadata_vm_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
+convert_metadata_guest_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
+convert_metadata_disk_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
+convert_metadata_flavor_name_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
+convert_metadata_network_info_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
+convert_metadata_import_workloads_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/import_workloads.json"
 
-flavor_name: "{{ flavor_name }}"
-security_groups: "default"
-nics: ""
+convert_metadata_security_groups: "{{ security_groups | default('default') }}"
+convert_metadata_nics: "{{ nics | default('') }}"
 
-create_flavor: false
-os_migrate_vmw_data_dir: /opt/os-migrate
+convert_metadata_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
 # Migration
-strategy: "cold"
-dry_run: false
-os_migrate_tear_down: false
+convert_metadata_strategy: "{{ strategy | default('cold') }}"
+convert_metadata_dry_run: "{{ dry_run | default(false) | bool }}"
+convert_metadata_os_migrate_tear_down: "{{ os_migrate_tear_down | default(false) | bool }}"

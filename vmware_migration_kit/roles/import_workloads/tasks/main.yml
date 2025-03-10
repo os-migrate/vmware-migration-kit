@@ -1,15 +1,24 @@
 ---
-- include_tasks: nbdkit.yml
+- name: Run migration with nbdkit
+  ansible.builtin.include_tasks: nbdkit.yml
   when: os_migrate_nbkit|default(true)|bool
-- include_tasks: virt_v2v.yml
+
+- name: Run migration with virt v2v
+  ansible.builtin.include_tasks: virt_v2v.yml
   when: os_migrate_virt_v2v|default(false)|bool
-- include_tasks: create_network_port.yml
+
+- name: Create neutron port
+  ansible.builtin.include_tasks: create_network_port.yml
   when:
     - os_migrate_create_network_port|default(true)|bool
-    - converted
-- include_tasks: create_os_instance.yml
+    - import_workloads_converted
+
+- name: Create OpenStack instance
+  ansible.builtin.include_tasks: create_os_instance.yml
   when:
     - os_migrate_create_os_instance|default(true)|bool
-    - converted
-- include_tasks: teardown.yml
+    - import_workloads_converted
+
+- name: Teardown
+  ansible.builtin.include_tasks: teardown.yml
   when: os_migrate_tear_down|default(false)|bool

@@ -1,13 +1,14 @@
 ---
-- name: prepare the image metadata command
-  set_fact:
-    image_properties: "{{ image_metadata | map('regex_replace', '^(.*)$', '--image-property \\1') | join(' ') }}"
+- name: Prepare the image metadata command
+  ansible.builtin.set_fact:
+    image_properties: "{{ import_workloads_image_metadata | map('regex_replace', '^(.*)$', '--image-property \\1') | join(' ') }}"
   when: image_metadata is defined
 
-- name: set guest boot volume image metadata
-  shell: |
+- name: Set guest boot volume image metadata
+  ansible.builtin.shell: |
     openstack volume set {{ volumes[0] }} {{ image_properties }}
   when: hw_machine_type is defined
+  changed_when: false
   environment:
     OS_CLOUD: "{{ openstack_cloud }}"
 
@@ -19,23 +20,23 @@
   when: os_migrate_virt_v2v
 
 - name: Set boot volume UUID as a fact
-  set_fact:
+  ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_result.volumes[0].id }}"
   when: os_migrate_virt_v2v
 
 - name: Set boot volume UUID as a fact
-  set_fact:
+  ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_uuid[0] }}"
   when: os_migrate_nbkit
 
 - name: Set boot volume UUID as a fact
-  set_fact:
+  ansible.builtin.set_fact:
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
   when: os_migrate_nbkit
 
 - name: Create OpenStack instance with mapped network
   when:
-    - used_mapped_networks
+    - import_workloads_used_mapped_networks
     - os_migrate_create_network_port
   block:
     - name: Create VM in Openstack
@@ -50,16 +51,16 @@
         security_groups: "{{ security_groups }}"
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
-      when: used_mapped_networks|default(true)|bool
+      when: import_workloads_used_mapped_networks|default(true)|bool
 
     - name: Set fact for instance_uuid
-      set_fact:
+      ansible.builtin.set_fact:
         instance_uuid: "{{ instance_output.server.id }}"
-      when: used_mapped_networks|default(true)|bool
+      when: import_workloads_used_mapped_networks|default(true)|bool
 
 - name: Create OpenStack instance with mapped network
   when:
-    - not used_mapped_networks
+    - not import_workloads_used_mapped_networks
     - os_migrate_create_network_port
   block:
     - name: Create VM in Openstack
@@ -75,18 +76,18 @@
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
       when:
-        not used_mapped_networks|default(true)|bool
+        not import_workloads_used_mapped_networks|default(true)|bool
 
     - name: Set fact for instance_uuid
-      set_fact:
+      ansible.builtin.set_fact:
         instance_uuid: "{{ instance_output_non_mapped.server.id }}"
       when:
-        not used_mapped_networks|default(true)|bool
+        not import_workloads_used_mapped_networks|default(true)|bool
 
 - name: Create OpenStack instance with existing network
   when:
     - not os_migrate_create_network_port
-    - not used_mapped_networks
+    - not import_workloads_used_mapped_networks
     - openstack_private_network is defined
   block:
     - name: Create VM in Openstack
@@ -102,21 +103,21 @@
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
       when:
-        - not used_mapped_networks|default(true)|bool
+        - not import_workloads_used_mapped_networks|default(true)|bool
         - not os_migrate_create_network_port
 
     - name: Set fact for instance_uuid
-      set_fact:
+      ansible.builtin.set_fact:
         instance_uuid: "{{ instance_output_without_port.server.id }}"
       when:
-        - not used_mapped_networks|default(true)|bool
+        - not import_workloads_used_mapped_networks|default(true)|bool
         - not os_migrate_create_network_port
         - openstack_private_network is defined
 
 - name: Create OpenStack instance with existing port
   when:
     - not os_migrate_create_network_port
-    - not used_mapped_networks
+    - not import_workloads_used_mapped_networks
     - nics is defined
   block:
     - name: Create VM in Openstack
@@ -132,13 +133,13 @@
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
       when:
-        - not used_mapped_networks|default(true)|bool
+        - not import_workloads_used_mapped_networks|default(true)|bool
         - not os_migrate_create_network_port
 
     - name: Set fact for instance_uuid
-      set_fact:
+      ansible.builtin.set_fact:
         instance_uuid: "{{ instance_output_without_port.server.id }}"
       when:
-        - not used_mapped_networks|default(true)|bool
+        - not import_workloads_used_mapped_networks|default(true)|bool
         - not os_migrate_create_network_port
         - nics is defined

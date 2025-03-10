@@ -1,10 +1,9 @@
-use_socks: true
-cbt_sync: false
-converted: false
+import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
+import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
+import_workloads_converted: "{{ converted | default(false) | bool }}"
 
-used_mapped_networks: false
-os_migrate_vmw_data_dir: /opt/os-migrate
-image_metadata:
+import_workloads_used_mapped_networks: "{{ used_mapped_networks | default(false) | bool }}"
+import_workloads_image_metadata:
   - hw_rng_model='virtio'
   - os_type='linux'
   - hw_vif_model='virtio'

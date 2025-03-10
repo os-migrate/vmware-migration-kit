@@ -59,7 +59,6 @@ options:
 '''
 
 EXAMPLES = '''
-
 '''
 
 RETURN = '''

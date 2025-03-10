@@ -1,51 +1,53 @@
 ---
 - name: Load metadata files
-  set_fact:
-    vm_info: "{{ lookup('file', '{{ vm_info_path }}') | from_json }}"
-    guest_info: "{{ lookup('file', '{{ guest_info_path }}') | from_json }}"
-    disk_info: "{{ lookup('file', '{{ disk_info_path }}') | from_json }}"
+  ansible.builtin.set_fact:
+    vm_info: "{{ lookup('file', '{{ convert_metadata_vm_info_path }}') | from_json }}"
+    guest_info: "{{ lookup('file', '{{ convert_metadata_guest_info_path }}') | from_json }}"
+    disk_info: "{{ lookup('file', '{{ convert_metadata_disk_info_path }}') | from_json }}"
 
 - name: Get best matches for flavors
   os_migrate.vmware_migration_kit.best_match_flavor:
     cloud: "{{ dst_cloud }}"
-    guest_info_path: "{{ guest_info_path }}"
-    disk_info_path: "{{ disk_info_path }}"
+    guest_info_path: "{{ convert_metadata_guest_info_path }}"
+    disk_info_path: "{{ convert_metadata_disk_info_path }}"
   register: flavor_name
-  when: use_existing_flavor|default(true)|bool
+  when: use_existing_flavor | default(true) | bool
 
 - name: Export flavor
   os_migrate.vmware_migration_kit.export_flavor:
-    guest_info_path: "{{ guest_info_path }}"
-    disk_info_path: "{{ disk_info_path }}"
+    guest_info_path: "{{ convert_metadata_guest_info_path }}"
+    disk_info_path: "{{ convert_metadata_disk_info_path }}"
     flavor_name: "osm-vmware-{{ vm_name }}"
-    path: "{{ flavor_name_path }}"
-  when: not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid
+    path: "{{ convert_metadata_flavor_name_path }}"
+  when: not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid
 
 - name: Set fact for flavor path
-  set_fact:
-    flavor_name_path: "{{ flavor_name_path }}"
-  when: not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid
+  ansible.builtin.set_fact:
+    flavor_name_path: "{{ convert_metadata_flavor_name_path }}"
+  when: not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid
 
 - name: Set fact for flavor
-  set_fact:
+  ansible.builtin.set_fact:
     flavor_name_or_uuid: "{{ flavor_name.openstack_flavor_uuid | default('osm-vmware-' + vm_name) }}"
 
 - name: Set fact for create flavor
-  set_fact:
-    create_flavor: "{{ not use_existing_flavor|default(true)|bool or not flavor_name.openstack_flavor_uuid }}"
+  ansible.builtin.set_fact:
+    create_flavor: "{{ not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid }}"
 
 - name: Create import_workload template
-  template:
+  ansible.builtin.template:
+    mode: '0644'
     src: "import_workloads.json.j2"
-    dest: "{{ import_workloads_path }}"
+    dest: "{{ convert_metadata_import_workloads_path }}"
 
 - name: Load import_workload template
-  set_fact:
-    vm_import: "{{ lookup('file', '{{ import_workloads_path }}') | from_json }}"
+  ansible.builtin.set_fact:
+    vm_import: "{{ lookup('file', '{{ convert_metadata_import_workloads_path }}') | from_json }}"
 
 - name: Merge data into vmware_guest_info
-  copy:
-    dest: "{{ import_workloads_path }}"
+  ansible.builtin.copy:
+    dest: "{{ convert_metadata_import_workloads_path }}"
+    mode: '0644'
     content: |
       {
         "vm_name": "{{ vm_import.vm_name }}",

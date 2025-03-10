@@ -2,74 +2,77 @@
 - name: Extract vlan info for network mapping
   when: used_mapped_networks
   block:
-  - name: Get vCenter network config for {{ vm_name }}
-    community.vmware.vmware_guest_network:
-      hostname: "{{ vcenter_hostname }}"
-      username: "{{ vcenter_username }}"
-      password: "{{ vcenter_password }}"
-      datacenter: "{{ vcenter_datacenter }}"
-      validate_certs: false
-      name: "{{ vm_name }}"
-      gather_network_info: true
-    register: network_info
-    when: used_mapped_networks|default(true)|bool
+    - name: Get vCenter network config for {{ vm_name }}
+      community.vmware.vmware_guest_network:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        validate_certs: false
+        name: "{{ vm_name }}"
+        gather_network_info: true
+      register: network_info
+      when: used_mapped_networks|default(true)|bool
 
-  - name: Dump network_info to json file
-    copy:
-      content: "{{ network_info }}"
-      dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
-    delegate_to: localhost
-    run_once: true
-    when: used_mapped_networks|default(true)|bool
+    - name: Dump network_info to json file
+      ansible.builtin.copy:
+        content: "{{ network_info }}"
+        dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_info.json"
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+      when: used_mapped_networks|default(true)|bool
 
-  - name: Extract nic info based on network_map
-    set_fact:
-      guest_nic: "{{ guest_nic | default([]) + [ {'vlan': mapped_vlan, 'mac': item.mac_addr}] }}"
-    loop: "{{ network_info.network_info }}"
-    vars:
-      mapped_vlan: "{{ network_map.get(item.network_name, 'UNMAPPED') }}"
-    when:
-      - mapped_vlan != 'UNMAPPED'
-      - used_mapped_networks|default(true)|bool
+    - name: Extract nic info based on network_map
+      ansible.builtin.set_fact:
+        guest_nic: "{{ guest_nic | default([]) + [{'vlan': mapped_vlan, 'mac': item.mac_addr}] }}"
+      loop: "{{ network_info.network_info }}"
+      vars:
+        mapped_vlan: "{{ network_map.get(item.network_name, 'UNMAPPED') }}"
+      when:
+        - mapped_vlan != 'UNMAPPED'
+        - used_mapped_networks|default(true)|bool
 
-  - name: Dump guest_nic to json file
-    copy:
-      content: "{{ guest_nic }}"
-      dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/nics.json"
-    delegate_to: localhost
-    run_once: true
-    when: used_mapped_networks|default(true)|bool
+    - name: Dump guest_nic to json file
+      ansible.builtin.copy:
+        content: "{{ guest_nic }}"
+        dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/nics.json"
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+      when: used_mapped_networks|default(true)|bool
 
 - name: Extract macs addresses for non mapped networks
   when: not used_mapped_networks
   block:
-  - name: Extract mac address
-    ansible.builtin.slurp:
-      src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
-    register: vm_info_file
-    when: not used_mapped_networks|default(true)|bool
+    - name: Extract mac address
+      ansible.builtin.slurp:
+        src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/vm_info.json"
+      register: vm_info_file
+      when: not used_mapped_networks|default(true)|bool
 
-  - name: Initialize guest_mac variable
-    set_fact:
-      guest_mac: []
-    when: not used_mapped_networks|default(true)|bool
+    - name: Initialize guest_mac variable
+      ansible.builtin.set_fact:
+        guest_mac: []
+      when: not used_mapped_networks|default(true)|bool
 
-  - name: Loop through MAC addresses and build guest_mac list
-    set_fact:
-      guest_mac: "{{ guest_mac + [{'mac': item}] }}"
-    loop: >-
-      {{
-        vm_info.virtual_machines
-        | selectattr('guest_name', 'equalto', vm_name)
-        | map(attribute='mac_address')
-        | flatten
-      }}
-    when: not used_mapped_networks|default(true)|bool
+    - name: Loop through MAC addresses and build guest_mac list
+      ansible.builtin.set_fact:
+        guest_mac: "{{ guest_mac + [{'mac': item}] }}"
+      loop: >-
+        {{
+          vm_info.virtual_machines
+          | selectattr('guest_name', 'equalto', vm_name)
+          | map(attribute='mac_address')
+          | flatten
+        }}
+      when: not used_mapped_networks|default(true)|bool
 
-  - name: Dump guest_mac to json file
-    copy:
-      content: "{{ guest_mac }}"
-      dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/macs.json"
-    delegate_to: localhost
-    run_once: true
-    when: not used_mapped_networks|default(true)|bool
+    - name: Dump guest_mac to json file
+      ansible.builtin.copy:
+        content: "{{ guest_mac }}"
+        dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/macs.json"
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+      when: not used_mapped_networks|default(true)|bool

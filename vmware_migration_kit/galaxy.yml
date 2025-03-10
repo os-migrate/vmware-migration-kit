@@ -8,6 +8,8 @@ description: VMWare to Openstack / Openshift migration kit
 license:
   - Apache-2.0
 tags:
+  - cloud
+  - infrastructure
   - openstack
   - vmware
   - migrations

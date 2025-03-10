@@ -21,7 +21,6 @@
     - volume_uuid is defined
 
 - name: Delete neutron port
-  ignore_errors: true
   openstack.cloud.port:
     state: absent
     cloud: "{{ dst_cloud }}"
@@ -32,6 +31,7 @@
   when:
     - delete_os_port|default(true)|bool
     - nics is defined
+  failed_when: false
 
 - name: Delete flavor
   openstack.cloud.compute_flavor:

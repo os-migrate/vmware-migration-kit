@@ -1,6 +1,6 @@
 ---
 - name: Create instance ports for mapped networks
-  when: used_mapped_networks
+  when: import_workloads_used_mapped_networks
   block:
     - name: Create network ports
       os_migrate.vmware_migration_kit.create_network_port:
@@ -10,15 +10,15 @@
         used_mapped_networks: true
         security_groups: ["{{ security_groups | default('default') }}"]
       register: ports_uuid
-      when: used_mapped_networks|default(true)|bool
+      when: import_workloads_used_mapped_networks|default(true)|bool
 
     - name: Extract port info
-      set_fact:
+      ansible.builtin.set_fact:
         nics: "{{ ports_uuid.ports | default([]) }}"
       when: os_migrate_create_network_port|default(true)|bool
 
 - name: Create instance ports for non mapped networks
-  when: not used_mapped_networks
+  when: not import_workloads_used_mapped_networks
   block:
     - name: Create network port
       os_migrate.vmware_migration_kit.create_network_port:
@@ -29,15 +29,15 @@
         security_groups: ["{{ security_groups | default('default') }}"]
         network_name: "{{ openstack_private_network }}"
       register: ports_uuid
-      when: not used_mapped_networks|default(true)|bool
+      when: not import_workloads_used_mapped_networks|default(true)|bool
 
     - name: Extract port info
-      set_fact:
+      ansible.builtin.set_fact:
         nics: "{{ ports_uuid.ports | default([]) }}"
       when: os_migrate_create_network_port|default(true)|bool
 
 - name: Set nics fact for os instance creation
-  set_fact:
+  ansible.builtin.set_fact:
     nics: "net-name={{ openstack_private_network }}"
   when:
     - not os_migrate_create_network_port|default(true)|bool
