@@ -19,4 +19,4 @@ jobs:
         with:
           setup_python: "true"
           working_directory: "vmware_migration_kit"
-          requirements_file: "galaxy.yml"
+          requirements_file: "requirements.yml"
