@@ -70,6 +70,7 @@
     vddkpath: "{{ vddkpath }}"
     usesocks: "{{ import_workloads_use_socks | bool }}"
     cbtsync: "{{ import_workloads_cbt_sync | bool }}"
+    instanceuuid: "{{ import_workloads_instance_uuid }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
 
