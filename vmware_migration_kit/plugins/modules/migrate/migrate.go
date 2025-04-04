@@ -212,7 +212,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	}
 	// Attach volume
 	instanceUUID, err := osm_os.GetInstanceUUID()
-	if err != nil {
+	if err != nil || instanceUUID == "" {
 		logger.Log.Infof("Failed to get instance UUID: %v", err)
 		logger.Log.Warnf("Instance metadata service is not working, please fix it..")
 		logger.Log.Warnf("You can workaround this OpenStack error by providing the instance UUID of the conversion host,")
