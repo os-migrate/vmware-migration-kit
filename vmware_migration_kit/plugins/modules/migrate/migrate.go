@@ -75,6 +75,7 @@ type MigrationConfig struct {
 	ConvHostName string
 	Compression  string
 	FirstBoot    string
+	InstanceUUID string
 }
 
 // Ansible
@@ -92,6 +93,7 @@ type ModuleArgs struct {
 	Compression  string
 	FirstBoot    string
 	UseSocks     bool
+	InstanceUUID string
 }
 
 func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
@@ -209,7 +211,19 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		}
 	}
 	// Attach volume
-	instanceUUID, _ := osm_os.GetInstanceUUID()
+	instanceUUID, err := osm_os.GetInstanceUUID()
+	if err != nil {
+		logger.Log.Infof("Failed to get instance UUID: %v", err)
+		logger.Log.Warnf("Instance metadata service is not working, please fix it..")
+		logger.Log.Warnf("You can workaround this OpenStack error by providing the instance UUID of the conversion host,")
+		logger.Log.Warnf("directly with the option `instanceuuid`.")
+		if c.InstanceUUID != "" {
+			instanceUUID = c.InstanceUUID
+		} else {
+			logger.Log.Infof("Unable to get instance UUID, please provide it manually..")
+			return "", err
+		}
+	}
 	err = osm_os.AttachVolume(c.OSClient, volume.ID, c.ConvHostName, instanceUUID)
 	if err != nil {
 		logger.Log.Infof("Failed to attach volume: %v", err)
@@ -343,6 +357,7 @@ func main() {
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 	socks := moduleArgs.UseSocks
+	instanceUUid := moduleArgs.InstanceUUID
 
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
@@ -411,6 +426,7 @@ func main() {
 			ConvHostName: convHostName,
 			Compression:  compression,
 			FirstBoot:    firsBoot,
+			InstanceUUID: instanceUUid,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
