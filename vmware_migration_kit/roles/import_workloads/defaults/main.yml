@@ -2,6 +2,9 @@ import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
 import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
 import_workloads_converted: "{{ converted | default(false) | bool }}"
 
+# UUID of the conversion host instance
+import_workloads_instance_uuid: ""
+
 import_workloads_used_mapped_networks: "{{ used_mapped_networks | default(false) | bool }}"
 import_workloads_image_metadata:
   - hw_rng_model='virtio'
