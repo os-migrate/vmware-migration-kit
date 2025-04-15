@@ -17,22 +17,22 @@
     cloud: "{{ dst_cloud }}"
     name: "{{ vm_name }}-sda"
   register: volume_result
-  when: os_migrate_virt_v2v
+  when: import_workloads_os_migrate_virt_v2v
 
 - name: Set boot volume UUID as a fact
   ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_result.volumes[0].id }}"
-  when: os_migrate_virt_v2v
+  when: import_workloads_os_migrate_virt_v2v
 
 - name: Set boot volume UUID as a fact
   ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_uuid[0] }}"
-  when: os_migrate_nbkit
+  when: import_workloads_os_migrate_nbdkit
 
 - name: Set boot volume UUID as a fact
   ansible.builtin.set_fact:
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
-  when: os_migrate_nbkit
+  when: import_workloads_os_migrate_nbdkit
 
 - name: Create OpenStack instance with mapped network
   when:
