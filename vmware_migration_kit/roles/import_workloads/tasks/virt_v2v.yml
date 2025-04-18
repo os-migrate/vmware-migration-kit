@@ -1,8 +1,11 @@
 ---
 - name: Find vddk-libdir
-  ansible.builtin.shell: |
+  ansible.builtin.shell: >
+    set -o pipefail
     find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
-  executable: /bin/bash
+  args:
+    executable: /bin/bash
+  changed_when: false
   register: vddk_libdir
 
 - name: Dump passwd file
