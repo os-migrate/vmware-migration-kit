@@ -16,9 +16,9 @@
       ansible.builtin.template:
         src: "network_config.sh.j2"
         dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
-        mode: '0755'
-        comment_start_string: '{='
-        comment_end_string: '=}'
+        mode: "0755"
+        comment_start_string: "{="
+        comment_end_string: "=}"
 
 - name: Extract macs addresses for mapped networks
   when:
@@ -41,9 +41,9 @@
       ansible.builtin.template:
         src: "network_config.sh.j2"
         dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
-        mode: '0755'
-        comment_start_string: '{='
-        comment_end_string: '=}'
+        mode: "0755"
+        comment_start_string: "{="
+        comment_end_string: "=}"
 
 - name: Read the JSON file
   ansible.builtin.slurp:
