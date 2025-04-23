@@ -6,7 +6,7 @@
   hosts: conversion_host
   become: true
   vars:
-    vms: "{{ vms }}"
+    vms: "{{ vms_list }}"
     merged_vm_data: []
   tasks:
     - name: Load data from JSON files
