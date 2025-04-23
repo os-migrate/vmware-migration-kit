@@ -47,14 +47,14 @@
 
 - name: Download VMware VIX DiskLib
   ansible.builtin.get_url:
-    url: "{{ vmware_vix_disklib_url }}/{{ vmware_vix_disklib }}"
+    url: "{{ conversion_host_vmware_vix_disklib_url }}/{{ conversion_host_vmware_vix_disklib }}"
     dest: "/tmp/{{ vmware_vix_disklib }}"
     mode: '0644'
   when: vmware_vix_disklib_installed.rc != 0
 
 - name: Install VMware VIX DiskLib
   ansible.builtin.dnf:
-    name: "/tmp/{{ vmware_vix_disklib }}"
+    name: "/tmp/{{ conversion_host_vmware_vix_disklib }}"
     state: present
     disable_gpg_check: true
   when: vmware_vix_disklib_installed.rc != 0
