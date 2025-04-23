@@ -229,27 +229,38 @@ func NbdCopy(socket, device string) error {
 		logger.Log.Infof("Failed to run nbdcopy: %v", err)
 		return err
 	}
+
 	go func() {
-		scanner := bufio.NewScanner(stdoutPipe)
-		for scanner.Scan() {
-			logger.Log.Infof("[nbdcopy stdout] %s\n", scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			logger.Log.Infof("Error reading stdout: %v\n", err)
+		reader := bufio.NewReader(stdoutPipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if line != "" {
+				logger.Log.Infof("[nbdcopy stdout] %s", line)
+			}
+			if err != nil {
+				if err != io.EOF {
+					logger.Log.Infof("Error reading stdout: %v", err)
+				}
+				break
+			}
 		}
 	}()
+
 	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			logger.Log.Infof("[nbdcopy stderr] %s\n", scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			logger.Log.Infof("Error reading stderr: %v\n", err)
+		reader := bufio.NewReader(stderrPipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if line != "" {
+				logger.Log.Infof("[nbdcopy stderr] %s", line)
+			}
+			if err != nil {
+				if err != io.EOF {
+					logger.Log.Infof("Error reading stderr: %v", err)
+				}
+				break
+			}
 		}
 	}()
-	// // Logging stdout and stderr
-	// go streamLogs(stdoutPipe, "stdout")
-	// go streamLogs(stderrPipe, "stderr")
 	if err := cmd.Wait(); err != nil {
 		logger.Log.Infof("Failed to run nbdcopy: %v", err)
 		return err
