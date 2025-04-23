@@ -1,6 +1,9 @@
 import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
 import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
 import_workloads_converted: "{{ converted | default(false) | bool }}"
+import_workloads_os_migrate_virt_v2v: "{{ os_migrate_virt_v2v | default(false) | bool }}"
+import_workloads_os_migrate_nbdkit: "{{ os_migrate_nbdkit | default(true) | bool }}"
+
 
 # UUID of the conversion host instance
 import_workloads_instance_uuid: ""
