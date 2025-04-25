@@ -327,7 +327,7 @@ func versionIsLower(cVersion, rVersion string) bool {
 	return false
 }
 
-func V2VConversion(path, bsPath string) error {
+func V2VConversion(path, bsPath string, debug bool) error {
 	var opts string = ""
 	_, err := findVirtV2v()
 	if err != nil {
@@ -343,6 +343,10 @@ func V2VConversion(path, bsPath string) error {
 		opts = opts + " --run " + bsPath
 	}
 	os.Setenv("LIBGUESTFS_BACKEND", "direct")
+	if debug {
+		os.Setenv("LIBGUESTFS_DEBUG", "1")
+		os.Setenv("LIBGUESTFS_TRACE", "1")
+	}
 	v2vcmd := "virt-v2v-in-place " + opts + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Log.Infof("Running virt-v2v: %v", cmd)
@@ -354,21 +358,34 @@ func V2VConversion(path, bsPath string) error {
 		return err
 	}
 	go func() {
-		scanner := bufio.NewScanner(stdoutPipe)
-		for scanner.Scan() {
-			logger.Log.Infof("[virt-v2v stdout] %s\n", scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			logger.Log.Infof("Error reading stdout: %v\n", err)
+		reader := bufio.NewReader(stdoutPipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if line != "" {
+				logger.Log.Infof("[nbdcopy stdout] %s", line)
+			}
+			if err != nil {
+				if err != io.EOF {
+					logger.Log.Infof("Error reading stdout: %v", err)
+				}
+				break
+			}
 		}
 	}()
+
 	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			logger.Log.Infof("[virt-v2v stderr] %s\n", scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			logger.Log.Infof("Error reading stderr: %v\n", err)
+		reader := bufio.NewReader(stderrPipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if line != "" {
+				logger.Log.Infof("[nbdcopy stderr] %s", line)
+			}
+			if err != nil {
+				if err != io.EOF {
+					logger.Log.Infof("Error reading stderr: %v", err)
+				}
+				break
+			}
 		}
 	}()
 	if err := cmd.Wait(); err != nil {
