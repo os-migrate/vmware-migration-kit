@@ -68,17 +68,17 @@ type ModuleArgs struct {
 }
 
 type ModuleResponse struct {
-	Changed bool        `json:"changed"`
-	Failed  bool        `json:"failed"`
-	Msg     string      `json:"msg,omitempty"`
-	ID      interface{} `json:"instance,omitempty"`
+	Changed bool   `json:"changed"`
+	Failed  bool   `json:"failed"`
+	Msg     string `json:"msg,omitempty"`
+	ID      string `json:"id"`
 }
 
-func success(changed bool, instance interface{}) {
+func success(changed bool, id string) {
 	res := ModuleResponse{
 		Changed: changed,
 		Failed:  false,
-		ID:      instance,
+		ID:      id,
 	}
 	json.NewEncoder(os.Stdout).Encode(res)
 	os.Exit(0)
@@ -101,7 +101,7 @@ func main() {
 	var moduleArgs ModuleArgs
 	err = json.Unmarshal(text, &moduleArgs)
 	if err != nil {
-		response.Msg = "Configuration file not valid JSON: " + argsFile
+		response.Msg = "Configuration file not valid JSON: " + string(text)
 		ansible.FailJson(response)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
