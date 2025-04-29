@@ -1,0 +1,48 @@
+name: Build and push AEE image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+env:
+  QUAY_USER: os-migrate+osm_github
+  IMAGE_REGISTRY: quay.io
+  QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+  QUAY_NAMESPACE: os-migrate
+  IMAGE_NAME: vmware-migration-kit
+  IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'devel' || github.ref_name }}
+
+jobs:
+  build:
+    name: Build and push AEE image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Logging into quay.io registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ env.QUAY_USER }}
+          password: ${{ env.QUAY_PASSWORD }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+      - name: Setup python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Create and start virtual environment
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+      - name: Install build requirements
+        run: pip install -r requirements-build.txt
+      - name: Build the image
+        run: >
+          ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          ${{ github.ref == 'refs/heads/main' && '' || '--tag "${{ env.IMAGE_NAME }}:latest"' }}
+      - name: Push the image to quay.io
+        id: push-to-quay
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
