@@ -34,9 +34,10 @@
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
   when: import_workloads_os_migrate_nbdkit
 
-- name: Set nics fact for os instance creation
+- name: Set nics fact for OS instance creation
   ansible.builtin.set_fact:
-    nics: "net-name={{ openstack_private_network }}"
+    nics:
+      - net-name: "{{ openstack_private_network }}"
   when:
     - not os_migrate_create_network_port|default(true)|bool
     - openstack_private_network is defined
