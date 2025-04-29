@@ -76,3 +76,6 @@ pylint_report.html
 # System files
 .DS_Store
 Thumbs.db
+
+# aee stuff
+aee/context
