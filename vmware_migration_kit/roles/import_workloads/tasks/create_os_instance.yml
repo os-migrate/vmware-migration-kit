@@ -37,7 +37,7 @@
 - name: Set nics fact for OS instance creation
   ansible.builtin.set_fact:
     nics:
-      - net-name: "{{ openstack_private_network }}"
+      - net-id: "{{ openstack_private_network }}"
   when:
     - not os_migrate_create_network_port|default(true)|bool
     - openstack_private_network is defined
