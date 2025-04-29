@@ -35,10 +35,3 @@
       ansible.builtin.set_fact:
         nics: "{{ ports_uuid.ports | default([]) }}"
       when: os_migrate_create_network_port|default(true)|bool
-
-- name: Set nics fact for os instance creation
-  ansible.builtin.set_fact:
-    nics: "net-name={{ openstack_private_network }}"
-  when:
-    - not os_migrate_create_network_port|default(true)|bool
-    - openstack_private_network is defined
