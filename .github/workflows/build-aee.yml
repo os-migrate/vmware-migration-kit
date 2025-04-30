@@ -42,6 +42,6 @@ jobs:
         run: |
           ansible-builder build --tag "${{ env.IMAGE_TAG }}"
           podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          if [[ "${{ github.ref }}" == *"refs/tags/v"* ]];
+          if [[ "${{ github.ref }}" == *"refs/tags/v"* ]]; then
             podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:stable"
           fi
