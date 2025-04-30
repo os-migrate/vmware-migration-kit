@@ -40,11 +40,12 @@ jobs:
       - name: Build and tag the image
         working-directory: ./aee
         run: |
+          ansible-builder build --tag "${{ env.IMAGE_TAG }}"
+          podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-            podman push "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+            podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest"
+          elif [[ "${{ github.ref }}" == *"refs/tags/v"* ]]; 
+            podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:stable"
           else
-            ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" --tag "${{ env.IMAGE_NAME }}:latest"
-            podman push "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-            podman push "${{ env.IMAGE_NAME }}:latest" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest"
+            echo "${{ github.ref }}"
           fi
