@@ -76,6 +76,7 @@ type MigrationConfig struct {
 	Compression  string
 	FirstBoot    string
 	InstanceUUID string
+	Debug        bool
 }
 
 // Ansible
@@ -94,6 +95,7 @@ type ModuleArgs struct {
 	FirstBoot    string
 	UseSocks     bool
 	InstanceUUID string
+	Debug        bool
 }
 
 func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
@@ -293,7 +295,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				} else {
 					netConfScript = ""
 				}
-				err = nbdkit.V2VConversion(devPath, netConfScript)
+				err = nbdkit.V2VConversion(devPath, netConfScript, c.Debug)
 				if err != nil {
 					logger.Log.Infof("Failed to convert disk: %v", err)
 					return "", err
@@ -358,6 +360,7 @@ func main() {
 	cbtsync := moduleArgs.CBTSync
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
+	debug := moduleArgs.Debug
 
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
@@ -427,6 +430,7 @@ func main() {
 			Compression:  compression,
 			FirstBoot:    firsBoot,
 			InstanceUUID: instanceUUid,
+			Debug:        debug,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
