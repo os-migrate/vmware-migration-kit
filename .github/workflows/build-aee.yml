@@ -8,10 +8,10 @@ on:
       - "*"
 
 env:
-  QUAY_USER: os-migrate+osm_github
+  QUAY_USER: ${{ secrets.QUAY_USERNAME }}
   IMAGE_REGISTRY: quay.io
   QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-  QUAY_NAMESPACE: os-migrate
+  QUAY_NAMESPACE: ${{ secrets.QUAY_NAMESPACE }}
   IMAGE_NAME: vmware-migration-kit
   IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'devel' || github.ref_name }}
 
@@ -37,10 +37,13 @@ jobs:
           source venv/bin/activate
       - name: Install build requirements
         run: pip install -r requirements-build.txt
-      - name: Build the image
-        run: >
-          ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          ${{ github.ref == 'refs/heads/main' && '' || '--tag "${{ env.IMAGE_NAME }}:latest"' }}
+      - name: Build and tag the image
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          else
+            ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" --tag "${{ env.IMAGE_NAME }}:latest"
+          fi
       - name: Push the image to quay.io
         id: push-to-quay
         uses: redhat-actions/push-to-registry@v2
