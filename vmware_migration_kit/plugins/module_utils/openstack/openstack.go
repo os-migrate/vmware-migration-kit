@@ -63,6 +63,15 @@ type VolOpts struct {
 	Metadata   map[string]string
 }
 
+type ServerArgs struct {
+	Name           string
+	Nics           []interface{}
+	BootVolume     string
+	Volumes        []string
+	SecurityGroups []string
+	Flavor         string
+}
+
 func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
 	var opts gophercloud.AuthOptions
 	authURL := os.Getenv("OS_AUTH_URL")
@@ -382,4 +391,66 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		return err
 	}
 	return nil
+}
+
+func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string, error) {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create compute client: %v", err)
+	}
+
+	var nics []servers.Network
+	for _, nic := range args.Nics {
+		if m, ok := nic.(map[string]interface{}); ok {
+			networkID, _ := m["net-id"].(string)
+			portID, _ := m["port-id"].(string)
+			nics = append(nics, servers.Network{
+				UUID: networkID,
+				Port: portID,
+			})
+		}
+	}
+
+	var blockDevices []servers.BlockDevice
+	blockDevices = append(blockDevices, servers.BlockDevice{
+		BootIndex:           0,
+		UUID:                args.BootVolume,
+		SourceType:          servers.SourceVolume,
+		DestinationType:     servers.DestinationVolume,
+		DeleteOnTermination: false,
+	})
+
+	index := 1
+	for _, vol := range args.Volumes {
+		if vol == "" {
+			continue
+		}
+		blockDevices = append(blockDevices, servers.BlockDevice{
+			BootIndex:           index,
+			UUID:                vol,
+			SourceType:          servers.SourceVolume,
+			DestinationType:     servers.DestinationVolume,
+			DeleteOnTermination: false,
+		})
+		index++
+	}
+	createOpts := servers.CreateOpts{
+		Name:           args.Name,
+		FlavorRef:      args.Flavor,
+		Networks:       nics,
+		SecurityGroups: args.SecurityGroups,
+		BlockDevice:    blockDevices,
+	}
+
+	server, err := servers.Create(context.TODO(), client, createOpts, servers.SchedulerHintOpts{}).Extract()
+	if err != nil {
+		return "", fmt.Errorf("Failed to create server: %v", err)
+	}
+	err = servers.WaitForStatus(context.TODO(), client, server.ID, "ACTIVE")
+	if err != nil {
+		return "", err
+	}
+	return server.ID, nil
 }
