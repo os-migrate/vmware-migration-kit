@@ -42,11 +42,10 @@ jobs:
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+            podman push "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+
           else
             ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" --tag "${{ env.IMAGE_NAME }}:latest"
+            podman push "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+            podman push "${{ env.IMAGE_NAME }}:latest"
           fi
-      - name: Push the image to quay.io
-        id: push-to-quay
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
