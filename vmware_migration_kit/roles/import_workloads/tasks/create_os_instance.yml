@@ -34,112 +34,34 @@
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
   when: import_workloads_os_migrate_nbdkit
 
-- name: Create OpenStack instance with mapped network
+- name: Set nics fact for OS instance creation
+  ansible.builtin.set_fact:
+    nics:
+      - net-id: "{{ openstack_private_network }}"
   when:
-    - import_workloads_used_mapped_networks
-    - os_migrate_create_network_port
-  block:
-    - name: Create VM in Openstack
-      register: instance_output
-      openstack.cloud.server:
-        cloud: "{{ dst_cloud }}"
-        state: present
-        name: "{{ vm_name }}"
-        nics: "{{ nics }}"
-        volumes: "{{ volumes_list }}"
-        boot_volume: "{{ boot_volume_uuid }}"
-        security_groups: "{{ security_groups }}"
-        flavor: "{{ flavor_name_or_uuid }}"
-        key_name: "{{ ssh_key_name | default('') }}"
-      when: import_workloads_used_mapped_networks|default(true)|bool
-
-    - name: Set fact for instance_uuid
-      ansible.builtin.set_fact:
-        instance_uuid: "{{ instance_output.server.id }}"
-      when: import_workloads_used_mapped_networks|default(true)|bool
-
-- name: Create OpenStack instance with mapped network
-  when:
-    - not import_workloads_used_mapped_networks
-    - os_migrate_create_network_port
-  block:
-    - name: Create VM in Openstack
-      register: instance_output_non_mapped
-      openstack.cloud.server:
-        cloud: "{{ dst_cloud }}"
-        state: present
-        name: "{{ vm_name }}"
-        nics: "{{ nics }}"
-        volumes: "{{ volumes_list }}"
-        boot_volume: "{{ boot_volume_uuid }}"
-        security_groups: "{{ security_groups }}"
-        flavor: "{{ flavor_name_or_uuid }}"
-        key_name: "{{ ssh_key_name | default('') }}"
-      when:
-        not import_workloads_used_mapped_networks|default(true)|bool
-
-    - name: Set fact for instance_uuid
-      ansible.builtin.set_fact:
-        instance_uuid: "{{ instance_output_non_mapped.server.id }}"
-      when:
-        not import_workloads_used_mapped_networks|default(true)|bool
-
-- name: Create OpenStack instance with existing network
-  when:
-    - not os_migrate_create_network_port
-    - not import_workloads_used_mapped_networks
+    - not os_migrate_create_network_port|default(true)|bool
     - openstack_private_network is defined
-  block:
-    - name: Create VM in Openstack
-      register: instance_output_without_port
-      openstack.cloud.server:
-        cloud: "{{ dst_cloud }}"
-        state: present
-        name: "{{ vm_name }}"
-        network: "{{ openstack_private_network }}"
-        boot_volume: "{{ boot_volume_uuid }}"
-        volumes: "{{ volumes_list }}"
-        security_groups: "{{ security_groups }}"
-        flavor: "{{ flavor_name_or_uuid }}"
-        key_name: "{{ ssh_key_name | default('') }}"
-      when:
-        - not import_workloads_used_mapped_networks|default(true)|bool
-        - not os_migrate_create_network_port
+    - nics is not defined
 
-    - name: Set fact for instance_uuid
-      ansible.builtin.set_fact:
-        instance_uuid: "{{ instance_output_without_port.server.id }}"
-      when:
-        - not import_workloads_used_mapped_networks|default(true)|bool
-        - not os_migrate_create_network_port
-        - openstack_private_network is defined
-
-- name: Create OpenStack instance with existing port
+- name: Create OpenStack instance with port or mapped network
   when:
-    - not os_migrate_create_network_port
-    - not import_workloads_used_mapped_networks
     - nics is defined
+    - openstack_private_network is not defined
   block:
-    - name: Create VM in Openstack
-      register: instance_output_without_port
-      openstack.cloud.server:
-        cloud: "{{ dst_cloud }}"
-        state: present
+    - name: Create instance
+      register: instance_output
+      os_migrate.vmware_migration_kit.create_server.create_server:
+        dst_cloud: "{{ dst_cloud }}"
+        state: "present"
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
-        boot_volume: "{{ boot_volume_uuid }}"
         volumes: "{{ volumes_list }}"
-        security_groups: "{{ security_groups }}"
+        boot_volume: "{{ boot_volume_uuid }}"
+        security_groups: ["{{ security_groups }}"]
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
-      when:
-        - not import_workloads_used_mapped_networks|default(true)|bool
-        - not os_migrate_create_network_port
+      delegate_to: localhost
 
     - name: Set fact for instance_uuid
       ansible.builtin.set_fact:
-        instance_uuid: "{{ instance_output_without_port.server.id }}"
-      when:
-        - not import_workloads_used_mapped_networks|default(true)|bool
-        - not os_migrate_create_network_port
-        - nics is defined
+        instance_uuid: "{{ instance_output.id }}"

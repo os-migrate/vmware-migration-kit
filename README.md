@@ -160,7 +160,7 @@ copy_openstack_credentials_to_conv_host: false
 already_deploy_conversion_host: true
 
 # If no mapped network then set the openstack network:
-openstack_private_network: private
+openstack_private_network: 81cc01d2-5e47-4fad-b387-32686ec71fa4
 
 # Security groups for the instance:
 security_groups: ab7e2b1a-b9d3-4d31-9d2a-bab63f823243
@@ -260,7 +260,7 @@ network_map:
   VM Network: private
 
 # If no mapped network then set the openstack network:
-openstack_private_network: private
+openstack_private_network: 81cc01d2-5e47-4fad-b387-32686ec71fa4
 
 # Security groups for the instance:
 security_groups: 4f077e64-bdf6-4d2a-9f2c-c5588f4948ce
