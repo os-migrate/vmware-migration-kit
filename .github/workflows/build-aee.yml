@@ -38,6 +38,7 @@ jobs:
       - name: Install build requirements
         run: pip install -r requirements-build.txt
       - name: Build and tag the image
+        working-directory: ./aee
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             ansible-builder build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
