@@ -13,7 +13,7 @@ env:
   QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
   QUAY_NAMESPACE: ${{ secrets.QUAY_NAMESPACE }}
   IMAGE_NAME: vmware-migration-kit
-  IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'devel' || github.ref_name }}
+  IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'latest' || github.ref_name }}
 
 jobs:
   build:
@@ -42,10 +42,6 @@ jobs:
         run: |
           ansible-builder build --tag "${{ env.IMAGE_TAG }}"
           podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest"
-          elif [[ "${{ github.ref }}" == *"refs/tags/v"* ]]; 
+          if [[ "${{ github.ref }}" == *"refs/tags/v"* ]];
             podman push "localhost/${{ env.IMAGE_TAG }}" "${{ env.IMAGE_REGISTRY }}/${{ env.QUAY_NAMESPACE }}/${{ env.IMAGE_NAME }}:stable"
-          else
-            echo "${{ github.ref }}"
           fi
