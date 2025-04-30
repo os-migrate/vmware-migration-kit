@@ -46,12 +46,11 @@
 - name: Create OpenStack instance with port or mapped network
   when:
     - nics is defined
-    - openstack_private_network is not defined
   block:
     - name: Create instance
       register: instance_output
       os_migrate.vmware_migration_kit.create_server.create_server:
-        dst_cloud: "{{ dst_cloud }}"
+        cloud: "{{ dst_cloud }}"
         state: "present"
         name: "{{ vm_name }}"
         nics: "{{ nics }}"
