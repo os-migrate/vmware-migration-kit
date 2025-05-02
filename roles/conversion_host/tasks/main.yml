@@ -1,6 +1,3 @@
-- name: Include connectivity checks
-  ansible.builtin.include_tasks: connectivity_checks.yml
-
 - name: Install Openstack SIG repo
   ansible.builtin.dnf:
     name: centos-release-openstack-bobcat
