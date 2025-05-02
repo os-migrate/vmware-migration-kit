@@ -26,6 +26,7 @@ import (
 	"strconv"
 	moduleutils "vmware-migration-kit/vmware_migration_kit/plugins/module_utils"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
+	connectivity "vmware-migration-kit/vmware_migration_kit/plugins/module_utils/connectivity"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
 	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/nbdkit"
 	osm_os "vmware-migration-kit/vmware_migration_kit/plugins/module_utils/openstack"
@@ -385,12 +386,13 @@ func main() {
 
 	vmpath := vddkpath + "/" + vmname
 	finder := find.NewFinder(c.Client)
-	vm, err := finder.VirtualMachine(ctx, vmpath)
+	vm, err := connectivity.CheckVCenterConnectivity(ctx, finder, c, vmpath)
 	if err != nil {
-		logger.Log.Infof("Failed to find VM: %v, in vm path: %v", err, vmpath)
-		response.Msg = "Failed to find VM: " + err.Error() + " in vm path: " + vmpath
+		logger.Log.Infof("Failed to check vCenter connectivity: %v", err)
+		response.Msg = "Failed to check vCenter connectivity: " + err.Error()
 		ansible.FailJson(response)
 	}
+
 	var disks []int32
 	var volume []string
 	var runV2V = true

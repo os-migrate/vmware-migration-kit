@@ -34,7 +34,7 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-func CheckVCenterConnectivity(ctx context.Context, server, username, password string, vmname string) (bool, error) {
+func CheckVCenterConnectivity(ctx context.Context, finder *find.Finder, c *vim25.Client, vmpath string) (*object.VirtualMachine, error) {
 	var response ansible.Response
 	var props mo.VirtualMachine
 	statusColors := map[types.ManagedEntityStatus]string{
@@ -44,20 +44,17 @@ func CheckVCenterConnectivity(ctx context.Context, server, username, password st
 		types.ManagedEntityStatusRed:    "Alert",
 	}
 
-	// passing client from VMWareAuth
-	c, err := vmware.VMWareAuth(ctx, server, username, password)
-	if err != nil {
-		logger.Log.Infof("Failed to initiate Vmware client: %v", err)
-		response.Msg = "Failed to initiate Vmware client: " + err.Error()
-		ansible.FailJson(response)
-	}
-
 	// set managed object reference
-	finder := find.NewFinder(c.Client)
-	vm, err := finder.VirtualMachine(ctx, vmname)
+	vm, err := finder.VirtualMachine(ctx, vmpath)
 	if err != nil {
-		logger.Log.Infof("Failed to find VM: %v", err)
-		response.Msg = "Failed to find VM: " + err.Error()
+		// list entire path here
+		logger.Log.Infof("Failed to find VM: %v, in vm path: %v", err, vmpath)
+		vms, _ := finder.VirtualMachineList(ctx, "*")
+
+		for _, vm := range vms {
+			logger.Log.Info(" - ", vm.InventoryPath)
+		}
+		response.Msg = "Failed to find VM: " + err.Error() + " in vm path: " + vmpath
 		ansible.FailJson(response)
 	}
 	mor := vm.Reference()
@@ -69,7 +66,6 @@ func CheckVCenterConnectivity(ctx context.Context, server, username, password st
 		ansible.FailJson(response)
 	}
 
-	logger.Log.Infof("vCenter connectivity check passed with status code: %s", props.GuestHeartbeatStatus)
-	status := statusColors[props.GuestHeartbeatStatus]
-	return status == "Normal", nil
+	logger.Log.Infof("vCenter connectivity check passed with status code: %s", statusColors[props.GuestHeartbeatStatus])
+	return vm, nil
 }
