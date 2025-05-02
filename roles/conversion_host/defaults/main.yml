@@ -2,7 +2,3 @@ conversion_host_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
 # Change this to the correct official repository URL
 conversion_host_vmware_vix_disklib_url: https://repo.storware.eu/vprotect/current/el9/
 conversion_host_vmware_vix_disklib: vmware-vix-disklib-8.0.0-20521017.el9.x86_64.rpm
-
-# Connectivity check settings
-connectivity_check_timeout: 10 # seconds
-vm_name: "" # Default empty value for VM name
