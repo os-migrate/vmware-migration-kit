@@ -79,3 +79,7 @@ Thumbs.db
 
 # aee stuff
 aee/context
+.ansible
+
+# tests output
+tests/output

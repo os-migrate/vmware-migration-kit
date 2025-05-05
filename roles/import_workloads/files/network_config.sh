@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 UDEV_RULES_FILE="${UDEV_RULES_FILE:-/etc/udev/rules.d/70-persistent-net.rules}"
 
 exec 3>&1
 log() {
-    echo $@ >&3
+  echo "$@" >&3
 }
 
 extract_mac_addresses() {
@@ -33,7 +33,7 @@ extract_ifconfig() {
       devices["$interface"]="$mac"
     fi
   done
-  log "Devices: ${devices}"
+  log "Devices: ${devices[*]}"
 
   for device in "${!devices[@]}"; do
     log "  Device: $device, MAC: ${devices[$device]}"
@@ -44,7 +44,6 @@ extract_ifconfig() {
     echo "$device:${devices[$device]}"
   done
 }
-
 
 extract_nm_connections() {
   declare -A devices
@@ -67,14 +66,13 @@ extract_nm_connections() {
     fi
   done
 
-  log "Devices from NetworkManager: ${devices[@]}"
+  log "Devices from NetworkManager: ${devices[*]}"
 
   for device in "${!devices[@]}"; do
     log "$device:${devices[$device]}"
     echo "$device:${devices[$device]}"
   done
 }
-
 
 extract_sysconfig_connections() {
   declare -A devices
@@ -86,17 +84,16 @@ extract_sysconfig_connections() {
       log "File: $file, Device: $device"
       mac=$(grep -oP '(?<=^HWADDR=).*' "$file" | tr -d '"')
       if [[ -n "$device" && -n "$mac" ]]; then
-          devices["$device"]="$mac"
+        devices["$device"]="$mac"
       fi
     fi
   done
-  log "Devices from sysconfig: ${devices[@]}"
+  log "Devices from sysconfig: ${devices[*]}"
   for device in "${!devices[@]}"; do
     log "$device:${devices[$device]}"
     echo "$device:${devices[$device]}"
   done
 }
-
 
 extract_netplan_connections() {
   declare -A devices
@@ -117,45 +114,44 @@ extract_netplan_connections() {
     fi
   done
 
-  log "Devices from netplan: ${devices[@]}"
+  log "Devices from netplan: ${devices[*]}"
   for device in "${!devices[@]}"; do
     log "$device:${devices[$device]}"
     echo "$device:${devices[$device]}"
   done
 }
 
-
 generate_udev_rules() {
+  # shellcheck disable=SC2190
   local devices=("$@")
   echo "Generating udev rules..."
-  echo "# Persistent network device rules" > "$UDEV_RULES_FILE"
+  echo "# Persistent network device rules" >"$UDEV_RULES_FILE"
   for entry in "${devices[@]}"; do
     # Parse the serialized string (device:MAC)
     device="${entry%%:*}"
     mac="${entry#*:*}"
     if [[ -n "$device" && -n "$mac" ]]; then
-      echo "SUBSYSTEM==\"net\",ACTION==\"add\",ATTR{address}==\"$mac\",NAME=\"$device\"" >> "$UDEV_RULES_FILE"
+      echo "SUBSYSTEM==\"net\",ACTION==\"add\",ATTR{address}==\"$mac\",NAME=\"$device\"" >>"$UDEV_RULES_FILE"
     fi
   done
   echo "Udev rules written to $UDEV_RULES_FILE"
 }
 
-
 main() {
-  macs=($(extract_mac_addresses))
-  log $macs
-  exdevices=($(extract_nm_connections "${macs[@]}"))
+  mapfile -t macs < <(extract_mac_addresses)
+  log "${macs[*]}"
+  mapfile -t exdevices < <(extract_nm_connections "${macs[@]}")
   if [[ ${#exdevices[@]} -eq 0 ]]; then
     log "No network devices found in NetworkManager. Trying sysconfig..."
-    exdevices=($(extract_sysconfig_connections))
+    mapfile -t exdevices < <(extract_sysconfig_connections)
     if [[ ${#exdevices[@]} -eq 0 ]]; then
       log "No network devices found in sysconfig. Trying netplan..."
       if [[ -d /etc/netplan ]]; then
-        exdevices=($(extract_netplan_connections "${macs[@]}"))
+        mapfile -t exdevices < <(extract_netplan_connections "${macs[@]}")
       fi
       if [[ ${#exdevices[@]} -eq 0 ]]; then
         log "No network devices found. Trying . Ifcfg..."
-        exdevices=($(extract_ifconfig))
+        mapfile -t exdevices < <(extract_ifconfig)
         if [[ ${#exdevices[@]} -eq 0 ]]; then
           log "No network devices... existing"
           exit 0
