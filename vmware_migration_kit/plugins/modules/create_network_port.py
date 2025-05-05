@@ -1,14 +1,16 @@
-#!/usr/bin/python
-from __future__ import (absolute_import, division, print_function)
+#!/usr/bin/env python
+
+from __future__ import absolute_import, division, print_function
+
 __metaclass__ = type
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.1',
-    'status': ['preview'],
-    'supported_by': 'community'
+    "metadata_version": "1.1",
+    "status": ["preview"],
+    "supported_by": "community",
 }
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 ---
 module: create_network_port
 
@@ -73,9 +75,9 @@ options:
         Name of the network to which the ports should be attached.
     required: false
     type: str
-'''
+"""
 
-EXAMPLES = '''
+EXAMPLES = """
 ---
 - name: Create network ports for VM
   hosts: localhost
@@ -98,55 +100,54 @@ EXAMPLES = '''
         security_groups: ["default"]
         network_name: "private"
       register: ports_uuid
-'''
+"""
 
-RETURN = '''
+RETURN = """
 { "ports": [{"port-id":"uuid"}] }
-'''
+"""
 
 from ansible.module_utils.basic import AnsibleModule
+
 # Import openstack module utils from ansible_collections.openstack.cloud.plugins as per ansible 3+
 try:
-    from ansible_collections.openstack.cloud.plugins.module_utils.openstack \
-        import openstack_full_argument_spec, openstack_cloud_from_module
+    from ansible_collections.openstack.cloud.plugins.module_utils.openstack import (
+        openstack_full_argument_spec,
+        openstack_cloud_from_module,
+    )
 except ImportError:
     # If this fails fall back to ansible < 3 imports
-    from ansible.module_utils.openstack \
-        import openstack_full_argument_spec, openstack_cloud_from_module
+    from ansible.module_utils.openstack import (
+        openstack_full_argument_spec,
+        openstack_cloud_from_module,
+    )
 import json
-import re
+
 
 def main():
     argument_spec = openstack_full_argument_spec(
-        os_migrate_nics_file_path=dict(type='str', required=True),
-        vm_name=dict(type='str', required=True),
-        used_mapped_networks=dict(type='bool', default=True),
-        security_groups=dict(type='list', default=['default']),
-        network_name=dict(type='str', required=False),
+        os_migrate_nics_file_path=dict(type="str", required=True),
+        vm_name=dict(type="str", required=True),
+        used_mapped_networks=dict(type="bool", default=True),
+        security_groups=dict(type="list", default=["default"]),
+        network_name=dict(type="str", required=False),
     )
 
-    result = dict(
-        changed = False,
-        ports = []
-    )
+    result = dict(changed=False, ports=[])
 
-    module = AnsibleModule(
-        argument_spec=argument_spec,
-        supports_check_mode=True
-    )
+    module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
 
-    os_migrate_nics_file_path = module.params['os_migrate_nics_file_path']
-    vm_name = module.params['vm_name']
-    used_mapped_networks = module.params['used_mapped_networks']
-    security_groups = module.params['security_groups']
-    network_name = module.params['network_name']
+    os_migrate_nics_file_path = module.params["os_migrate_nics_file_path"]
+    vm_name = module.params["vm_name"]
+    used_mapped_networks = module.params["used_mapped_networks"]
+    security_groups = module.params["security_groups"]
+    network_name = module.params["network_name"]
 
     # Open Openstack connection
     sdk, conn = openstack_cloud_from_module(module)
 
     # Load the data file
     try:
-        with open(os_migrate_nics_file_path, 'r') as f:
+        with open(os_migrate_nics_file_path, "r") as f:
             vm_nics = json.load(f)
     except Exception as e:
         module.fail_json(msg=f"Failed to load network data file: {str(e)}")
@@ -154,30 +155,33 @@ def main():
     # If not mapped networks, use the network name provided
     if not used_mapped_networks:
         for nic in vm_nics:
-            nic['vlan'] = network_name
+            nic["vlan"] = network_name
 
     try:
         port_uuid = []
         for nic_index, item in enumerate(vm_nics):
             # Get network id
-            network_object = conn.get_network(item['vlan'])
+            network_object = conn.get_network(item["vlan"])
             if network_object:
-                network_id = network_object['id']
+                network_id = network_object["id"]
             port_name = f"{vm_name}-NIC-{nic_index}-VLAN-{item['vlan']}"
             port = conn.network.create_port(
                 name=port_name,
                 network_id=network_id,
-                mac_address=item['mac'],
-                allowed_address_pairs=[{'ip_address': '0.0.0.0/0', 'mac_address': item['mac']}],
-                security_groups=security_groups
+                mac_address=item["mac"],
+                allowed_address_pairs=[
+                    {"ip_address": "0.0.0.0/0", "mac_address": item["mac"]}
+                ],
+                security_groups=security_groups,
             )
-            port_uuid.append({'port-id': port['id']})
-            result['changed'] = True
+            port_uuid.append({"port-id": port["id"]})
+            result["changed"] = True
         result["ports"] = port_uuid
     except Exception as e:
         module.fail_json(msg=f"Failed to create  ports: {str(e)}")
 
     module.exit_json(**result)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

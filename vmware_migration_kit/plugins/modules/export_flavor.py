@@ -1,16 +1,16 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
+from __future__ import absolute_import, division, print_function
 
-from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.1',
-    'status': ['preview'],
-    'supported_by': 'community'
+    "metadata_version": "1.1",
+    "status": ["preview"],
+    "supported_by": "community",
 }
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 ---
 module: export_flavor
 
@@ -50,35 +50,44 @@ options:
       - Name of the falvor.
     required: true
     type: str
-'''
+"""
 
-EXAMPLES = '''
+EXAMPLES = """
 - name: Export myflavor into /opt/os-migrate/flavors.yml
   os_migrate.os_migrate.export_flavor:
     path: /opt/os-migrate/flavors.yml
     name: my_guest
     guest_info_path: /opt/os-migrate/guest_info.json
     disk_info_path: /opt/os-migrate/disk_info.json
-'''
+"""
 
-RETURN = '''
-'''
+RETURN = """
+"""
 
 from ansible.module_utils.basic import AnsibleModule
 import json
 import yaml
 
+
 def get_total_disk_capacity(disk_info):
-    total_capacity_kb = sum([disk_info['guest_disk_info'][disk]["capacity_in_kb"]
-                             for disk in disk_info['guest_disk_info'].keys()]) / 1024
+    total_capacity_kb = (
+        sum(
+            [
+                disk_info["guest_disk_info"][disk]["capacity_in_kb"]
+                for disk in disk_info["guest_disk_info"].keys()
+            ]
+        )
+        / 1024
+    )
     return total_capacity_kb
+
 
 def run_module():
     module_args = dict(
-        path=dict(type='str', required=True),
-        guest_info_path=dict(type='str', required=True),
-        disk_info_path=dict(type='str', required=True),
-        flavor_name=dict(type='str', required=True),
+        path=dict(type="str", required=True),
+        guest_info_path=dict(type="str", required=True),
+        disk_info_path=dict(type="str", required=True),
+        flavor_name=dict(type="str", required=True),
     )
 
     result = dict(
@@ -93,47 +102,43 @@ def run_module():
         supports_check_mode=True,
     )
 
-    flavor_name = module.params['flavor_name']
+    flavor_name = module.params["flavor_name"]
     # Open guest_info_path file
-    with open(module.params['guest_info_path'], 'r') as guest_file:
+    with open(module.params["guest_info_path"], "r") as guest_file:
         guest_info = json.load(guest_file)
-    
-    with open(module.params['disk_info_path'], 'r') as disk_file:
+
+    with open(module.params["disk_info_path"], "r") as disk_file:
         disk_info = json.load(disk_file)
 
     total_disk_capacity_gb = get_total_disk_capacity(disk_info) / 1024
-    vcpu = guest_info['instance']['hw_processor_count']
-    ram = guest_info['instance']['hw_memtotal_mb']
+    vcpu = guest_info["instance"]["hw_processor_count"]
+    ram = guest_info["instance"]["hw_memtotal_mb"]
 
     # Dump flavor data structure filled with guest_info and disk_info
     data = {
-    'os_migrate_version': '1.0.1',
-    'resources': [
-        {
-            '_info': {
-                'id': None,
-                'is_disabled': False
-            },
-            '_migration_params': {},
-            'params': {
-                'description': None,
-                'disk': int(total_disk_capacity_gb),
-                'ephemeral': 0,
-                'extra_specs': {
+        "os_migrate_version": "1.0.1",
+        "resources": [
+            {
+                "_info": {"id": None, "is_disabled": False},
+                "_migration_params": {},
+                "params": {
+                    "description": None,
+                    "disk": int(total_disk_capacity_gb),
+                    "ephemeral": 0,
+                    "extra_specs": {},
+                    "is_public": True,
+                    "name": flavor_name,
+                    "ram": ram,
+                    "rxtx_factor": 1.0,
+                    "swap": 0,
+                    "vcpus": vcpu,
                 },
-                'is_public': True,
-                'name': flavor_name,
-                'ram': ram,
-                'rxtx_factor': 1.0,
-                'swap': 0,
-                'vcpus': vcpu
-            },
-            'type': 'openstack.compute.Flavor'
-        }
-    ]
+                "type": "openstack.compute.Flavor",
+            }
+        ],
     }
     # Dump into file:
-    with open(module.params['path'], 'w') as yaml_file:
+    with open(module.params["path"], "w") as yaml_file:
         yaml.dump(data, yaml_file, default_flow_style=False)
     module.exit_json(**result)
 
@@ -142,5 +147,5 @@ def main():
     run_module()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

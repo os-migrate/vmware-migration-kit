@@ -1,21 +1,23 @@
+#!/usr/bin/env python
 
-#!/usr/bin/python
 
+from __future__ import absolute_import, division, print_function
 
-from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.os_migrate.vmware_migration_kit.plugins.module_utils.v2v_wrapper import VirtV2V
+from ansible_collections.os_migrate.vmware_migration_kit.plugins.module_utils.v2v_wrapper import (
+    VirtV2V,
+)
 
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.1',
-    'status': ['preview'],
-    'supported_by': 'community'
+    "metadata_version": "1.1",
+    "status": ["preview"],
+    "supported_by": "community",
 }
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 ---
 module: import_vmware_volume
 
@@ -56,24 +58,25 @@ options:
       - Name of the falvor.
     required: true
     type: str
-'''
+"""
 
-EXAMPLES = '''
-'''
+EXAMPLES = """
+"""
 
-RETURN = '''
-'''
+RETURN = """
+"""
+
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            vcenter_username=dict(type='str', required=True),
-            vcenter_hostname=dict(type='str', required=True),
-            esxi_hostname=dict(type='str', required=True),
-            vddk_libdir=dict(type='str', required=True),
-            vddk_thumbprint=dict(type='str', required=True),
-            conversion_host_id=dict(type='str', required=True),
-            vm_name=dict(type='str', required=True),
+            vcenter_username=dict(type="str", required=True),
+            vcenter_hostname=dict(type="str", required=True),
+            esxi_hostname=dict(type="str", required=True),
+            vddk_libdir=dict(type="str", required=True),
+            vddk_thumbprint=dict(type="str", required=True),
+            conversion_host_id=dict(type="str", required=True),
+            vm_name=dict(type="str", required=True),
         )
     )
 
@@ -81,10 +84,11 @@ def main():
     cmd = v2v.build_command()
     result = v2v.run_command(cmd)
 
-    if result['changed']:
+    if result["changed"]:
         module.exit_json(**result)
     else:
         module.fail_json(**result)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
