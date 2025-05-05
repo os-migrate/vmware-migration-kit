@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 
 from __future__ import absolute_import, division, print_function
@@ -20,18 +20,12 @@ ANSIBLE_METADATA = {
 DOCUMENTATION = """
 ---
 module: import_vmware_volume
-
 short_description: Import VMware volume to Openstack
-
-extends_documentation_fragment: openstack
-
+extends_documentation_fragment: openstack.cloud.openstack
 version_added: "2.9.0"
-
 author: "OpenStack tenant migration tools (@os-migrate)"
-
 description:
   - "Import VMware volume to Openstack"
-
 # TODO: add examples and options
 options:
   path:

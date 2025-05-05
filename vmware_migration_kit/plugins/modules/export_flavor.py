@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 from __future__ import absolute_import, division, print_function
 
@@ -13,18 +13,12 @@ ANSIBLE_METADATA = {
 DOCUMENTATION = """
 ---
 module: export_flavor
-
 short_description: Export VMware Guest/Vm definition into an OS-Migrate YAML import_flavor format
-
-extends_documentation_fragment: openstack
-
+extends_documentation_fragment: openstack.cloud.openstack
 version_added: "2.9.0"
-
 author: "OpenStack tenant migration tools (@os-migrate)"
-
 description:
   - "Export Vmware Flavor definition into an OS-Migrate YAML format"
-
 options:
   path:
     description:

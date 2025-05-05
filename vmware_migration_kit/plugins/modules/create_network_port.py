@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 from __future__ import absolute_import, division, print_function
 
@@ -13,18 +13,12 @@ ANSIBLE_METADATA = {
 DOCUMENTATION = """
 ---
 module: create_network_port
-
 short_description: Create network ports for a VM
-
-extends_documentation_fragment: openstack
-
+extends_documentation_fragment: openstack.cloud.openstack
 version_added: "2.9.0"
-
 author: "OpenStack tenant migration tools (@os-migrate)"
-
 description:
   - "Create network ports for a VM based on the nics file dumped by the VMware migration kit."
-
 options:
   cloud:
     description:
@@ -103,7 +97,11 @@ EXAMPLES = """
 """
 
 RETURN = """
-{ "ports": [{"port-id":"uuid"}] }
+ports:
+    description: list of created ports
+    returned: success
+    type: list
+    sample: [{"port-id":"uuid"}]
 """
 
 from ansible.module_utils.basic import AnsibleModule
