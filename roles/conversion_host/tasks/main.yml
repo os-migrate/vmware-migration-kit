@@ -1,13 +1,15 @@
 - name: Install Openstack SIG repo
-  ansible.builtin.package:
+  ansible.builtin.dnf:
     name: centos-release-openstack-bobcat
     state: present
+    use_backend: dnf4
   when: os_migrate_virt_v2v|default(false)|bool
 
 - name: Make sure required package are installed
-  ansible.builtin.package:
+  ansible.builtin.dnf:
     name: "{{ item }}"
     state: present
+    use_backend: dnf4
   with_items:
     - libvirt
     - virt-v2v
@@ -31,15 +33,17 @@
     name: openstacksdk>1.0.0
 
 - name: Install openstack client
-  ansible.builtin.package:
+  ansible.builtin.dnf:
     name: python3-openstackclient
     state: present
+    use_backend: dnf4
   when: os_migrate_virt_v2v|default(false)|bool
 
 - name: Check if vmware-vix-disklib is present
   ansible.builtin.dnf:
     name: vmware-vix-disklib
     state: present
+    use_backend: dnf4
   check_mode: true
   register: vmware_vix_disklib_installed
   ignore_errors: true
@@ -49,7 +53,7 @@
   ansible.builtin.get_url:
     url: "{{ conversion_host_vmware_vix_disklib_url }}/{{ conversion_host_vmware_vix_disklib }}"
     dest: "/tmp/{{ vmware_vix_disklib }}"
-    mode: '0644'
+    mode: "0644"
   when: vmware_vix_disklib_installed.rc != 0
 
 - name: Install VMware VIX DiskLib
@@ -57,6 +61,7 @@
     name: "/tmp/{{ conversion_host_vmware_vix_disklib }}"
     state: present
     disable_gpg_check: true
+    use_backend: dnf4
   when: vmware_vix_disklib_installed.rc != 0
 
 - name: Check if virt-v2v-in-place exists in libexec
@@ -73,7 +78,7 @@
   ansible.builtin.copy:
     src: /usr/libexec/virt-v2v-in-place
     dest: /usr/bin/virt-v2v-in-place
-    mode: '0755'
+    mode: "0755"
     remote_src: true
   when:
     - libexec_stat.stat.exists
@@ -81,21 +86,21 @@
 
 - name: Create configuration directory .config/openstack
   ansible.builtin.file:
-    mode: '0755'
+    mode: "0755"
     path: "~/.config/openstack"
     recurse: true
     state: directory
 
 - name: Create os-migrate data dir
   ansible.builtin.file:
-    mode: '0755'
+    mode: "0755"
     path: "{{ os_migrate_vmw_data_dir }}"
     state: directory
     recurse: true
 
 - name: Set Openstack credentials clouds.yaml file
   ansible.builtin.copy:
-    mode: '0600'
+    mode: "0600"
     src: "{{ os_migrate_clouds_path|default(os_migrate_vmw_data_dir ~ '/clouds.yaml') }}"
     dest: "~/.config/openstack/clouds.yaml"
   when: copy_openstack_credentials_to_conv_host|default(false)|bool
