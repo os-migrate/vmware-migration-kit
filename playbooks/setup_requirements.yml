@@ -6,13 +6,14 @@
       ansible.builtin.copy:
         src: "{{ lookup('env', 'HOME') }}/.config/openstack/clouds.yaml"
         dest: "{{ os_migrate_vmw_data_dir }}"
-        mode: '0644'
+        mode: "0644"
       when: not already_deploy_conversion_host
 
     - name: Make sure required package are installed
-      ansible.builtin.package:
+      ansible.builtin.dnf:
         name: "{{ item }}"
         state: present
+        use_backend: dnf4
       become: true
       with_items:
         - python3
