@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 )
@@ -74,7 +73,7 @@ func main() {
 	}
 
 	argsFile := os.Args[1]
-	text, err := ioutil.ReadFile(argsFile)
+	text, err := os.ReadFile(argsFile)
 	if err != nil {
 		response.Msg = "Could not read configuration file: " + argsFile
 		FailJson(response)

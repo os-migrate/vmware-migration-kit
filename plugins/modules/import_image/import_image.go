@@ -35,17 +35,6 @@ var args struct {
 	DiskPath string `json:"disk_path"`
 }
 
-var logger *log.Logger
-var logFile string = "/tmp/osm-import-volume-as-image.log"
-
-func init() {
-	logFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	logger = log.New(logFile, "osm-image: ", log.LstdFlags|log.Lshortfile)
-}
-
 func UploadImage(provider *gophercloud.ProviderClient, imageName, diskPath string) (string, error) {
 	client, err := openstack.NewImageServiceV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
@@ -69,7 +58,11 @@ func UploadImage(provider *gophercloud.ProviderClient, imageName, diskPath strin
 	if err != nil {
 		return "", fmt.Errorf("failed to open disk file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
 
 	err = imagedata.Upload(client, image.ID, file).ExtractErr()
 	if err != nil {
