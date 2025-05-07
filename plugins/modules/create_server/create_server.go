@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"vmware-migration-kit/plugins/module_utils/ansible"
 	"vmware-migration-kit/plugins/module_utils/logger"
@@ -80,7 +79,10 @@ func success(changed bool, id string) {
 		Failed:  false,
 		ID:      id,
 	}
-	json.NewEncoder(os.Stdout).Encode(res)
+	if err := json.NewEncoder(os.Stdout).Encode(res); err != nil {
+		logger.Log.Infof("Failed to encode response: %v", err)
+		// Can't handle this error since we're about to exit
+	}
 	os.Exit(0)
 }
 
@@ -92,7 +94,7 @@ func main() {
 	}
 
 	argsFile := os.Args[1]
-	text, err := ioutil.ReadFile(argsFile)
+	text, err := os.ReadFile(argsFile)
 	if err != nil {
 		response.Msg = "Could not read configuration file: " + argsFile
 		ansible.FailJson(response)

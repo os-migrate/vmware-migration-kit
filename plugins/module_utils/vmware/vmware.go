@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
 	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/vmware/govmomi"
@@ -76,7 +75,11 @@ func GetThumbprint(host string, port string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			logger.Log.Infof("Failed to close connection: %v", err)
+		}
+	}()
 
 	if len(conn.ConnectionState().PeerCertificates) == 0 {
 		logger.Log.Infof("No certificates found")
@@ -230,7 +233,7 @@ func GetDiskKeys(ctx context.Context, v *object.VirtualMachine) ([]int32, error)
 	}
 	for _, device := range vm.Config.Hardware.Device {
 		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
-			diskKeys = append(diskKeys, virtualDisk.VirtualDevice.Key)
+			diskKeys = append(diskKeys, virtualDisk.Key)
 		}
 	}
 	return diskKeys, nil
@@ -246,8 +249,8 @@ func (v *VddkConfig) GetDiskKey(ctx context.Context) (int32, error) {
 	}
 	for _, device := range vm.Config.Hardware.Device {
 		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
-			if virtualDisk.VirtualDevice.Key == v.DiskKey {
-				diskKeys = virtualDisk.VirtualDevice.Key
+			if virtualDisk.Key == v.DiskKey {
+				diskKeys = virtualDisk.Key
 			}
 		}
 	}
@@ -289,7 +292,7 @@ func (v *VddkConfig) GetCBTChangeID(ctx context.Context) (string, error) {
 	err = v.VirtualMachine.Properties(ctx, v.SnapshotReference.Reference(), []string{"config.hardware"}, &b)
 	if err != nil {
 		logger.Log.Infof("Failed to get Snapshot info for osm-snap: %v", err)
-		return "", fmt.Errorf("Failed to get Snapshot info for osm-snap: %s", err)
+		return "", fmt.Errorf("failed to get Snapshot info for osm-snap: %s", err)
 	}
 
 	var disk *types.VirtualDisk
@@ -359,13 +362,22 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, change
 		logger.Log.Infof("Failed to open target file %s: %v", targetPath, err)
 		return fmt.Errorf("failed to open target file %s: %w", targetPath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			logger.Log.Infof("Failed to close file: %v", err)
+		}
+	}()
+
 	nbd, err := libnbd.Create()
 	if err != nil {
 		logger.Log.Infof("Failed to initialize NBD: %v", err)
 		return fmt.Errorf("failed to initialize NBD: %w", err)
 	}
-	defer nbd.Close()
+	defer func() {
+		if err := nbd.Close(); err != nil {
+			logger.Log.Infof("Failed to close NBD: %v", err)
+		}
+	}()
 
 	if sock != "" {
 		if err := nbd.ConnectUri(sock); err != nil {

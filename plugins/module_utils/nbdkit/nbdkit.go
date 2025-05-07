@@ -19,17 +19,14 @@ package nbdkit
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
-
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/vmware"
 )
@@ -96,7 +93,9 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				logger.Log.Infof("Failed to kill process: %v", err)
+			}
 		}
 		return nil, err
 	}
@@ -145,8 +144,12 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			removeSocket(socket)
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				logger.Log.Infof("Failed to kill process: %v", err)
+			}
+			if err := removeSocket(socket); err != nil {
+				logger.Log.Infof("Failed to remove socket: %v", err)
+			}
 		}
 		return nil, err
 	}
@@ -163,7 +166,10 @@ func (s *NbdkitServer) Stop() error {
 		return fmt.Errorf("failed to stop nbdkit server: %w", err)
 	}
 	logger.Log.Infof("Nbdkit server stopped.")
-	removeSocket(s.socket)
+	if err := removeSocket(s.socket); err != nil {
+		logger.Log.Infof("Failed to remove socket: %v", err)
+		// Continue execution even if socket removal fails
+	}
 	return nil
 }
 
@@ -174,12 +180,16 @@ func (s *NbdkitServer) GetSocketPath() string {
 	return fmt.Sprintf("nbd+unix:///?socket=%s", s.socket)
 }
 
-func removeSocket(socketPath string) {
+func removeSocket(socketPath string) error {
+	if socketPath == "" {
+		return nil
+	}
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		logger.Log.Infof("Failed to remove Unix socket: %v", err)
-	} else {
-		logger.Log.Infof("Unix socket %s removed successfully.", socketPath)
+		return err
 	}
+	logger.Log.Infof("Unix socket %s removed successfully.", socketPath)
+	return nil
 }
 
 func WaitForNbdkitURI(host string, port string, timeout time.Duration) error {
@@ -189,7 +199,9 @@ func WaitForNbdkitURI(host string, port string, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
 		if err == nil {
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				logger.Log.Infof("Failed to close connection: %v", err)
+			}
 			logger.Log.Infof("nbdkit is ready.")
 			return nil
 		}
@@ -268,6 +280,8 @@ func NbdCopy(socket, device string) error {
 	return nil
 }
 
+// Commented out unused function
+/*
 func streamLogs(pipe io.ReadCloser, label string) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
@@ -277,6 +291,7 @@ func streamLogs(pipe io.ReadCloser, label string) {
 		logger.Log.Infof("Error reading %s: %v", label, err)
 	}
 }
+*/
 
 func findVirtV2v() (string, error) {
 	paths := strings.Split(os.Getenv("PATH"), ":")
@@ -286,10 +301,12 @@ func findVirtV2v() (string, error) {
 			return path + "/", nil
 		}
 	}
-	logger.Log.Infof("virt-v2v-in-place not found on the file system...")
-	return "", fmt.Errorf("virt-v2v-in-place not found on the file system...")
+	logger.Log.Infof("virt-v2v-in-place not found on the file system")
+	return "", fmt.Errorf("virt-v2v-in-place not found on the file system")
 }
 
+// Commented out unused function
+/*
 func checkLibvirtVersion() string {
 	cmd := exec.Command("libvirtd", "--version")
 	var out bytes.Buffer
@@ -308,7 +325,10 @@ func checkLibvirtVersion() string {
 	}
 	return ""
 }
+*/
 
+// Commented out unused function
+/*
 func versionIsLower(cVersion, rVersion string) bool {
 	currentParts := strings.Split(cVersion, ".")
 	requiredParts := strings.Split(rVersion, ".")
@@ -326,9 +346,10 @@ func versionIsLower(cVersion, rVersion string) bool {
 	}
 	return false
 }
+*/
 
 func V2VConversion(path, bsPath string, debug bool) error {
-	var opts string = ""
+	opts := ""
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Log.Infof("Failed to find virt-v2v-in-place: %v", err)
@@ -342,10 +363,17 @@ func V2VConversion(path, bsPath string, debug bool) error {
 		}
 		opts = opts + " --run " + bsPath
 	}
-	os.Setenv("LIBGUESTFS_BACKEND", "direct")
+	if err := os.Setenv("LIBGUESTFS_BACKEND", "direct"); err != nil {
+		logger.Log.Infof("Failed to set LIBGUESTFS_BACKEND: %v", err)
+		// Continue even if setenv fails
+	}
 	if debug {
-		os.Setenv("LIBGUESTFS_DEBUG", "1")
-		os.Setenv("LIBGUESTFS_TRACE", "1")
+		if err := os.Setenv("LIBGUESTFS_DEBUG", "1"); err != nil {
+			logger.Log.Infof("Failed to set LIBGUESTFS_DEBUG: %v", err)
+		}
+		if err := os.Setenv("LIBGUESTFS_TRACE", "1"); err != nil {
+			logger.Log.Infof("Failed to set LIBGUESTFS_TRACE: %v", err)
+		}
 	}
 	v2vcmd := "virt-v2v-in-place " + opts + " -i disk " + path
 	cmd := exec.Command("bash", "-c", v2vcmd)

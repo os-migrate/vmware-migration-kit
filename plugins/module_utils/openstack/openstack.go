@@ -23,12 +23,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
-
 	"vmware-migration-kit/plugins/module_utils/logger"
 
 	gophercloud "github.com/gophercloud/gophercloud/v2"
@@ -76,19 +75,19 @@ func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.Provi
 	var opts gophercloud.AuthOptions
 	authURL := os.Getenv("OS_AUTH_URL")
 	if authURL != "" {
-		err := fmt.Errorf("")
+		var err error
 		opts, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		opts = gophercloud.AuthOptions{
-			IdentityEndpoint: moduleOpts.Auth.AuthURL,
-			Username:         moduleOpts.Auth.Username,
-			Password:         moduleOpts.Auth.Password,
-			TenantID:         moduleOpts.Auth.ProjectID,
-			TenantName:       moduleOpts.Auth.ProjectName,
-			DomainName:       moduleOpts.Auth.UserDomainName,
+			IdentityEndpoint: moduleOpts.AuthURL,
+			Username:         moduleOpts.Username,
+			Password:         moduleOpts.Password,
+			TenantID:         moduleOpts.ProjectID,
+			TenantName:       moduleOpts.ProjectName,
+			DomainName:       moduleOpts.UserDomainName,
 		}
 	}
 	provider, err := config.NewProviderClient(ctx, opts, config.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
@@ -134,13 +133,6 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 		Bootable: true,
 	}
 	err = volumes.SetBootable(context.TODO(), client, volume.ID, options).ExtractErr()
-	if err != nil {
-		panic(err)
-	}
-	if err != nil {
-		logger.Log.Infof("Failed to set volume as bootable: %v", err)
-		return nil, err
-	}
 	if err != nil {
 		logger.Log.Infof("Failed to set volume as bootable: %v", err)
 		return nil, err
@@ -199,7 +191,7 @@ func UpdateVolumeMetadata(client *gophercloud.ProviderClient, volumeID string, m
 func IsVolumeConverted(client *gophercloud.ProviderClient, volumeID string) (bool, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Log.Infof("Failed to create block storage client: %w", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return false, err
 	}
 	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
@@ -221,7 +213,7 @@ func IsVolumeConverted(client *gophercloud.ProviderClient, volumeID string) (boo
 func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Log.Infof("Failed to create block storage client: %w", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return "", err
 	}
 	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
@@ -238,7 +230,7 @@ func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string,
 func GetVolumeID(client *gophercloud.ProviderClient, vm string, disk string) (*volumes.Volume, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		logger.Log.Infof("Failed to create block storage client: %w", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return nil, err
 	}
 
@@ -267,7 +259,7 @@ func GetVolumeID(client *gophercloud.ProviderClient, vm string, disk string) (*v
 	}
 	if len(volumeList) > 1 {
 		logger.Log.Infof("More than one volumes found")
-		return nil, errors.New("More than one volumes found")
+		return nil, errors.New("more than one volumes found")
 	}
 	return &volumeList[0], nil
 }
@@ -279,14 +271,18 @@ func GetInstanceUUID() (string, error) {
 		logger.Log.Infof("Failed to fetch metadata: %v", err)
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Log.Infof("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Log.Infof("Unexpected status code: %d", resp.StatusCode)
 		return "", err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Log.Infof("Failed to read metadata response: %v", err)
 		return "", err
@@ -343,6 +339,10 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 	volumeClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return err
+	}
 	err = WaitForVolumeStatus(volumeClient, volumeID, "in-use", 3000)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for volume to become in-use: %v", err)
@@ -400,6 +400,10 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, in
 	volumeClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return err
+	}
 	err = WaitForVolumeStatus(volumeClient, volumeID, "available", 3000)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
@@ -462,7 +466,7 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 
 	server, err := servers.Create(context.TODO(), client, createOpts, servers.SchedulerHintOpts{}).Extract()
 	if err != nil {
-		return "", fmt.Errorf("Failed to create server: %v", err)
+		return "", fmt.Errorf("failed to create server: %v", err)
 	}
 	err = servers.WaitForStatus(context.TODO(), client, server.ID, "ACTIVE")
 	if err != nil {

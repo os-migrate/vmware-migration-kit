@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
@@ -99,10 +98,11 @@ type ModuleArgs struct {
 	Debug        bool
 }
 
-func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string, error) {
-	var syncVol bool = false
+func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
+	syncVol := false
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	// Create or update volume.
 	vmName, err := c.NbdkitConfig.VddkConfig.VirtualMachine.ObjectName(ctx)
 	if err != nil {
@@ -157,7 +157,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	if err != nil {
 		return "", err
 	}
-	defer c.NbdkitConfig.VddkConfig.RemoveSnapshot(ctx)
+	defer func() {
+		if err := c.NbdkitConfig.VddkConfig.RemoveSnapshot(ctx); err != nil {
+			logger.Log.Infof("Failed to remove snapshot: %v", err)
+		}
+	}()
+
 	var snapshot mo.VirtualMachineSnapshot
 	err = c.NbdkitConfig.VddkConfig.VirtualMachine.Properties(ctx, c.NbdkitConfig.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
 	if err != nil {
@@ -233,7 +238,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		return "", err
 	}
 	// TODO: remove instanceName or handle it properly
-	defer osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloutOpts)
+	defer func() {
+		if err := osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloutOpts); err != nil {
+			logger.Log.Infof("Failed to detach volume: %v", err)
+		}
+	}()
+
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Log.Infof("Failed to find device name: %v", err)
@@ -251,7 +261,12 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 
 			nbdSrv, err := c.NbdkitConfig.RunNbdKit(info.FileName)
 			sock := nbdSrv.GetSocketPath()
-			defer nbdSrv.Stop()
+			defer func() {
+				if err := nbdSrv.Stop(); err != nil {
+					logger.Log.Infof("Failed to stop NBD server: %v", err)
+				}
+			}()
+
 			if err != nil {
 				logger.Log.Infof("Failed to run nbdkit: %v", err)
 				return "", err
@@ -284,7 +299,9 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 				err = nbdkit.NbdCopy(sock, devPath)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
-					nbdSrv.Stop()
+					if err := nbdSrv.Stop(); err != nil {
+						logger.Log.Infof("Failed to stop NBD server during error handling: %v", err)
+					}
 					return "", err
 				}
 			}
@@ -321,7 +338,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 	}
 	if devPath == "" {
 		logger.Log.Infof("No disk found")
-		return "", errors.New("No disk found")
+		return "", errors.New("no disk found")
 	}
 	logger.Log.Infof("Disk copied and converted successfully: %s", devPath)
 	return volume.ID, nil
@@ -335,7 +352,7 @@ func main() {
 	}
 
 	argsFile := os.Args[1]
-	text, err := ioutil.ReadFile(argsFile)
+	text, err := os.ReadFile(argsFile)
 	if err != nil {
 		response.Msg = "Could not read configuration file: " + argsFile
 		ansible.FailJson(response)
@@ -397,7 +414,7 @@ func main() {
 	}
 	var disks []int32
 	var volume []string
-	var runV2V = true
+	runV2V := true
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
 		logger.Log.Infof("Failed to get disks: %v", err)
