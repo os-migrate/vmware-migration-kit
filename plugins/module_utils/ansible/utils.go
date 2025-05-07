@@ -85,9 +85,13 @@ func returnResponse(responseBody Response) {
 	}
 }
 
-func returnMResponse(responseBody Response) {
+// TODO: commented since it's not used
+/*
+func returnMResponse(responseBody Response) []Disk {
 	var disks []Disk
 	for _, id := range responseBody.ID {
 		disks = append(disks, Disk{ID: id, Primary: true})
 	}
+	return disks
 }
+*/
