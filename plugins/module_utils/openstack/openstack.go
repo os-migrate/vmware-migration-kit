@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"time"
 
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
+	"vmware-migration-kit/plugins/module_utils/logger"
 
 	gophercloud "github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
