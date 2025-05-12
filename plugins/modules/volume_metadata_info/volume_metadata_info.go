@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	osm_os "vmware-migration-kit/vmware_migration_kit/plugins/module_utils/openstack"
+	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 )
 
 // Ansible

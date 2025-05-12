@@ -21,9 +21,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
-	osm_os "vmware-migration-kit/vmware_migration_kit/plugins/module_utils/openstack"
+	"vmware-migration-kit/plugins/module_utils/ansible"
+	"vmware-migration-kit/plugins/module_utils/logger"
+	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 )
 
 /* Argument file example:
