@@ -379,8 +379,24 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 
 	err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
 	if err != nil {
-		logger.Log.Infof("Failed to detach volume: %v", err)
-		return err
+		if ue, ok := err.(*gophercloud.ErrUnexpectedResponseCode); ok {
+			if ue.Actual == 401 {
+				logger.Log.Infof("Received 401 Unauthorized, triggering re authentication")
+				reAuthErr := client.ReauthFunc(context.TODO())
+				if reAuthErr != nil {
+					logger.Log.Infof("Re Authentication failed: %v", reAuthErr)
+					return reAuthErr
+				}
+				err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
+				if err != nil {
+					logger.Log.Infof("Failed to detach volume after re Authentication: %v", err)
+					return err
+				}
+			}
+		} else {
+			logger.Log.Infof("Failed to detach volume: %v", err)
+			return err
+		}
 	}
 	volumeClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
