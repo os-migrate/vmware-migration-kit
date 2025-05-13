@@ -351,7 +351,7 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 	return nil
 }
 
-func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceName string, instanceUUID string) error {
+func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, instanceUUID string, cloudOpts DstCloud) error {
 	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
 	if err != nil {
 		logger.Log.Infof("Failed to create compute client: %v", err)
@@ -376,25 +376,24 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 			}
 		}
 	}
-
 	err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
 	if err != nil {
-		if ue, ok := err.(*gophercloud.ErrUnexpectedResponseCode); ok {
-			if ue.Actual == 401 {
-				logger.Log.Infof("Received 401 Unauthorized, triggering re authentication")
-				reAuthErr := client.ReauthFunc(context.TODO())
-				if reAuthErr != nil {
-					logger.Log.Infof("Re Authentication failed: %v", reAuthErr)
-					return reAuthErr
-				}
-				err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
-				if err != nil {
-					logger.Log.Infof("Failed to detach volume after re Authentication: %v", err)
-					return err
-				}
-			}
-		} else {
-			logger.Log.Infof("Failed to detach volume: %v", err)
+		logger.Log.Infof("Failed to detach volume: %v", err)
+		logger.Log.Infof("Trying to re authenticate ...")
+
+		providerCli, err := OpenstackAuth(context.TODO(), cloudOpts)
+		if err != nil {
+			logger.Log.Infof("Re Authentication failed: %v", err)
+			return err
+		}
+		computeClient, err = openstack.NewComputeV2(providerCli, gophercloud.EndpointOpts{})
+		if err != nil {
+			logger.Log.Infof("Failed to create compute client: %v", err)
+			return err
+		}
+		err = volumeattach.Delete(context.TODO(), computeClient, instanceUUID, volumeID).ExtractErr()
+		if err != nil {
+			logger.Log.Infof("Failed to detach volume after re Authentication: %v", err)
 			return err
 		}
 	}
@@ -406,6 +405,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
 		return err
 	}
+	logger.Log.Infof("Volume detached: %s", volumeID)
 	return nil
 }
 

@@ -77,6 +77,7 @@ type MigrationConfig struct {
 	FirstBoot    string
 	InstanceUUID string
 	Debug        bool
+	CloutOpts    osm_os.DstCloud
 }
 
 // Ansible
@@ -232,7 +233,7 @@ func (c *MigrationConfig) VMMigration(ctx context.Context, runV2V bool) (string,
 		return "", err
 	}
 	// TODO: remove instanceName or handle it properly
-	defer osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID)
+	defer osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloutOpts)
 	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Log.Infof("Failed to find device name: %v", err)
@@ -431,6 +432,7 @@ func main() {
 			FirstBoot:    firsBoot,
 			InstanceUUID: instanceUUid,
 			Debug:        debug,
+			CloutOpts:    moduleArgs.DstCloud,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
