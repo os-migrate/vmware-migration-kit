@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/ansible"
+	"vmware-migration-kit/plugins/module_utils/ansible"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"

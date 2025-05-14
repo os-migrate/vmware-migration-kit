@@ -30,8 +30,8 @@ import (
 	"syscall"
 	"time"
 
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/vmware"
+	"vmware-migration-kit/plugins/module_utils/logger"
+	"vmware-migration-kit/plugins/module_utils/vmware"
 )
 
 type NbdkitConfig struct {

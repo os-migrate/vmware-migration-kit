@@ -29,7 +29,7 @@ import (
 	"strings"
 	"syscall"
 
-	"vmware-migration-kit/vmware_migration_kit/plugins/module_utils/logger"
+	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
