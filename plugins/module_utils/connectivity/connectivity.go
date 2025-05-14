@@ -19,17 +19,13 @@ package connectivity
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"net/http"
-	"time"
 
-	"vmware-migration_kit/vmware_migration_kit/plugins/module_utils/ansible"
-	"vmware-migration_kit/vmware_migration_kit/plugins/module_utils/logger"
+	"vmware-migration-kit/plugins/module_utils/ansible"
+	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25/methods"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -60,7 +56,7 @@ func CheckVCenterConnectivity(ctx context.Context, finder *find.Finder, c *vim25
 	mor := vm.Reference()
 
 	// fetch status of managed object instance
-	if err := c.RetrieveOne(ctx, mor, []string{"guestHeartbeatStatus"}, &props); err != nil {
+	if err := vm.Properties(ctx, mor, []string{"guestHeartbeatStatus"}, &props); err != nil {
 		logger.Log.Infof("Failed to fetch heartbeat")
 		response.Msg = "Failed to fetch heartbeat: " + err.Error()
 		ansible.FailJson(response)
