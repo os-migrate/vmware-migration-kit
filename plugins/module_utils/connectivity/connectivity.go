@@ -25,12 +25,11 @@ import (
 
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-func CheckVCenterConnectivity(ctx context.Context, finder *find.Finder, c *vim25.Client, vmpath string) (*object.VirtualMachine, error) {
+func CheckVCenterConnectivity(ctx context.Context, finder *find.Finder, vmpath string) (*object.VirtualMachine, error) {
 	var response ansible.Response
 	var props mo.VirtualMachine
 	statusColors := map[types.ManagedEntityStatus]string{
