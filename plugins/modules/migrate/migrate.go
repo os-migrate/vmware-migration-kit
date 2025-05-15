@@ -407,7 +407,7 @@ func main() {
 
 	vmpath := vddkpath + "/" + vmname
 	finder := find.NewFinder(c.Client)
-	vm, err := connectivity.CheckVCenterConnectivity(ctx, finder, c, vmpath)
+	vm, err := connectivity.CheckVCenterConnectivity(ctx, finder, vmpath)
 	if err != nil {
 		logger.Log.Infof("Failed to check vCenter connectivity: %v", err)
 		response.Msg = "Failed to check vCenter connectivity: " + err.Error()
