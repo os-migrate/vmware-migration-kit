@@ -14,12 +14,18 @@ tags:
   - vmware
   - migrations
 dependencies:
-  community.crypto: '>=1.4.0'
-  community.general: '<5.0.0'
-  openstack.cloud: '>=2.0.0'
-  os_migrate.os_migrate: '>=0.0.1'
-  community.vmware: '>=1.0.0'
-  ansible.posix: '>=2.0.0'
-repository: 'https://github.com/os-migrate/vmware-migration-kit'
-homepage: 'https://github.com/os-migrate/vmware-migration-kit'
-issues: 'https://github.com/os-migrate/vmware-migration-kit/issues'
+  community.crypto: ">=1.4.0"
+  community.general: "<5.0.0"
+  openstack.cloud: ">=2.0.0"
+  os_migrate.os_migrate: ">=0.0.1"
+  community.vmware: ">=1.0.0"
+  ansible.posix: ">=2.0.0"
+repository: "https://github.com/os-migrate/vmware-migration-kit"
+homepage: "https://github.com/os-migrate/vmware-migration-kit"
+issues: "https://github.com/os-migrate/vmware-migration-kit/issues"
+build_ignore:
+  - .venv
+  - .ansible
+  - .pytest_cache
+  - tests/output
+  - tests/__pycache__
