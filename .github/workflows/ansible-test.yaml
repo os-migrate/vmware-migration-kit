@@ -17,15 +17,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Install python dependencies
-        run: pip install -r requirements.txt
-      - name: Install ansible collection dependencies
-        run: ansible-galaxy collection install --force-with-deps --collections-path "${HOME}/ansible_collections/" -v .
       - name: Run ansible-test
-        working-directory: /home/runner/ansible_collections/os_migrate/vmware_migration_kit
-        run: >-
-          ansible-test sanity --requirements -v
-          --exclude plugins/modules/create_server/
-          --exclude plugins/modules/import_image/
-          --exclude plugins/modules/migrate/
-          --exclude plugins/modules/volume_metadata_info/
+        shell: bash
+        run: make test-ansible-sanity
