@@ -83,3 +83,6 @@ aee/context
 
 # tests output
 tests/output
+
+# collection tarball
+os_migrate-vmware_migration_kit-*.tar.gz

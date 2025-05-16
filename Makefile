@@ -1,8 +1,17 @@
+# Let's use bash!
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
+
+# Directory structure variables
+COLLECTION_ROOT := $(CURDIR)
+MODULES_DIR := $(COLLECTION_ROOT)/plugins/modules
+VENV_DIR := $(COLLECTION_ROOT)/.venv/
+
 # Configuration variables
 CONTAINER_ENGINE := podman
 CONTAINER_IMAGE := quay.io/centos/centos:stream10
 BUILD_SCRIPT := /code/scripts/build.sh
-MOUNT_PATH := $(PWD):/code/
+MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
 GETENFORCE_CMD := $(shell command -v getenforce 2>/dev/null)
@@ -15,8 +24,38 @@ else
     SECURITY_OPT :=
 endif
 
+# Define a function to verify we're in the ansible collection root
+define verify_collection_root
+	@if [ ! -f "$(COLLECTION_ROOT)/galaxy.yml" ]; then \
+		echo "Error: Must be run from the ansible collection root directory."; \
+		echo "Missing galaxy.yml file."; \
+		exit 1; \
+	fi
+endef
+
+# Extract collection metadata from galaxy.yml (if it exists)
+GALAXY_YML := $(COLLECTION_ROOT)/galaxy.yml
+ifneq ($(wildcard $(GALAXY_YML)),)
+    COLLECTION_NAMESPACE := $(shell grep -E "^namespace:" $(GALAXY_YML) | sed 's/namespace: *//g')
+    COLLECTION_NAME := $(shell grep -E "^name:" $(GALAXY_YML) | sed 's/name: *//g')
+    COLLECTION_VERSION := $(shell grep -E "^version:" $(GALAXY_YML) | sed 's/version: *//g')
+    COLLECTION_TARBALL := $(COLLECTION_NAMESPACE)-$(COLLECTION_NAME)-$(COLLECTION_VERSION).tar.gz
+else
+    COLLECTION_TARBALL := *.tar.gz
+endif
+
 # Define phony targets (targets that don't create files)
-.PHONY: all binaries clean-binaries help
+.PHONY: all binaries clean-binaries help check-root tests test-pytest test-ansible-sanity build clean-build \
+        create-venv clean-venv
+
+# Makes `make` less verbose :)
+ifndef VERBOSE
+MAKEFLAGS += --no-print-directory
+endif
+
+# Validate collection root directory
+check-root:
+	$(call verify_collection_root)
 
 # Default target
 all: binaries
@@ -24,10 +63,18 @@ all: binaries
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  help          - Display this help message"
-	@echo "  binaries      - Build binaries using container"
-	@echo "  clean-binaries - Remove all built binaries from plugins/modules/"
-	@echo "  all           - Same as binaries (default target)"
+	@echo "  help                - Display this help message"
+	@echo "  binaries            - Build binaries using container"
+	@echo "  clean-binaries      - Remove all built binaries from plugins/modules/"
+	@echo "  build               - Build the collection using ansible-galaxy"
+	@echo "  clean-build         - Remove the built collection tarball"
+	@echo "  test-ansible-lint   - Launch ansible-lint test"
+	@echo "  test-ansible-sanity - Launch ansible-sanity tests"
+	@echo "  test-pytest         - Launch pytest test"
+	@echo "  tests               - Launch all tests"
+	@echo "  create-venv         - Create the virtualenv environment"
+	@echo "  clean-venv          - Remove the virtualenv environment"
+	@echo "  all                 - Same as binaries (default target)"
 	@echo ""
 	@echo "Customizable variables:"
 	@echo "  CONTAINER_ENGINE - Container runtime (default: $(CONTAINER_ENGINE))"
@@ -36,12 +83,117 @@ help:
 	@echo "  SECURITY_OPT     - Security options (based on SELinux status)"
 	@echo "                     Current value: $(SECURITY_OPT)"
 	@echo ""
+	@echo "Collection root: $(COLLECTION_ROOT)"
+	@echo "Modules directory: $(MODULES_DIR)"
 	@echo "SELinux status: $(if $(SELINUX_ENFORCING:yes=),Disabled or Permissive,Enforcing)"
+	@echo ""
+	@echo "Collection information:"
+	@if [ "$(COLLECTION_TARBALL)" != "*.tar.gz" ]; then \
+		echo "  Namespace: $(COLLECTION_NAMESPACE)"; \
+		echo "  Name: $(COLLECTION_NAME)"; \
+		echo "  Version: $(COLLECTION_VERSION)"; \
+		echo "  Tarball: $(COLLECTION_TARBALL)"; \
+	else \
+		echo "  (galaxy.yml not found or incomplete)"; \
+	fi
 
 # Target to build binaries using container
-binaries:
+binaries: check-root
 	$(CONTAINER_ENGINE) run --rm -v $(MOUNT_PATH) $(SECURITY_OPT) $(CONTAINER_IMAGE) $(BUILD_SCRIPT)
 
-# Target to clean built binaries (removes all non .go and non .py files from plugins/modules/)
-clean-binaries:
-	find plugins/modules/ -type f ! -name '*.go' -a ! -name '*.py' -delete
+# Target to clean built binaries
+clean-binaries: check-root
+	@# Check if modules directory exists
+	@if [ ! -d "$(MODULES_DIR)" ]; then \
+		echo "*** Error: $(MODULES_DIR) directory not found. ***"; \
+		exit 1; \
+	fi
+	@# Count files that would be deleted
+	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" | wc -l); \
+	if [ $$files_to_delete -eq 0 ]; then \
+		echo "*** No binary files found to delete in $(MODULES_DIR) ***"; \
+	else \
+		echo "*** Found $$files_to_delete files to delete ***"; \
+		echo "*** Removing binary files from $(MODULES_DIR) ... ***"; \
+		find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" -delete; \
+		echo "*** Cleanup complete. ***"; \
+	fi
+
+# Target to build the collection
+build: check-root clean-build
+	@echo "*** Building Ansible collection...***"
+	@ansible-galaxy collection build
+	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
+
+# Target to clean the built collection
+clean-build:
+	@echo "*** Cleaning built collection...***"
+	@if [ -n "$(COLLECTION_TARBALL)" ] && [ "$(COLLECTION_TARBALL)" != "*.tar.gz" ]; then \
+		if [ -f "$(COLLECTION_TARBALL)" ]; then \
+			echo "*** Removing $(COLLECTION_TARBALL) ***"; \
+			rm -f "$(COLLECTION_TARBALL)"; \
+		else \
+			echo "*** Collection tarball $(COLLECTION_TARBALL) not found ***"; \
+		fi; \
+	else \
+		echo "*** Removing all collection tarballs ***"; \
+		rm -f *.tar.gz; \
+	fi
+
+create-venv: clean-venv
+	@echo "*** Creating venv... ***"
+	@python3 -m venv $(VENV_DIR)
+
+clean-venv:
+	@if [ -d "$(VENV_DIR)" ]; then \
+		echo "*** Removing virtual environment at $(VENV_DIR) ***" && \
+		rm -fr "$(VENV_DIR)"; \
+	fi
+
+test-pytest: create-venv
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements-tests.txt && \
+	pytest -q && \
+	deactivate && \
+	$(MAKE) clean-venv
+
+test-ansible-lint: create-venv
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt && \
+	echo "*** Launching ansible-lint ***" && \
+	ansible-lint && \
+	deactivate && \
+	$(MAKE) clean-venv
+
+test-ansible-sanity:
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt && \
+	export TMPDIR="$$(mktemp -d)" && \
+	export PY_VER="$$(python3 -c 'from platform import python_version;print(python_version())' | cut -f 1,2 -d'.')" && \
+	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
+	echo "*** Using temporary collections path: $$ANSIBLE_COLLECTIONS_PATH ***" && \
+	$(MAKE) build && \
+	echo "*** Installing collection dependencies... ***" && \
+	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
+	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
+	echo "*** Running Ansible sanity tests...***" && \
+	ansible-test sanity --python $$PY_VER --requirements \
+	  --exclude aee/ \
+		--exclude scripts/ \
+	  --exclude plugins/modules/create_server/ \
+	  --exclude plugins/modules/import_image/ \
+	  --exclude plugins/modules/migrate/ \
+	  --exclude plugins/modules/volume_metadata_info/ && \
+	cd $(COLLECTION_ROOT) && \
+	echo "*** Sanity tests completed successfully ***" && \
+	rm -fr $$TMPDIR && \
+	deactivate
+	@$(MAKE) clean-venv
+
+tests: test-pytest test-ansible-sanity test-ansible-lint
