@@ -1,0 +1,23 @@
+galaxy_info:
+  author: Mathieu Bultel <mat.bultel@gmail.com>
+  description: Sets up a conversion host with necessary tools (e.g., nbdkit, qemu-img) for preparing VMware VM disks for migration to OpenStack.
+  license: Apache-2.0
+
+  min_ansible_version: "2.12" # Adjust as needed
+
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+
+  galaxy_tags:
+    - vmware
+    - openstack
+    - migration
+    - conversion
+    - nbdkit
+    - qemu
+    - infrastructure
+
+dependencies: []
