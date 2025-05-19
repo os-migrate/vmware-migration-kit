@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  author: Mathieu Bultel <mat.bultel@gmail.com>
+  description: Orchestrates the import of VMware workloads (VMs, disks, images) into OpenStack.
+  license: Apache-2.0
+
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+        - "10"
+
+  galaxy_tags:
+    - vmware
+    - openstack
+    - migration
+    - import
+    - workload
+    - orchestration
+    - cloud
+
+dependencies: []
