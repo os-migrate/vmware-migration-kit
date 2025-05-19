@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  author: Mathieu Bultel <mat.bultel@gmail.com>
+  description: Performs initial setup tasks and prerequisite checks for the VMware to OpenStack migration workflow.
+  license: Apache-2.0
+
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+        - "10"
+
+  galaxy_tags:
+    - vmware
+    - openstack
+    - migration
+    - setup
+    - prerequisites
+    - prelude
+    - infrastructure
+
+dependencies: []
