@@ -14,7 +14,8 @@ DOCUMENTATION = """
 ---
 module: create_network_port
 short_description: Create network ports for a VM
-extends_documentation_fragment: openstack.cloud.openstack
+extends_documentation_fragment:
+    - openstack.cloud.openstack
 version_added: "2.9.0"
 author: "OpenStack tenant migration tools (@os-migrate)"
 description:
