@@ -14,7 +14,8 @@ DOCUMENTATION = """
 ---
 module: best_match_flavor
 short_description: Returns the flavor which best matches the guest requirements
-extends_documentation_fragment: openstack.cloud.openstack
+extends_documentation_fragment:
+    - openstack.cloud.openstack
 version_added: "2.9.0"
 author: "OpenStack tenant migration tools (@os-migrate)"
 description:
