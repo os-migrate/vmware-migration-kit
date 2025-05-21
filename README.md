@@ -210,7 +210,7 @@ ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @
 ## Usage
 
 You can find a "how to" here, to start from sratch with a container:
-https://gist.github.com/matbu/003c300fd99ebfbf383729c249e9956f 
+https://gist.github.com/matbu/003c300fd99ebfbf383729c249e9956f
 
 Clone repository or install from ansible galaxy
 

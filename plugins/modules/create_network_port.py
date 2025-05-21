@@ -1,8 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import absolute_import, division, print_function
-
-__metaclass__ = type
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -151,7 +148,7 @@ def main():
 
     # Load the data file
     try:
-        with open(os_migrate_nics_file_path, "r") as f:
+        with open(os_migrate_nics_file_path) as f:
             vm_nics = json.load(f)
     except Exception as e:
         module.fail_json(msg=f"Failed to load network data file: {str(e)}")
