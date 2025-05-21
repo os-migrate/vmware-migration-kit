@@ -1,3 +1,4 @@
+epel-release
 openssh-clients
 sshpass
 python3
