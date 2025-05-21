@@ -109,7 +109,7 @@ clean-binaries: check-root
 		exit 1; \
 	fi
 	@# Count files that would be deleted
-	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" | wc -l); \
+	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" -a ! -name "*.yml" | wc -l); \
 	if [ $$files_to_delete -eq 0 ]; then \
 		echo "*** No binary files found to delete in $(MODULES_DIR) ***"; \
 	else \
@@ -120,7 +120,7 @@ clean-binaries: check-root
 	fi
 
 # Target to build the collection
-build: check-root clean-build
+build: check-root clean-build clean-binaries binaries
 	@echo "*** Building Ansible collection...***"
 	@ansible-galaxy collection build
 	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
