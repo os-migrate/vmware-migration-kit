@@ -11,6 +11,7 @@ VENV_DIR := $(COLLECTION_ROOT)/.venv/
 CONTAINER_ENGINE := podman
 CONTAINER_IMAGE := quay.io/centos/centos:stream10
 BUILD_SCRIPT := /code/scripts/build.sh
+PYTHON_VERSION := 3.12
 MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
@@ -46,7 +47,7 @@ endif
 
 # Define phony targets (targets that don't create files)
 .PHONY: all binaries clean-binaries help check-root tests test-pytest test-ansible-sanity build clean-build \
-        create-venv clean-venv
+        create-venv clean-venv check-python-version
 
 # Makes `make` less verbose :)
 ifndef VERBOSE
@@ -140,9 +141,19 @@ clean-build:
 		rm -f *.tar.gz; \
 	fi
 
-create-venv: clean-venv
+check-python-version:
+	@echo "*** Check if Python $(PYTHON_VERSION) is available ***"
+	@if [[ ! -x $$(command -v python$(PYTHON_VERSION)) ]]; then \
+	  echo "*** Installing Python $(PYTHON_VERSION) ***"; \
+		sudo dnf -y install python$(PYTHON_VERSION)-devel 2>/dev/null || \
+			echo "package python$(PYTHON_VERSION) is unavailable"; exit 1; \
+	else \
+		echo "*** Python $(PYTHON_VERSION) is already available ***"; \
+	fi
+
+create-venv: clean-venv check-python-version
 	@echo "*** Creating venv... ***"
-	@python3 -m venv $(VENV_DIR)
+	@python$(PYTHON_VERSION) -m venv $(VENV_DIR)
 
 clean-venv:
 	@if [ -d "$(VENV_DIR)" ]; then \
@@ -159,7 +170,7 @@ test-pytest: create-venv
 	deactivate && \
 	$(MAKE) clean-venv
 
-test-ansible-lint: create-venv
+test-ansible-lint:
 	@$(MAKE) create-venv && \
 	source $(VENV_DIR)/bin/activate && \
 	pip install -q --upgrade pip && \
@@ -175,7 +186,6 @@ test-ansible-sanity:
 	pip install -q --upgrade pip && \
 	pip install -q -r requirements.txt && \
 	export TMPDIR="$$(mktemp -d)" && \
-	export PY_VER="$$(python3 -c 'from platform import python_version;print(python_version())' | cut -f 1,2 -d'.')" && \
 	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
 	echo "*** Using temporary collections path: $$ANSIBLE_COLLECTIONS_PATH ***" && \
 	$(MAKE) build && \
@@ -183,7 +193,7 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --python $$PY_VER --requirements \
+	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/create_server/ \

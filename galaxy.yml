@@ -28,3 +28,4 @@ build_ignore:
   - .pytest_cache
   - tests/output
   - tests/__pycache__
+  - aee/context
