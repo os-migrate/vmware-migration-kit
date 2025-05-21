@@ -1,8 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import absolute_import, division, print_function
-
-__metaclass__ = type
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -120,10 +117,10 @@ def run_module():
 
     flavor_name = module.params["flavor_name"]
     # Open guest_info_path file
-    with open(module.params["guest_info_path"], "r") as guest_file:
+    with open(module.params["guest_info_path"]) as guest_file:
         guest_info = json.load(guest_file)
 
-    with open(module.params["disk_info_path"], "r") as disk_file:
+    with open(module.params["disk_info_path"]) as disk_file:
         disk_info = json.load(disk_file)
 
     total_disk_capacity_gb = get_total_disk_capacity(disk_info) / 1024
