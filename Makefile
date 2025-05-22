@@ -99,7 +99,7 @@ help:
 	fi
 
 # Target to build binaries using container
-binaries: check-root
+binaries: check-root clean-binaries
 	$(CONTAINER_ENGINE) run --rm -v $(MOUNT_PATH) $(SECURITY_OPT) $(CONTAINER_IMAGE) $(BUILD_SCRIPT)
 
 # Target to clean built binaries
@@ -160,6 +160,16 @@ clean-venv:
 		echo "*** Removing virtual environment at $(VENV_DIR) ***" && \
 		rm -fr "$(VENV_DIR)"; \
 	fi
+
+install:
+	@echo "*** Installing dependencies... ***"
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt && \
+	$(MAKE) build
+	@echo "*** Dependencies installed successfully ***"
+	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps
 
 test-pytest: create-venv
 	@$(MAKE) create-venv && \
