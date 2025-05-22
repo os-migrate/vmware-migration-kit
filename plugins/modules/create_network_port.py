@@ -10,7 +10,7 @@ ANSIBLE_METADATA = {
     "supported_by": "community",
 }
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 ---
 module: create_network_port
 short_description: Create network ports for a VM
@@ -73,7 +73,7 @@ options:
     type: str
 """
 
-EXAMPLES = """
+EXAMPLES = r"""
 ---
 - name: Create network ports for VM
   hosts: localhost
@@ -98,7 +98,7 @@ EXAMPLES = """
       register: ports_uuid
 """
 
-RETURN = """
+RETURN = r"""
 ports:
     description: list of created ports
     returned: success

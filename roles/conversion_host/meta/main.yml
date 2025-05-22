@@ -5,12 +5,6 @@ galaxy_info:
 
   min_ansible_version: "2.12" # Adjust as needed
 
-  platforms:
-    - name: EL
-      versions:
-        - "8"
-        - "9"
-
   galaxy_tags:
     - vmware
     - openstack

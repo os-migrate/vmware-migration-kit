@@ -86,3 +86,9 @@ tests/output
 
 # collection tarball
 os_migrate-vmware_migration_kit-*.tar.gz
+
+# do not commit binaries!
+plugins/modules/create_server/create_server
+plugins/modules/import_image/import_image
+plugins/modules/migrate/migrate
+plugins/modules/volume_metadata_info/volume_metadata_info
