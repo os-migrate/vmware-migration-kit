@@ -162,9 +162,9 @@ clean-venv:
 	fi
 
 install:
-    @echo "*** Installing dependencies... ***"
-    @$(MAKE) create-venv && \
-      source $(VENV_DIR)/bin/activate && \
+	@echo "*** Installing dependencies... ***"
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
 	pip install -q --upgrade pip && \
 	pip install -q -r requirements.txt && \
 	$(MAKE) build
