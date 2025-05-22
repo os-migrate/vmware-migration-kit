@@ -10,7 +10,7 @@ ANSIBLE_METADATA = {
     "supported_by": "community",
 }
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 ---
 module: export_flavor
 short_description: Export VMware Guest/Vm definition into an OS-Migrate YAML import_flavor format
@@ -45,7 +45,7 @@ options:
     type: str
 """
 
-EXAMPLES = """
+EXAMPLES = r"""
 - name: Export myflavor into /opt/os-migrate/flavors.yml
   os_migrate.os_migrate.export_flavor:
     path: /opt/os-migrate/flavors.yml
@@ -54,7 +54,7 @@ EXAMPLES = """
     disk_info_path: /opt/os-migrate/disk_info.json
 """
 
-RETURN = """
+RETURN = r"""
 """
 
 import traceback
