@@ -161,9 +161,10 @@ clean-venv:
 		rm -fr "$(VENV_DIR)"; \
 	fi
 
-install: create-venv
-	@echo "*** Installing dependencies... ***"
-	source $(VENV_DIR)/bin/activate && \
+install:
+    @echo "*** Installing dependencies... ***"
+    @$(MAKE) create-venv && \
+      source $(VENV_DIR)/bin/activate && \
 	pip install -q --upgrade pip && \
 	pip install -q -r requirements.txt && \
 	$(MAKE) build
