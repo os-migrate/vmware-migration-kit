@@ -168,7 +168,7 @@ def main():
             network_object = conn.get_network(item["vlan"])
             if network_object:
                 network_id = network_object["id"]
-            port_name = f"{vm_name}-NIC-{nic_index}-VLAN-{item['vlan']}"
+            port_name = "{}-NIC-{}-VLAN-{}".format(vm_name, nic_index, item['vlan'])
             port = conn.network.create_port(
                 name=port_name,
                 network_id=network_id,
