@@ -38,7 +38,7 @@ class VirtV2V:
         except subprocess.CalledProcessError as e:
             return dict(
                 changed=False,
-                msg=f"Command failed: {e}",
+                msg="Command failed: {}".format(e),
                 stdout=e.stdout,
                 stderr=e.stderr,
             )
