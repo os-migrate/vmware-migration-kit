@@ -17,17 +17,21 @@ class VirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            f"esx://{self.params['vcenter_username']}@{self.params['vcenter_hostname']}/Datacenter/{self.params['esxi_hostname']}?no_verify=1",
+            "esx://{}@{}/Datacenter/{}?no_verify=1".format(
+                self.params['vcenter_username'],
+                self.params['vcenter_hostname'],
+                self.params['esxi_hostname']
+            ),
             "-it",
             "vddk",
             "-io",
-            f"vddk-libdir={self.params['vddk_libdir']}",
+            "vddk-libdir={}".format(self.params['vddk_libdir']),
             "-io",
-            f"vddk-thumbprint={self.params['vddk_thumbprint']}",
+            "vddk-thumbprint={}".format(self.params['vddk_thumbprint']),
             "-o",
             "openstack",
             "-oo",
-            f"server-id={self.params['conversion_host_id']}",
+            "server-id={}".format(self.params['conversion_host_id']),
             self.params["vm_name"],
         ]
 

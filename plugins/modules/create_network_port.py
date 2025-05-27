@@ -182,7 +182,7 @@ def main():
             result["changed"] = True
         result["ports"] = port_uuid
     except Exception as e:
-        module.fail_json(msg=f"Failed to create  ports: {str(e)}")
+        module.fail_json(msg="Failed to create  ports: {}".format(str(e)))
 
     module.exit_json(**result)
 
