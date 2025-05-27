@@ -154,7 +154,7 @@ def main():
         with open(os_migrate_nics_file_path) as f:
             vm_nics = json.load(f)
     except Exception as e:
-        module.fail_json(msg=f"Failed to load network data file: {str(e)}")
+        module.fail_json(msg="Failed to load network data file: {}".format(str(e)))
 
     # If not mapped networks, use the network name provided
     if not used_mapped_networks:
