@@ -123,7 +123,7 @@ func main() {
 
 	if moduleArgs.BootFromCinder {
 		blockStorageClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
-			Region: os.Getenv("OS_REGION_NAME"),
+			Region: moduleArgs.Cloud.RegionName,
 		})
 		if err != nil {
 			logger.Log.Infof("Failed to create block storage client: %v", err)
