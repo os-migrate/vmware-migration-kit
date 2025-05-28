@@ -23,6 +23,10 @@ import (
 	"vmware-migration-kit/plugins/module_utils/ansible"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
+
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 )
 
 /* Argument file example:
@@ -64,6 +68,7 @@ type ModuleArgs struct {
 	SecurityGroups []string        `json:"security_groups"`
 	Flavor         string          `json:"flavor"`
 	KeyName        string          `json:"key_name"`
+	BootFromCinder bool            `json:"boot_from_cinder"`
 }
 
 type ModuleResponse struct {
@@ -106,6 +111,7 @@ func main() {
 		response.Msg = "Configuration file not valid JSON: " + string(text)
 		ansible.FailJson(response)
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.Cloud)
@@ -113,6 +119,52 @@ func main() {
 		logger.Log.Infof("Failed to authenticate Openstack client: %v", err)
 		response.Msg = "Failed to authenticate Openstack client: " + err.Error()
 		ansible.FailJson(response)
+	}
+
+	if moduleArgs.BootFromCinder {
+		blockStorageClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+			Region: moduleArgs.Cloud.RegionName,
+		})
+		if err != nil {
+			logger.Log.Infof("Failed to create block storage client: %v", err)
+			response.Msg = "Failed to create block storage client: " + err.Error()
+			ansible.FailJson(response)
+		}
+
+		volume, err := volumes.Get(ctx, blockStorageClient, moduleArgs.BootVolume).Extract()
+		if err != nil {
+			logger.Log.Infof("Failed to get volume: %v", err)
+			response.Msg = "Failed to get volume: " + err.Error()
+			ansible.FailJson(response)
+		}
+
+		if volume.Bootable != "true" {
+			logger.Log.Infof("Volume is not bootable")
+			response.Msg = "Volume is not bootable"
+			ansible.FailJson(response)
+		}
+
+		if volume.Status != "available" {
+			logger.Log.Infof("Volume is not available, current status: %s", volume.Status)
+			response.Msg = "Volume is not available"
+			ansible.FailJson(response)
+		}
+
+		ServerAgrs := osm_os.ServerArgs{
+			Name:           moduleArgs.Name,
+			Flavor:         moduleArgs.Flavor,
+			BootVolume:     moduleArgs.BootVolume,
+			SecurityGroups: moduleArgs.SecurityGroups,
+			Nics:           moduleArgs.Nics,
+			Volumes:        moduleArgs.Volumes,
+		}
+		server, err := osm_os.CreateServer(provider, ServerAgrs)
+		if err != nil {
+			response.Msg = "Failed create instance: " + err.Error()
+			ansible.FailJson(response)
+		}
+		success(true, server)
+		return
 	}
 
 	ServerAgrs := osm_os.ServerArgs{
