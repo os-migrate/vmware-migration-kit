@@ -144,6 +144,12 @@ func main() {
 			ansible.FailJson(response)
 		}
 
+		if volume.Status != "available" {
+			logger.Log.Infof("Volume is not available, current status: %s", volume.Status)
+			response.Msg = "Volume is not available"
+			ansible.FailJson(response)
+		}
+
 		ServerAgrs := osm_os.ServerArgs{
 			Name:           moduleArgs.Name,
 			Flavor:         moduleArgs.Flavor,
