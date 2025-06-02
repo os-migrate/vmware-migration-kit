@@ -14,8 +14,6 @@ DOCUMENTATION = """
 ---
 module: best_match_flavor
 short_description: Returns the flavor which best matches the guest requirements
-extends_documentation_fragment:
-    - openstack.cloud.openstack
 version_added: "2.9.0"
 author: "OpenStack tenant migration tools (@os-migrate)"
 description:
@@ -30,6 +28,8 @@ options:
   auth:
     description:
       - Required if 'cloud' param not used.
+      - Dictionary containing authentication information.
+      - Can include auth_url, username, password, project_name, domain_name, etc.
     required: false
     type: dict
   auth_type:
@@ -42,6 +42,47 @@ options:
       - OpenStack region name. Can be omitted if using default region.
     required: false
     type: str
+  interface:
+    description:
+      - Endpoint URL type to fetch from the service catalog.
+    choices: ['public', 'internal', 'admin']
+    default: public
+    type: str
+    aliases: ['endpoint_type']
+  validate_certs:
+    description:
+      - Whether or not SSL API requests should be verified.
+    type: bool
+    aliases: ['verify']
+  ca_cert:
+    description:
+      - A path to a CA Cert bundle that can be used as part of verifying SSL API requests.
+    type: str
+    aliases: ['cacert']
+  client_cert:
+    description:
+      - A path to a client certificate to use as part of the SSL transaction.
+    type: str
+    aliases: ['cert']
+  client_key:
+    description:
+      - A path to a client key to use as part of the SSL transaction.
+    type: str
+    aliases: ['key']
+  timeout:
+    description:
+      - How long should ansible wait for the requested resource.
+    type: int
+    default: 180
+  api_timeout:
+    description:
+      - How long should the socket layer wait before timing out for API calls.
+    type: int
+  wait:
+    description:
+      - Should ansible wait until the requested resource is complete.
+    type: bool
+    default: true
   guest_info_path:
     description:
       Path of the guest info file dumped by the VMware migration kit.
@@ -52,6 +93,9 @@ options:
       Path of the disk info file dumped by the VMware migration kit.
     required: true
     type: str
+requirements:
+  - "python >= 3.6"
+  - "openstacksdk >= 1.0.0"
 """
 
 EXAMPLES = """
