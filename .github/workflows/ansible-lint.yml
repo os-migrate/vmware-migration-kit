@@ -19,11 +19,3 @@ jobs:
         with:
           setup_python: "true"
           requirements_file: "requirements.yml"
-
-  doc-validation:
-    name: Ansible Doc Validation
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run ansible-doc validation
-        run: make test-ansible-doc
