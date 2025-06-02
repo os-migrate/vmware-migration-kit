@@ -47,7 +47,7 @@ endif
 
 # Define phony targets (targets that don't create files)
 .PHONY: all binaries clean-binaries help check-root tests test-pytest test-ansible-sanity build clean-build \
-        create-venv clean-venv check-python-version
+        create-venv clean-venv check-python-version test-ansible-doc
 
 # Makes `make` less verbose :)
 ifndef VERBOSE
@@ -216,4 +216,32 @@ test-ansible-sanity:
 	deactivate
 	@$(MAKE) clean-venv
 
-tests: test-pytest test-ansible-sanity test-ansible-lint
+test-ansible-doc:
+	@$(MAKE) create-venv && \
+	export TMPDIR="$$(mktemp -d)" && \
+	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
+	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
+	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
+	modules=($$(find plugins/modules -type f \( -name "*.py" -o -name "*[!.]*" \) ! -name "__init__.py" -exec basename {} .py \; | \
+		sed -e "s|^|$(COLLECTION_NAMESPACE).$(COLLECTION_NAME).|" \
+		    -e "s|\.$$|.&|")) && \
+	if [ "$${#modules[@]}" -gt 0 ]; then \
+		echo "*** Validating documentation for all modules... ***" && \
+		failed=0 && \
+		for module in "$${modules[@]}"; do \
+			echo "Checking $$module..." && \
+			ansible-doc --type module --json "$$module" > /dev/null 2>&1 || \
+			{ echo "  - 🚨 Documentation validation failed for: $$module"; \
+			  ansible-doc --type module --json "$$module" 2>&1 | sed 's/^/    /'; \
+			  failed=1; }; \
+		done && \
+		[ $$failed -eq 0 ] || { echo "*** ERROR: Documentation validation failed! ***"; exit 1; }; \
+	else \
+		echo "No modules found to validate"; \
+		exit 1; \
+	fi && \
+	cd $(COLLECTION_ROOT) && \
+	rm -fr $$TMPDIR && \
+	$(MAKE) clean-venv
+
+tests: test-pytest test-ansible-sanity test-ansible-lint test-ansible-doc
