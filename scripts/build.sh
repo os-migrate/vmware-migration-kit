@@ -8,10 +8,10 @@ dnf clean all
 cd /code || exit
 modules_dir="plugins/modules"
 if [ -d "${modules_dir}" ]; then
-  for folder in "${modules_dir}"/*; do
+  for folder in "${modules_dir}"/src/*; do
     if [ -d "${folder}" ]; then
       pushd "${folder}" || return
-      go build -ldflags="-s -w" -a
+      go build -ldflags="-s -w" -a -o "/code/${modules_dir}/$(basename "${folder}")"
       popd || return
     fi
   done
