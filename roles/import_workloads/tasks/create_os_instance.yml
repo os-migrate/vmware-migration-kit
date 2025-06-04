@@ -12,24 +12,36 @@
   environment:
     OS_CLOUD: "{{ openstack_cloud }}"
 
-- name: Get volume information
+- name: Get volume information for virt-v2v
   openstack.cloud.volume_info:
     cloud: "{{ dst_cloud }}"
     name: "{{ vm_name }}-sda"
   register: volume_result
   when: import_workloads_os_migrate_virt_v2v
 
-- name: Set boot volume UUID as a fact
+- name: Get volume information for Cinder boot
+  openstack.cloud.volume_info:
+    cloud: "{{ dst_cloud }}"
+    name: "{{ vm_name }}"
+  register: cinder_volume_result
+  when: import_workloads_boot_from_cinder
+
+- name: Set boot volume UUID as a fact for virt-v2v
   ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_result.volumes[0].id }}"
   when: import_workloads_os_migrate_virt_v2v
 
-- name: Set boot volume UUID as a fact
+- name: Set boot volume UUID as a fact for nbdkit
   ansible.builtin.set_fact:
     boot_volume_uuid: "{{ volume_uuid[0] }}"
   when: import_workloads_os_migrate_nbdkit
 
-- name: Set boot volume UUID as a fact
+- name: Set boot volume UUID as a fact for Cinder boot
+  ansible.builtin.set_fact:
+    boot_volume_uuid: "{{ cinder_volume_result.volumes[0].id }}"
+  when: import_workloads_boot_from_cinder
+
+- name: Set additional volumes list for nbdkit
   ansible.builtin.set_fact:
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
   when: import_workloads_os_migrate_nbdkit
@@ -59,6 +71,7 @@
         security_groups: ["{{ security_groups }}"]
         flavor: "{{ flavor_name_or_uuid }}"
         key_name: "{{ ssh_key_name | default('') }}"
+        boot_from_cinder: "{{ import_workloads_boot_from_cinder }}"
       delegate_to: localhost
 
     - name: Set fact for instance_uuid
