@@ -171,7 +171,7 @@ install:
 	@echo "*** Dependencies installed successfully ***"
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps
 
-test-pytest: create-venv
+test-pytest:
 	@$(MAKE) create-venv && \
 	source $(VENV_DIR)/bin/activate && \
 	pip install -q --upgrade pip && \
