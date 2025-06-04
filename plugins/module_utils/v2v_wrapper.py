@@ -18,20 +18,20 @@ class VirtV2V:
             "/tmp/passwd",
             "-ic",
             "esx://{}@{}/Datacenter/{}?no_verify=1".format(
-                self.params['vcenter_username'],
-                self.params['vcenter_hostname'],
-                self.params['esxi_hostname']
+                self.params["vcenter_username"],
+                self.params["vcenter_hostname"],
+                self.params["esxi_hostname"],
             ),
             "-it",
             "vddk",
             "-io",
-            "vddk-libdir={}".format(self.params['vddk_libdir']),
+            "vddk-libdir={}".format(self.params["vddk_libdir"]),
             "-io",
-            "vddk-thumbprint={}".format(self.params['vddk_thumbprint']),
+            "vddk-thumbprint={}".format(self.params["vddk_thumbprint"]),
             "-o",
             "openstack",
             "-oo",
-            "server-id={}".format(self.params['conversion_host_id']),
+            "server-id={}".format(self.params["conversion_host_id"]),
             self.params["vm_name"],
         ]
 

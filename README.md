@@ -11,30 +11,29 @@ VMWare environment.
 The Ansible collection provides different steps to scale your migration from VMWare to Openstack
 and Openshift:
 
-* A discovery phase where it analizes the VMWare source environment and provides collected data
-to help for the migration.
-* A pre-migration phase where it make sure the destionation cloud is ready to perform the migration,
-by creating the conversion host for example or the required network if needed.
-* A migration phase with different workflow where the user can basicaly scale the migration with
-a very number of virtual machines as entry point, or can migrate sensitive virtual machine by using
-a near zero down time with the change block tracking VMWare option (CBT) and so perform the virtual
-machine migration in two steps. The migration can also be done without conversion host.
+- A discovery phase where it analizes the VMWare source environment and provides collected data
+  to help for the migration.
+- A pre-migration phase where it make sure the destionation cloud is ready to perform the migration,
+  by creating the conversion host for example or the required network if needed.
+- A migration phase with different workflow where the user can basicaly scale the migration with
+  a very number of virtual machines as entry point, or can migrate sensitive virtual machine by using
+  a near zero down time with the change block tracking VMWare option (CBT) and so perform the virtual
+  machine migration in two steps. The migration can also be done without conversion host.
 
 ## Workflow
 
 There is different ways to run the migration from VMWare to OpenStack.
 
-* The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
-This way allow the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
-* The second one by using virt-v2v binding with a conversion host. Here you can use a conversion
-host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
-for you.
-* A third way is available where you can skip the conversion host and perform the migration on a Linux machine, the volume
-migrated and converted will be upload a Glance image or can be use later as a Cinder volume. This way is not recommended if
-you have big disk or a huge amount of VMs to migrate: the performance are really slower than with the other ways.
+- The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
+  This way allow the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
+- The second one by using virt-v2v binding with a conversion host. Here you can use a conversion
+  host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
+  for you.
+- A third way is available where you can skip the conversion host and perform the migration on a Linux machine, the volume
+  migrated and converted will be upload a Glance image or can be use later as a Cinder volume. This way is not recommended if
+  you have big disk or a huge amount of VMs to migrate: the performance are really slower than with the other ways.
 
 All of these are configurable with Ansible boolean variables.
-
 
 ## Features and supported OS
 
@@ -42,64 +41,61 @@ All of these are configurable with Ansible boolean variables.
 
 The following features are availables:
 
-* Discovery mode
-* Network mapping
-* Port creation and mac addresses mapping
-* Openstack flavor mapping and creation
-* Migration with nbdkit server with change block tracking feature (CBT)
-* Migration with virt-v2v
-* Upload migrate volume via Glance
-* Multi disks migration
-* Multi nics
-* Parallel migration on a same conversion host
-* Ansible Automation Platform (AAP)
-
+- Discovery mode
+- Network mapping
+- Port creation and mac addresses mapping
+- Openstack flavor mapping and creation
+- Migration with nbdkit server with change block tracking feature (CBT)
+- Migration with virt-v2v
+- Upload migrate volume via Glance
+- Multi disks migration
+- Multi nics
+- Parallel migration on a same conversion host
+- Ansible Automation Platform (AAP)
 
 ### Supported OS
 
 Currently we are supporting the following matrice:
 
-| OS Family       | Version         | Supported & Tested | Not Tested Yet |
-|-----------------|-----------------|--------------------|----------------|
-| RHEL            | 9.4            | Yes                | -              |
-| RHEL            | 9.3 and lower  | Yes                | -              |
-| RHEL            | 8.5            | Yes                | -              |
-| RHEL            | 8.4 and lower  | -                  | Yes            |
-| CentOS          | 9              | Yes                | -              |
-| CentOS          | 8              | Yes                | -              |
-| Ubuntu Server   | 24             | Yes                | -              |
-| Windows         | 10             | Yes                | -              |
-| Windows Server  | 2k22           | Yes                | -              |
-| Suse            | X              | -                  | Yes            |
+| OS Family      | Version       | Supported & Tested | Not Tested Yet |
+| -------------- | ------------- | ------------------ | -------------- |
+| RHEL           | 9.4           | Yes                | -              |
+| RHEL           | 9.3 and lower | Yes                | -              |
+| RHEL           | 8.5           | Yes                | -              |
+| RHEL           | 8.4 and lower | -                  | Yes            |
+| CentOS         | 9             | Yes                | -              |
+| CentOS         | 8             | Yes                | -              |
+| Ubuntu Server  | 24            | Yes                | -              |
+| Windows        | 10            | Yes                | -              |
+| Windows Server | 2k22          | Yes                | -              |
+| Suse           | X             | -                  | Yes            |
 
 ### Nbdkit migration example
 
 ![Alt Nbdkit](doc/osm-migration-nbdkit-vmware-workflow-with-osm.drawio.svg)
-
 
 ### Nbdkit migration example with the Change Block Tracking
 
 #### Step 1: The data are copied and the change ID from the VMware disk are set to the Cinder volume as metadata
 
 > **Note:** The conversion cannot be made at this moment, and the OS instance is not created.
-This functionality can be used for large disks with a lot of data to transfer. It helps avoid a prolonged service interruption.
+> This functionality can be used for large disks with a lot of data to transfer. It helps avoid a prolonged service interruption.
 
 ![Alt CBT Step 1](doc/osm-migration-nbdkit-vmware-workflow-with-osm_cbt_step1.svg)
 
 #### Step 2: OSM compare the source (VMware disk) and the destination (Openstack Volume) change ID
 
 > **Note:** If the change IDs are not equal, the changed blocks between the source and destination are synced.
-Then, the conversion to libvirt/KVM is triggered, and the OpenStack instance is created.
-This allows for minimal downtime for the VMs.
+> Then, the conversion to libvirt/KVM is triggered, and the OpenStack instance is created.
+> This allows for minimal downtime for the VMs.
 
 ![Alt CBT Step 2](doc/osm-migration-nbdkit-vmware-workflow-with-osm_cbt_step2.svg)
-
 
 ### Migration demo from an AEE
 
 The content of the Ansible Execution Environment could be find here:
 
-https://github.com/os-migrate/aap/blob/main/aae-container-file
+<https://github.com/os-migrate/aap/blob/main/aae-container-file>
 
 And the live demo here:
 
@@ -114,7 +110,7 @@ easily create your conversion host manually.
 
 A conversion host is basically an OpenStack instance.
 
-> **Note:** Important: If you want to take benefit of the current supported OS, it's highly recommended to use a *CentOS-10* release or *RHEL-9.5* and superior. If you want to use other Linux distribution, make sure the virtio-win package is equal or higher than 1.40 version.
+> **Note:** Important: If you want to take benefit of the current supported OS, it's highly recommended to use a _CentOS-10_ release or _RHEL-9.5_ and superior. If you want to use other Linux distribution, make sure the virtio-win package is equal or higher than 1.40 version.
 
 ```
 curl -O -k https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-20250217.0.x86_64.qcow2
@@ -128,7 +124,7 @@ openstack server create --flavor x.medium --image 14b1a895-5003-4396-888e-1fa55c
 openstack server add floating ip vmware-conv-host 192.168.18.205
 ```
 
-#### Inventory, Variables files and Ansible command:
+#### Inventory, Variables files and Ansible command
 
 **inventory.yml**
 
@@ -210,7 +206,7 @@ ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @
 ## Usage
 
 You can find a "how to" here, to start from sratch with a container:
-https://gist.github.com/matbu/003c300fd99ebfbf383729c249e9956f
+<https://gist.github.com/matbu/003c300fd99ebfbf383729c249e9956f>
 
 Clone repository or install from ansible galaxy
 
@@ -345,31 +341,31 @@ Openstack variables:
  export OS_USERNAME=admin
  export OS_DOMAIN_NAME=Default
  export OS_PROJECT_ID=xyz
- ```
+```
 
 Then create the argument json file, for example:
 
 ```
 cat <<EOF > args.json
 {
-		"user": "root",
-		"password": "root",
-		"server": "10.0.0.7",
-		"vmname": "rhel-9.4-3",
-		"cbtsync": false,
-		"dst_cloud": {
-			"auth": {
-				"auth_url": "https://keystone-public-openstack.apps.ocp-4-16.standalone",
-				"username": "admin",
-				"project_id": "xyz",
-				"project_name": "admin",
-				"user_domain_name": "Default",
-				"password": "admin"
-			},
-			"region_name": "regionOne",
-			"interface": "public",
-			"identity_api_version": 3
-		}
+  "user": "root",
+  "password": "root",
+  "server": "10.0.0.7",
+  "vmname": "rhel-9.4-3",
+  "cbtsync": false,
+  "dst_cloud": {
+   "auth": {
+    "auth_url": "https://keystone-public-openstack.apps.ocp-4-16.standalone",
+    "username": "admin",
+    "project_id": "xyz",
+    "project_name": "admin",
+    "user_domain_name": "Default",
+    "password": "admin"
+   },
+   "region_name": "regionOne",
+   "interface": "public",
+   "identity_api_version": 3
+  }
 }
 EOF
 ```
@@ -386,3 +382,9 @@ You can see the logs into:
 ```
 tail -f /tmp/osm-nbdkit.log
 ```
+
+## License
+
+Apache License, Version 2.0
+
+See [COPYING](https://www.apache.org/licenses/LICENSE-2.0.txt)
