@@ -10,7 +10,7 @@ ANSIBLE_METADATA = {
     "supported_by": "community",
 }
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 ---
 module: import_vmware_volume
 short_description: Import VMware volume to Openstack
@@ -83,7 +83,7 @@ EXAMPLES = r"""
     vm_name: "my_vm"
 """
 
-RETURN = """
+RETURN = r"""
 changed:
     description: Whether the import was performed successfully
     type: bool

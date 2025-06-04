@@ -10,7 +10,7 @@ ANSIBLE_METADATA = {
     "supported_by": "community",
 }
 
-DOCUMENTATION = """
+DOCUMENTATION = r"""
 ---
 module: best_match_flavor
 short_description: Returns the flavor which best matches the guest requirements
@@ -54,7 +54,7 @@ options:
     type: str
 """
 
-EXAMPLES = """
+EXAMPLES = r"""
 - name: Find the best matching flavor
   os_migrate.vmware_migration_kit.best_match_flavor:
     cloud: source_cloud
@@ -63,7 +63,7 @@ EXAMPLES = """
   register: best_flavor
 """
 
-RETURN = """
+RETURN = r"""
 openstack_flavor_uuid:
     description: uuid of the openstack flavor
     returned: success
