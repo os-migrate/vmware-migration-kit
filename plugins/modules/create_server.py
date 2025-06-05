@@ -1,169 +1,171 @@
+#!/usr/bin/python
+
 DOCUMENTATION = r"""
-  module: create_server
-  short_description: Creates an OpenStack server based on VMware source VM information
-  description:
-    - This module creates an OpenStack server/instance using parameters from a JSON file containing information about a source VM from VMware.
-    - It handles the creation of an OpenStack instance with specified configurations like flavor, availability zone, name, etc.
-    - Attaches network interfaces to the server based on source VM configuration.
-    - Attaches volumes to the server based on source VM disks.
-    - Sets security groups for the instance.
-  author: "OpenStack tenant migration tools (@os-migrate)"
-  version_added: "1.0.0"
-  options:
-    name:
-      description:
-        - Name of the server to create.
-      required: true
-      type: str
-    state:
-      description:
-        - Desired state of the server.
-        - Only 'present' is currently supported as this module is focused on creation.
-      required: false
-      default: present
-      choices: ["present"]
-      type: str
-    auth:
-      description:
-        - Authentication parameters for OpenStack.
-        - Can include auth_url, username, password, project_name, domain_name, etc.
-      required: true
-      type: dict
-    region_name:
-      description:
-        - OpenStack region to create the server in.
-      required: false
-      type: str
-    availability_zone:
-      description:
-        - Availability zone to create the server in.
-      required: false
-      type: str
-    networks:
-      description:
-        - List of networks to attach to the server.
-        - Each network should be specified as a dict with at least a 'uuid' key.
-        - Can also include 'fixed_ip' if a specific IP address is requested.
-      required: false
-      type: list
-      elements: dict
-      suboptions:
-        uuid:
-          description: The UUID of the network.
-          type: str
-          required: true
-        fixed_ip:
-          description: A specific IP address to assign from the network.
-          type: str
-          required: false
-    flavor_id:
-      description:
-        - ID of the flavor to use for the server.
-      required: true
-      type: str
-    key_name:
-      description:
-        - Name of the SSH key to inject into the server.
-      required: false
-      type: str
-    security_groups:
-      description:
-        - List of security group names to apply to the server.
-      required: false
-      type: list
-      elements: str
-    source_vm_json_path:
-      description:
-        - Path to the JSON file containing source VM information from VMware.
-        - Used to configure the server based on the source VM's specifications.
-      required: true
-      type: str
-    user_data:
-      description:
-        - User data to pass to the instance.
-        - This is generally used for cloud-init scripts.
-      required: false
-      type: str
-    image_id:
-      description:
-        - ID of the image to use for the server.
-        - Only used when not booting from volume.
-      required: false
-      type: str
-    volumes:
-      description:
-        - List of volume specifications to attach to the server.
-        - Each volume should be specified as a dict with keys like 'id', 'device', 'boot_index', etc.
-      required: false
-      type: list
-      elements: dict
-      suboptions:
-        id:
-          description: The ID of the volume to attach.
-          type: str
-          required: true
-        device:
-          description: The device name for the volume on the server (e.g., /dev/vdb).
-          type: str
-          required: false
-        boot_index:
-          description: Integer used to sort bootable volumes (e.g., 0 for boot, -1 for non-boot).
-          type: int
-          required: false
-    metadata:
-      description:
-        - Dictionary of metadata to apply to the server.
-      required: false
-      type: dict
-    boot_from_volume:
-      description:
-        - Whether to boot the server from a volume.
-        - If true, must specify either image_id (to create boot volume from image) or volume_id in the first volume entry.
-      required: false
-      type: bool
-      default: false
-    boot_from_cinder:
-      description:
-        - Boot from existing cinder volume
-      required: false
-      type: bool
-      default: false
-    timeout:
-      description:
-        - Timeout in seconds for server creation operation.
-      required: false
-      type: int
-      default: 1800
-    wait:
-      description:
-        - Whether to wait for the server to reach active state before returning.
-      required: false
-      type: bool
-      default: true
-    instance_scheduler:
-      description:
-        - Decides whether the instance should be scheduled somewhere by the scheduler or directly built on a specified host.
-      required: false
-      type: dict
-      suboptions:
-        instance_host:
-          description:
-            - The instance host to build the instance on.
-          required: false
-          type: str
-        scheduler_hints:
-          description:
-            - Hints for the nova scheduler when placing the instance.
-          required: false
-          type: dict
-  requirements:
-    - openstacksdk
+module: create_server
+short_description: Creates an OpenStack server based on VMware source VM information
+description:
+  - This module creates an OpenStack server/instance using parameters from a JSON file containing information about a source VM from VMware.
+  - It handles the creation of an OpenStack instance with specified configurations like flavor, availability zone, name, etc.
+  - Attaches network interfaces to the server based on source VM configuration.
+  - Attaches volumes to the server based on source VM disks.
+  - Sets security groups for the instance.
+author: "OpenStack tenant migration tools (@os-migrate)"
+version_added: "1.0.0"
+options:
+  name:
+    description:
+      - Name of the server to create.
+    required: true
+    type: str
+  state:
+    description:
+      - Desired state of the server.
+      - Only 'present' is currently supported as this module is focused on creation.
+    required: false
+    default: present
+    choices: ["present"]
+    type: str
+  auth:
+    description:
+      - Authentication parameters for OpenStack.
+      - Can include auth_url, username, password, project_name, domain_name, etc.
+    required: true
+    type: dict
+  region_name:
+    description:
+      - OpenStack region to create the server in.
+    required: false
+    type: str
+  availability_zone:
+    description:
+      - Availability zone to create the server in.
+    required: false
+    type: str
+  networks:
+    description:
+      - List of networks to attach to the server.
+      - Each network should be specified as a dict with at least a 'uuid' key.
+      - Can also include 'fixed_ip' if a specific IP address is requested.
+    required: false
+    type: list
+    elements: dict
+    suboptions:
+      uuid:
+        description: The UUID of the network.
+        type: str
+        required: true
+      fixed_ip:
+        description: A specific IP address to assign from the network.
+        type: str
+        required: false
+  flavor_id:
+    description:
+      - ID of the flavor to use for the server.
+    required: true
+    type: str
+  key_name:
+    description:
+      - Name of the SSH key to inject into the server.
+    required: false
+    type: str
+  security_groups:
+    description:
+      - List of security group names to apply to the server.
+    required: false
+    type: list
+    elements: str
+  source_vm_json_path:
+    description:
+      - Path to the JSON file containing source VM information from VMware.
+      - Used to configure the server based on the source VM's specifications.
+    required: true
+    type: str
+  user_data:
+    description:
+      - User data to pass to the instance.
+      - This is generally used for cloud-init scripts.
+    required: false
+    type: str
+  image_id:
+    description:
+      - ID of the image to use for the server.
+      - Only used when not booting from volume.
+    required: false
+    type: str
+  volumes:
+    description:
+      - List of volume specifications to attach to the server.
+      - Each volume should be specified as a dict with keys like 'id', 'device', 'boot_index', etc.
+    required: false
+    type: list
+    elements: dict
+    suboptions:
+      id:
+        description: The ID of the volume to attach.
+        type: str
+        required: true
+      device:
+        description: The device name for the volume on the server (e.g., /dev/vdb).
+        type: str
+        required: false
+      boot_index:
+        description: Integer used to sort bootable volumes (e.g., 0 for boot, -1 for non-boot).
+        type: int
+        required: false
+  metadata:
+    description:
+      - Dictionary of metadata to apply to the server.
+    required: false
+    type: dict
+  boot_from_volume:
+    description:
+      - Whether to boot the server from a volume.
+      - If true, must specify either image_id (to create boot volume from image) or volume_id in the first volume entry.
+    required: false
+    type: bool
+    default: false
+  boot_from_cinder:
+    description:
+      - Boot from existing cinder volume
+    required: false
+    type: bool
+    default: false
+  timeout:
+    description:
+      - Timeout in seconds for server creation operation.
+    required: false
+    type: int
+    default: 1800
+  wait:
+    description:
+      - Whether to wait for the server to reach active state before returning.
+    required: false
+    type: bool
+    default: true
+  instance_scheduler:
+    description:
+      - Decides whether the instance should be scheduled somewhere by the scheduler or directly built on a specified host.
+    required: false
+    type: dict
+    suboptions:
+      instance_host:
+        description:
+          - The instance host to build the instance on.
+        required: false
+        type: str
+      scheduler_hints:
+        description:
+          - Hints for the nova scheduler when placing the instance.
+        required: false
+        type: dict
+requirements:
+  - openstacksdk
 """
 
 EXAMPLES = r"""
 # Create a server from VMware source VM information with basic settings
 - name: Create OpenStack server from VMware VM
-  os_migrate.vmware_migration_kit.create_server: # FQCN used here for clarity
+  os_migrate.vmware_migration_kit.create_server:
     name: new-server-01
     auth:
       auth_url: http://openstack:5000/v3
@@ -203,7 +205,7 @@ EXAMPLES = r"""
     source_vm_json_path: "{{ source_vm_json }}"
     boot_from_volume: true
     volumes:
-      - id: "{{ boot_volume_id }}" # This implies it's the boot volume
+      - id: "{{ boot_volume_id }}"
         device: /dev/vda
         boot_index: 0
       - id: "{{ data_volume_id }}"
@@ -278,43 +280,35 @@ server:
       type: dict
       sample:
         "private":
-          [
-            {
-              "addr": "10.0.0.10",
-              "version": 4,
-              "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:12:34:56",
-              "OS-EXT-IPS:type": "fixed",
-            },
-          ]
+          - addr: "10.0.0.10"
+            version: 4
+            OS-EXT-IPS-MAC:mac_addr: "fa:16:3e:12:34:56"
+            OS-EXT-IPS:type: "fixed"
         "public":
-          [
-            {
-              "addr": "172.24.0.10",
-              "version": 4,
-              "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:78:9a:bc",
-              "OS-EXT-IPS:type": "floating",
-            },
-          ]
+          - addr: "172.24.0.10"
+            version: 4
+            OS-EXT-IPS-MAC:mac_addr: "fa:16:3e:78:9a:bc"
+            OS-EXT-IPS:type: "floating"
     flavor:
       description: Dictionary containing flavor information.
       returned: success
       type: dict
       sample:
-        {
-          "id": "1",
-          "name": "m1.small",
-          "links": [{ "href": "...", "rel": "bookmark" }],
-        }
+        id: "1"
+        name: "m1.small"
+        links:
+          - href: "..."
+            rel: "bookmark"
     image:
       description: Dictionary containing image information if the server was booted from an image (not a pre-existing volume).
       returned: success when booted from image
       type: dict
       sample:
-        {
-          "id": "7af5c7f5-15d4-4ceb-96f9-d9d9420f3c1d",
-          "name": "centos-7",
-          "links": [{ "href": "...", "rel": "bookmark" }],
-        }
+        id: "7af5c7f5-15d4-4ceb-96f9-d9d9420f3c1d"
+        name: "centos-7"
+        links:
+          - href: "..."
+            rel: "bookmark"
     volumes_attached:
       description: List of volumes attached to the server.
       returned: success
@@ -330,16 +324,10 @@ server:
           type: str
           sample: "/dev/vda"
       sample:
-        [
-          {
-            "id": "4a67fd3a-344d-4e6b-9f3b-4eddd8c0d1d4",
-            "device": "/dev/vda",
-          },
-          {
-            "id": "1af5c7f5-15d4-4ceb-96f9-d9d9420f3c1e",
-            "device": "/dev/vdb",
-          },
-        ]
+        - id: "4a67fd3a-344d-4e6b-9f3b-4eddd8c0d1d4"
+          device: "/dev/vda"
+        - id: "1af5c7f5-15d4-4ceb-96f9-d9d9420f3c1e"
+          device: "/dev/vdb"
     metadata:
       description: Dictionary of metadata applied to the server.
       returned: success
@@ -370,7 +358,9 @@ server:
           description: Name of the security group.
           type: str
           sample: "default"
-      sample: ["name": "default", "name": "web-server"]
+      sample:
+        - name: "default"
+        - name: "web-server"
     power_state:
       description: The power state of the server (e.g., 1 for RUNNING, 4 for SHUTDOWN).
       returned: success
@@ -380,5 +370,5 @@ server:
       description: The task state of the server during transitions (e.g., 'spawning', 'deleting', null).
       returned: success
       type: str # Can be null
-      sample:
+      sample: null
 """

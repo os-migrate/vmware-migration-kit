@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 DOCUMENTATION = r"""
 module: volume_metadata_info
 short_description: Retrieves metadata for a specified OpenStack Cinder volume.
@@ -20,15 +22,14 @@ options:
       - The UUID of the OpenStack Cinder volume for which to retrieve metadata.
     type: str
     required: true
-
 requirements:
-  - openstacksdk # For OpenStack interaction
+  - openstacksdk
 """
 
 EXAMPLES = r"""
 - name: Get volume metadata info for a single volume
   os_migrate.vmware_migration_kit.volume_metadata_info:
-    dst_cloud: "{{ my_openstack_auth_details }}" # Variable containing OpenStack auth dictionary
+    dst_cloud: "{{ my_openstack_auth_details }}"
     volume_id: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
   register: single_volume_metadata_result
 
@@ -43,11 +44,7 @@ EXAMPLES = r"""
 
 - name: Example from os-migrate role (adapted)
   vars:
-    # Assume volume_uuid is a list of volume IDs, e.g.,
-    # volume_uuid:
-    #   - "uuid1-from-previous-task"
-    #   - "uuid2-from-previous-task"
-    dst_cloud_details: # Example structure for dst_cloud
+    dst_cloud_details:
       auth_url: "http://keystone.example.com:5000/v3"
       username: "admin_user"
       password: "secret_password"
@@ -55,12 +52,15 @@ EXAMPLES = r"""
       user_domain_name: "Default"
       project_domain_name: "Default"
       region_name: "RegionOne"
+    volume_uuid_list:
+      - "uuid1-from-previous-task"
+      - "uuid2-from-previous-task"
   tasks:
     - name: Get volume metadata info using loop (as per role example)
       os_migrate.vmware_migration_kit.volume_metadata_info:
         dst_cloud: "{{ dst_cloud_details }}"
         volume_id: "{{ uuid_loop_var }}"
-      loop: "{{ volume_uuid_list }}" # Ensure this is a list of UUIDs
+      loop: "{{ volume_uuid_list }}"
       loop_control:
         loop_var: uuid_loop_var
       register: volume_info_metadata_output
@@ -84,31 +84,7 @@ metadata:
   returned: on success
   type: dict
   sample:
-    {
-      "os_distro": "ubuntu",
-      "image_source_id": "c1d2e3f4-a5b6-7890-fedc-ba9876543210",
-      "custom_tag": "webserver_data_disk",
-    }
-# volume_details: # Optional: If the module returns more than just metadata
-#   description: A dictionary containing other details of the volume if fetched by the module.
-#   returned: on success, if implemented
-#   type: complex
-#   contains:
-#     id:
-#       description: The UUID of the volume.
-#       type: str
-#       sample: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
-#     name:
-#       description: The name of the volume.
-#       type: str
-#       sample: "my-volume-01"
-#     status:
-#       description: The status of the volume.
-#       type: str
-#       sample: "available"
-#     size:
-#       description: The size of the volume in GB.
-#       type: int
-#       sample: 50
-#     # Potentially other fields like created_at, bootable, attachments etc.
+    os_distro: "ubuntu"
+    image_source_id: "c1d2e3f4-a5b6-7890-fedc-ba9876543210"
+    custom_tag: "webserver_data_disk"
 """
