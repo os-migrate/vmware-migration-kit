@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 DOCUMENTATION = r"""
 module: import_image
 short_description: Imports or updates an image in OpenStack Glance.
@@ -66,13 +68,13 @@ options:
       - Disk format of the image. Examples include C(qcow2), C(vmdk), C(raw), C(vdi), C(iso), C(aki), C(ari), C(ami).
       - Required when creating a new image. For updates, this field is generally not changeable.
     type: str
-    required: true # Required if not updating an existing_image_id
+    required: true
   container_format:
     description:
       - Container format of the image. Examples include C(bare), C(ovf), C(aki), C(ari), C(ami).
       - Required when creating a new image. For updates, this field is generally not changeable.
     type: str
-    required: true # Required if not updating an existing_image_id
+    required: true
   visibility:
     description:
       - Visibility of the image in Glance.
@@ -171,7 +173,7 @@ options:
     description:
       - Whether to validate SSL certificates when C(source_url) is HTTPS.
     type: bool
-    default: true # As per typical OpenStack SDK behavior
+    default: true
     required: false
   allow_duplicates:
     description:
@@ -180,9 +182,8 @@ options:
     type: bool
     default: false
     required: false
-
 requirements:
-  - openstacksdk # Implied by the nature of the module interacting with OpenStack
+  - openstacksdk
 """
 
 EXAMPLES = r"""
@@ -225,7 +226,7 @@ EXAMPLES = r"""
     auth: "{{ openstack_auth_vars }}"
     name: "image-from-volume-snapshot"
     source_volume_id: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
-    disk_format: "raw" # Usually raw when from volume, but depends on volume content
+    disk_format: "raw"
     container_format: "bare"
     visibility: "private"
 
@@ -233,11 +234,11 @@ EXAMPLES = r"""
   os_migrate.vmware_migration_kit.import_image:
     auth: "{{ openstack_auth_vars }}"
     existing_image_id: "f1e2d3c4-b5a6-7890-fedc-ba9876543210"
-    name: "ubuntu-20.04-cloud-updated" # Optionally rename
+    name: "ubuntu-20.04-cloud-updated"
     visibility: "shared"
     protected: true
-    min_disk: 15 # Update min_disk
-    tags: # Replaces all existing tags
+    min_disk: 15
+    tags:
       - "ubuntu"
       - "focal"
       - "production-ready"
@@ -249,10 +250,10 @@ EXAMPLES = r"""
   os_migrate.vmware_migration_kit.import_image:
     auth: "{{ openstack_auth_vars }}"
     name: "centos-7-base"
-    source_url: "http://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2" # Only used if image doesn't exist
+    source_url: "http://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2"
     disk_format: "qcow2"
     container_format: "bare"
-    allow_duplicates: false # Default, explicit here
+    allow_duplicates: false
     properties:
       build_date: "2025-05-19"
     tags:
@@ -325,7 +326,7 @@ image:
       sample: 512
     size:
       description: Size of the image file in bytes.
-      type: int # Or int64, but Ansible typically handles large ints
+      type: int
       sample: 478150656
     tags:
       description: List of tags associated with the image.
@@ -336,11 +337,9 @@ image:
       description: Dictionary of additional metadata properties of the image.
       type: dict
       sample:
-        {
-          "os_distro": "ubuntu",
-          "release": "20.04",
-          "architecture": "x86_64",
-        }
+        os_distro: "ubuntu"
+        release: "20.04"
+        architecture: "x86_64"
     architecture:
       description: CPU architecture of the image. (Often reflected in properties as well)
       type: str

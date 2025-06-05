@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 DOCUMENTATION = r"""
 module: migrate
 short_description: Migrates a VMware virtual machine to OpenStack.
@@ -95,7 +97,6 @@ options:
     type: int
     default: 3600 # 1 hour, as an example
     required: false
-
 requirements:
   - openstacksdk # For OpenStack interaction with dst_cloud
   - VMware VDDK (specified by C(vddkpath))
@@ -126,17 +127,17 @@ EXAMPLES = r"""
 """
 
 RETURN = r"""
-Changed:
+changed:
   description: Indicates whether the migration operation made any changes.
   returned: always
   type: bool
   sample: true
-Msg:
+msg:
   description: A message describing the outcome of the migration.
   returned: always
   type: str
   sample: "VM migrated successfully"
-ID:
+id:
   description:
     - Identifier related to the migrated resource. Based on the internal Go code snippet 'response.ID = volume',
       this likely refers to the ID of the primary/boot volume created or associated in OpenStack for the migrated VM.
