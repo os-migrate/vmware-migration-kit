@@ -61,7 +61,7 @@
   block:
     - name: Create instance
       register: instance_output
-      os_migrate.vmware_migration_kit.create_server.create_server:
+      os_migrate.vmware_migration_kit.create_server:
         cloud: "{{ dst_cloud }}"
         state: "present"
         name: "{{ vm_name }}"

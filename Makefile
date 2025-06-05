@@ -110,7 +110,7 @@ clean-binaries: check-root
 		exit 1; \
 	fi
 	@# Count files that would be deleted
-	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" -a ! -name "*.yml" | wc -l); \
+	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.py" -a ! -name "*.go" | wc -l); \
 	if [ $$files_to_delete -eq 0 ]; then \
 		echo "*** No binary files found to delete in $(MODULES_DIR) ***"; \
 	else \
@@ -206,10 +206,10 @@ test-ansible-sanity:
 	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
 	  --exclude aee/ \
 		--exclude scripts/ \
-	  --exclude plugins/modules/create_server/ \
-	  --exclude plugins/modules/import_image/ \
-	  --exclude plugins/modules/migrate/ \
-	  --exclude plugins/modules/volume_metadata_info/ && \
+	  --exclude plugins/modules/create_server \
+	  --exclude plugins/modules/import_image \
+	  --exclude plugins/modules/migrate \
+	  --exclude plugins/modules/volume_metadata_info && \
 	cd $(COLLECTION_ROOT) && \
 	echo "*** Sanity tests completed successfully ***" && \
 	rm -fr $$TMPDIR && \
