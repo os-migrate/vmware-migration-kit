@@ -383,6 +383,17 @@ You can see the logs into:
 tail -f /tmp/osm-nbdkit.log
 ```
 
+## Support
+
+We will support the last version available on the repo.
+
+All the playbooks, roles, and plugins included in this collection are supported by us (the @os-migrate team).
+
+We are not going to provide any support for the bugs related to all the external dependency of the collection,
+aside from the `os_migrate.os_migrate` collection which is also developed us.
+
+If you want to contact us, feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our Github repo.
+
 ## License
 
 Apache License, Version 2.0
