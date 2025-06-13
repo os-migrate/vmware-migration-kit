@@ -114,3 +114,6 @@ This minor release includes fixes for Ansible Galaxy & automation hub + a way to
 
 This minor release includes changelog update and support section in the README.md
 
+## v2.0.5
+
+This minor release removes unused playbooks
