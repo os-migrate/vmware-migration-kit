@@ -1,7 +1,0 @@
----
-- name: Delete conversion hosts
-  vars:
-    os_migrate_deploy_src_conversion_host: false
-    os_migrate_deploy_dst_conversion_host: true
-  ansible.builtin.import_playbook:
-    "os_migrate.os_migrate.deploy_conversion_hosts"
