@@ -385,14 +385,21 @@ tail -f /tmp/osm-nbdkit.log
 
 ## Support
 
-We will support the last version available on the repo.
+### Scope of Support
 
-All the playbooks, roles, and plugins included in this collection are supported by us (the @os-migrate team).
+The @os-migrate team provides full support for the components included directly within this collection (all playbooks, roles, and plugins) as well as for the os_migrate.os_migrate collection, which is also developed by our team.
 
-We are not going to provide any support for the bugs related to all the external dependency of the collection,
-aside from the `os_migrate.os_migrate` collection which is also developed us.
+### External Dependencies
 
-If you want to contact us, feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our Github repo.
+Our support policy does not extend to external or third-party dependencies. If an issue is found to be caused by a bug within one of these external components, we are unable to provide a resolution. We want to assure you that the collection itself has been thoroughly tested to ensure its stability and functionality. Furthermore, we are actively working to improve the collection and reduce its reliance on community dependencies in future versions.
+
+### Versioning
+
+Please note that support is provided exclusively for the latest version of the collection available in the repository.
+
+### How to Get Support
+
+For any issues related to the supported components of the collection itself, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
 
 ## License
 
