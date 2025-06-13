@@ -387,7 +387,7 @@ tail -f /tmp/osm-nbdkit.log
 
 ### Scope of Support
 
-The @os-migrate team provides full support for the components included directly within this collection (all playbooks, roles, and plugins) as well as for the os_migrate.os_migrate collection, which is also developed by our team.
+The `@os-migrate` team provides full support for the components included directly within this collection (all playbooks, roles, and plugins) as well as for the `os_migrate.os_migrate` collection, which is also developed by our team.
 
 ### External Dependencies
 
