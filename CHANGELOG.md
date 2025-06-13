@@ -109,3 +109,8 @@ This release includes fixes for Ansible Automation Hub and Python 2.7 linters.
 ## v2.0.3
 
 This minor release includes fixes for Ansible Galaxy & automation hub + a way to boot instance with existing Cinder volume.
+
+## v2.0.4
+
+This minor release includes changelog update and support section in the README.md
+
