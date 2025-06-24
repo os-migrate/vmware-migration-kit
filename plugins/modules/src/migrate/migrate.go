@@ -71,6 +71,7 @@ type MigrationConfig struct {
 	OSMDataDir   string
 	VddkConfig   *vmware.VddkConfig
 	CBTSync      bool
+	CutOver      bool
 	OSClient     *gophercloud.ProviderClient
 	ConvHostName string
 	Compression  string
@@ -91,6 +92,7 @@ type ModuleArgs struct {
 	VddkPath     string
 	OSMDataDir   string
 	CBTSync      bool
+	CutOver      bool
 	ConvHostName string
 	Compression  string
 	FirstBoot    string
@@ -172,7 +174,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
-		if c.CBTSync {
+		if c.CBTSync && !c.CutOver {
 			runV2V = false
 		}
 		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
@@ -377,6 +379,7 @@ func main() {
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
+	cutover := moduleArgs.CutOver
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
 	debug := moduleArgs.Debug
@@ -446,6 +449,7 @@ func main() {
 			OSMDataDir:   osmdatadir,
 			OSClient:     provider,
 			CBTSync:      cbtsync,
+			CutOver:      cutover,
 			ConvHostName: convHostName,
 			Compression:  compression,
 			FirstBoot:    firsBoot,
