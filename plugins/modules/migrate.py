@@ -60,6 +60,14 @@ options:
     type: bool
     required: false
     default: false
+  cutover:
+    description:
+      - Optional. If C(true), the module will perform a cutover operation, which typically means it will finalize the migration
+        and switch the VM to the new OpenStack instance.
+      - This might involve stopping the source VM or ensuring that no further changes are made to it during the migration.
+    type: bool
+    required: false
+    default: false
   instanceuuid:
     description:
       - UUID of an OpenStack instance. This can be the UUID of an existing placeholder instance to which the migrated disks/VM should
@@ -116,6 +124,7 @@ EXAMPLES = r"""
     vddkpath: "{{ global_vddk_path }}"
     usesocks: "{{ migration_use_socks_proxy | bool }}"
     cbtsync: "{{ use_cbt_for_this_migration | bool }}"
+    cutover: "{{ perform_cutover | bool }}"
     instanceuuid: "{{ target_openstack_instance_uuid }}" # UUID of the target server in OpenStack
     # convhostname: "{{ specific_conversion_host | default(omit) }}"
     compression: "zstd"
