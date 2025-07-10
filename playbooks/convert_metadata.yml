@@ -35,16 +35,15 @@
   hosts: conversion_host
   vars:
     os_migrate_vmw_data_dir: /opt/os-migrate
+    vms: "{{ vms_list }}"
   tasks:
-    - name: Set OSM base dir
-      ansible.builtin.set_fact:
-        conv_host_data_base_path: "{{ os_migrate_vmw_data_dir | regex_replace('/[^/]+$', '') }}"
-
     - name: Sync to conversion host
       become: true
       ansible.builtin.copy:
-        remote_src: true
-        src: "{{ os_migrate_vmw_data_dir }}/"
-        dest: "{{ conv_host_data_base_path }}"
+        src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}"
+        dest: "{{ os_migrate_vmw_data_dir }}"
         mode: preserve
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm_name
       when: copy_metadata_to_conv_host | default(false) | bool

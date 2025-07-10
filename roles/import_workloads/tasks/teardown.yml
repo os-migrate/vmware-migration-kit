@@ -41,3 +41,8 @@
   when:
     - not use_existing_flavor|default(true)|bool
     - flavor_name_or_uuid is defined
+
+- name: Clean Artifacts on the conversion host
+  ansible.builtin.file:
+    path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}"
+    state: absent
