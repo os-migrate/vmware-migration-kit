@@ -82,7 +82,7 @@ options:
     required: false
   compression: # Added from your Go struct list
     description:
-      - Specifies the compression method to be used during data transfer (e.g., C(none), C(zstd), C(gzip)), if supported.
+      - Specifies the compression method to be used during data transfer (e.g., C(skipz), C(fastlz), C(zlib)), if supported.
     type: str
     required: false
   debug_mode: # Added from your Go struct list, common helpful param
