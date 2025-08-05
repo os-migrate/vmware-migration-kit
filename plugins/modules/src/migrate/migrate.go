@@ -223,6 +223,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	}
 	// Attach volume
 	instanceUUID, err := osm_os.GetInstanceUUID()
+	logger.Log.Infof("InstanceUUID: %v", instanceUUID)
 	if err != nil || instanceUUID == "" {
 		logger.Log.Infof("Failed to get instance UUID: %v", err)
 		logger.Log.Warnf("Instance metadata service is not working, please fix it..")
@@ -376,7 +377,7 @@ func main() {
 	vddkpath := ansible.DefaultIfEmpty(moduleArgs.VddkPath, "/ha-datacenter/vm/")
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
-	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
+	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "fastlz")
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
