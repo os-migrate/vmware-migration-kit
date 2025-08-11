@@ -3,35 +3,54 @@
 This repository is a set of tools, Ansible and Python/Golang based for being able to migrate
 virtual machine from an ESXi/Vcenter environment to Openstack or Openshift environment.
 
-The code used os-migrate Ansible collection in order to deploy conversion host and setup
-correctly the prerequists in the Openstack destination cloud.
-It also used the vmware community collection in order to gather informations from the source
-VMWare environment.
+The code used OS-Migrate Ansible collection in order to deploy conversion host and setup
+correctly the prerequistes in the Openstack destination cloud.
+It also used the VMware community collection in order to gather informations from the source
+VMware environment.
 
 The Ansible collection provides different steps to scale your migration from VMWare to Openstack
 and Openshift:
 
-- A discovery phase where it analizes the VMWare source environment and provides collected data
+- A discovery phase where it analyzes the VMware source environment and provides collected data
   to help for the migration.
 - A pre-migration phase where it make sure the destionation cloud is ready to perform the migration,
   by creating the conversion host for example or the required network if needed.
-- A migration phase with different workflow where the user can basicaly scale the migration with
-  a very number of virtual machines as entry point, or can migrate sensitive virtual machine by using
-  a near zero down time with the change block tracking VMWare option (CBT) and so perform the virtual
+- A migration phase with different workflow where the user can basically scale the migration with
+  a high number of virtual machines as entry point, or can migrate sensitive virtual machine by using
+  a near zero down time with the change block tracking VMware option (CBT) and so perform the virtual
   machine migration in two steps. The migration can also be done without conversion host.
+
+## Table of Contents
+- [Workflow](#workflow)
+- [Features and supported OS](#features-and-supported-os)
+  - [Features](#features)
+  - [Supported OS](#supported-os)
+  - [Nbdkit migration example](#nbdkit-migration-example)
+  - [Nbdkit migration example with the Change Block Tracking](#nbdkit-migration-example-with-the-change-block-tracking)
+  - [Migration demo from an AEE](#migration-demo-from-an-aee)
+  - [Running migration](#running-migration)
+- [Network requirements](#network-requirements)
+  - [Required ports](#required-ports)
+- [Usage](#usage)
+  - [Nbdkit (default)](#nbdkit-default)
+  - [Virt-v2v](#virt-v2v)
+  - [Ansible configuration](#ansible-configuration)
+  - [Running Migration outside of Ansible](#running-migration-outside-of-ansible)
+- [Support](#support)
+- [Licence](#licence)
 
 ## Workflow
 
-There is different ways to run the migration from VMWare to OpenStack.
+There are different ways to run the migration from VMware to OpenStack.
 
 - The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
-  This way allow the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
+  This way allows the user to use the CBT option and approach a zero downtime. It can also run the migration in one time cycle.
 - The second one by using virt-v2v binding with a conversion host. Here you can use a conversion
   host (Openstack instance) already deployed or you can let OS-Migrate deployed a conversion host
   for you.
 - A third way is available where you can skip the conversion host and perform the migration on a Linux machine, the volume
   migrated and converted will be upload a Glance image or can be use later as a Cinder volume. This way is not recommended if
-  you have big disk or a huge amount of VMs to migrate: the performance are really slower than with the other ways.
+  you have big disk or a huge amount of VMs to migrate: the performance is really slower than with the other ways.
 
 All of these are configurable with Ansible boolean variables.
 
@@ -93,7 +112,7 @@ Currently we are supporting the following matrice:
 
 ### Migration demo from an AEE
 
-The content of the Ansible Execution Environment could be find here:
+The content of the Ansible Execution Environment can be found here:
 
 <https://github.com/os-migrate/aap/blob/main/aae-container-file>
 
@@ -202,10 +221,35 @@ dst_cloud:
 ```
 ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @secrets.yml -e @myvars.yml
 ```
+## Network requirements
+
+### Required ports
+
+The following table outlines the network ports required for the migration process from the perspective of the conversoin host.
+
+| Port / Protocol | Direction | Source / Destination | Purpose |
+| :--- | :--- | :--- | :--- |
+| 443/TCP | Egress | VMware vCenter | **Main VMware Communication:** Used for [authentication](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/vmware/vmware.go#L66), VM metadata retrieval, snapshots, and VDDK operations. |
+| 902/TCP | Egress | VMware ESXi Hosts | **Direct Disk Access:** Used to read a VM's disk data directly from ESXi hosts via the [NFC/NBD](https://ports.broadcom.com/home/vSphere) protocols. |
+| [See Docs](https://docs.redhat.com/it/documentation/red_hat_openstack_services_on_openshift/18.0/html/firewall_rules_for_red_hat_openstack_services_on_openshift/firewall-rules) | Egress | OpenStack Destination Cloud | **Destination Cloud Control:** Used for communicating with OpenStack APIs to provision the new VM and transfer its data. |
+| 22/TCP | Ingress | Ansible Controller / Admin | **Remote Management:** Allows for secure troubleshooting and management of the conversion host. |
+| 10809/TCP | Internal | Conversion Host | **Local Disk Data Transfer:** Used by the internal [NBDKit server](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/nbdkit/nbdkit.go#L59) to stream disk data for conversion.  *Does not require a network firewall rule.* |
+
+#### Description
+
+The migration process relies on three primary external communication channels: one to connect to the source VMware environment, one to connect to the destination OpenStack cloud, and one for Ansible to manage the conversion host.
+
+First, the migration tool must make two key outbound connections to your VMware environment. It uses port 443 as the mandatory, secure channel to the vCenter server for management commands like logging in and taking snapshots. It then also connects to the ESXi hosts directly on port 902, which is the data channel used to read and transfer the virtual machine's disk data.
+
+Second, the tool requires outbound connections to the destination OpenStack cloud. These are used to communicate with various OpenStack APIs for provisioning the new virtual machine and transferring the converted disk data. The full list of required destination ports is extensive and can be found in the [official documentation](https://docs.redhat.com/it/documentation/red_hat_openstack_services_on_openshift/18.0/html/firewall_rules_for_red_hat_openstack_services_on_openshift/firewall-rules).
+
+Third, an inbound connection on port 22 (SSH) is a prerequisite. This channel is required for the Ansible controller to connect to the conversion host to perform setup, configuration, and other automation tasks.
+
+Additionally, the tool uses port 10809 purely for an internal process on the machine itself to help convert the disk data. This doesn't require any network firewall changes.
 
 ## Usage
 
-You can find a "how to" here, to start from sratch with a container:
+You can find a "how to" here, to start from scratch with a container:
 <https://gist.github.com/matbu/003c300fd99ebfbf383729c249e9956f>
 
 Clone repository or install from ansible galaxy
@@ -303,7 +347,7 @@ openssl s_client -connect ESXI_SERVER_NAME:443 </dev/null |
 
 ### Ansible configuration
 
-Create an invenvoty file, and replace the conv_host_ip by the ip address of your
+Create an inventory file, and replace the conv_host_ip by the ip address of your
 conversion host:
 
 ```
