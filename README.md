@@ -31,7 +31,6 @@ and Openshift:
   - [Running migration](#running-migration)
 - [Network requirements](#network-requirements)
   - [Required ports](#required-ports)
-  - [Firewall best practices](#firewall-best-practices)
 - [Usage](#usage)
   - [Nbdkit (default)](#nbdkit-default)
   - [Virt-v2v](#virt-v2v)
@@ -226,34 +225,27 @@ ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @
 
 ### Required ports
 
-The following table outlines the network ports required for the migration process.
+The following table outlines the network ports required for the migration process from the perspective of the conversoin host.
 
-| Port  | Protocol  | Direction                         | Purpose                                                                                                                                                             | Requirement |
-| :---- | :-------- | :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------- |
-| 443 | TCP/HTTPS | Conversion Host → VMware Infrastructure | **Main VMware Communication:** Used for [authentication](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/vmware/vmware.go#L66), VM metadata retrieval, snapshots, and VDDK operations. | Minimum |
-| 10809 | TCP       | Internal (localhost on Conversion Host) | **Local Disk Data Transfer:** Used by the internal [NBDKit server](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/nbdkit/nbdkit.go#L59) to stream disk data for conversion. *Does not require a network firewall rule.* | Internal |
-| 22  | TCP/SSH   | Admin Workstation → Conversion Host | **Remote Management:** Allows for secure troubleshooting and management of the conversion host.                                                                     | Optional |
+| Port / Protocol | Direction | Source / Destination | Purpose |
+| :--- | :--- | :--- | :--- |
+| 443/TCP | Egress | VMware vCenter | **Main VMware Communication:** Used for [authentication](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/vmware/vmware.go#L66), VM metadata retrieval, snapshots, and VDDK operations. |
+| 902/TCP | Egress | VMware ESXi Hosts | **Direct Disk Access:** Used to read a VM's disk data directly from ESXi hosts via the [NFC/NBD](https://ports.broadcom.com/home/vSphere) protocols. |
+| [See Docs](https://docs.redhat.com/it/documentation/red_hat_openstack_services_on_openshift/18.0/html/firewall_rules_for_red_hat_openstack_services_on_openshift/firewall-rules) | Egress | OpenStack Destination Cloud | **Destination Cloud Control:** Used for communicating with OpenStack APIs to provision the new VM and transfer its data. |
+| 22/TCP | Ingress | Ansible Controller / Admin | **Remote Management:** Allows for secure troubleshooting and management of the conversion host. |
+| 10809/TCP | Internal | Conversion Host | **Local Disk Data Transfer:** Used by the internal [NBDKit server](https://github.com/os-migrate/vmware-migration-kit/blob/main/plugins/module_utils/nbdkit/nbdkit.go#L59) to stream disk data for conversion.  *Does not require a network firewall rule.* |
 
 #### Description
 
-To get the migration done, the tool uses three separate communication channels. The most important one is the main line used to control your VMware environment, another is an internal workflow for handling data, and the last is an optional remote control for you.
+The migration process relies on three primary external communication channels: one to connect to the source VMware environment, one to connect to the destination OpenStack cloud, and one for Ansible to manage the conversion host.
 
-First, the migration tool must make an outbound connection on port 443 to your VMware servers. This is the mandatory, secure channel it uses to send all commands, like logging in, asking for virtual machine details, and accessing the disk data.
+First, the migration tool must make two key outbound connections to your VMware environment. It uses port 443 as the mandatory, secure channel to the vCenter server for management commands like logging in and taking snapshots. It then also connects to the ESXi hosts directly on port 902, which is the data channel used to read and transfer the virtual machine's disk data.
 
-Additionally, the tool uses port 10809, but this is purely for an internal process on the machine itself to help convert the disk data. This doesn't require any network firewall changes.
+Second, the tool requires outbound connections to the destination OpenStack cloud. These are used to communicate with various OpenStack APIs for provisioning the new virtual machine and transferring the converted disk data. The full list of required destination ports is extensive and can be found in the [official documentation](https://docs.redhat.com/it/documentation/red_hat_openstack_services_on_openshift/18.0/html/firewall_rules_for_red_hat_openstack_services_on_openshift/firewall-rules).
 
-Finally, port 22 is an optional inbound connection that lets you, the operator, securely log in to the machine to troubleshoot or check on the migration's progress.
+Third, an inbound connection on port 22 (SSH) is a prerequisite. This channel is required for the Ansible controller to connect to the conversion host to perform setup, configuration, and other automation tasks.
 
-### Firewall best practices
-
-Principle of Least Privilege: deny everything by default and create strict, specific rules that allow only the absolute minimum traffic required.
-
-_What you can do_:
-- prevent unauthorized access
-- set firewall rules to be as narrow as possible
-- use IP-to-IP rules
-- use both network and host-based firewalls
-- log and monitor all trafic
+Additionally, the tool uses port 10809 purely for an internal process on the machine itself to help convert the disk data. This doesn't require any network firewall changes.
 
 ## Usage
 
