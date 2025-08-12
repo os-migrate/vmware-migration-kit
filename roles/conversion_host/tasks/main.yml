@@ -7,16 +7,15 @@
 
 - name: Make sure required package are installed
   ansible.builtin.dnf:
-    name: "{{ item }}"
+    name:
+      - libvirt
+      - virt-v2v
+      - qemu-kvm
+      - python3
+      - python3-pip
+      - wget
     state: present
     use_backend: dnf4
-  with_items:
-    - libvirt
-    - virt-v2v
-    - qemu-kvm
-    - python3
-    - python3-pip
-    - wget
 
 - name: Gather installed package facts
   ansible.builtin.package_facts:
