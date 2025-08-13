@@ -357,14 +357,14 @@ func main() {
 	argsFile := os.Args[1]
 	text, err := os.ReadFile(argsFile)
 	if err != nil {
-		response.Msg = "Could not read configuration file: " + argsFile
+		response.Msg = "Could not read configuration file: " + argsFile + ", error: " + err.Error()
 		ansible.FailJson(response)
 	}
 
 	var moduleArgs ModuleArgs
 	err = json.Unmarshal(text, &moduleArgs)
 	if err != nil {
-		response.Msg = "Configuration file not valid JSON: " + argsFile
+		response.Msg = "Configuration file not valid JSON: " + argsFile + ", error: " + err.Error()
 		ansible.FailJson(response)
 	}
 	// Set parameters
