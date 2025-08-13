@@ -51,7 +51,7 @@
 - name: Download VMware VIX DiskLib
   ansible.builtin.get_url:
     url: "{{ conversion_host_vmware_vix_disklib_url }}/{{ conversion_host_vmware_vix_disklib }}"
-    dest: "/tmp/{{ vmware_vix_disklib }}"
+    dest: "/tmp/{{ vmware_vix_disklib | default(conversion_host_vmware_vix_disklib) }}"
     mode: "0644"
   when: vmware_vix_disklib_installed.rc != 0
 
