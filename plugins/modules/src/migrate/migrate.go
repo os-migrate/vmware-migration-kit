@@ -376,7 +376,7 @@ func main() {
 	vddkpath := ansible.DefaultIfEmpty(moduleArgs.VddkPath, "/ha-datacenter/vm/")
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
-	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "skipz")
+	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "fastlz")
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
