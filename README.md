@@ -85,7 +85,7 @@ Currently we are supporting the following matrice:
 | CentOS         | 9             | Yes                | -              |
 | CentOS         | 8             | Yes                | -              |
 | Fedora         | 38 and upper  | Yes                | -              |
-| Fedora (btrfs) | -             | Yes                | -              |
+| Fedora (btrfs) | 38 and upper  | Yes                | -              |
 | Ubuntu Server  | 24            | Yes                | -              |
 | Windows        | 10            | Yes                | -              |
 | Windows Server | 2k22          | Yes                | -              |
