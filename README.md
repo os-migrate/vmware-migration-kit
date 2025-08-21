@@ -84,6 +84,8 @@ Currently we are supporting the following matrice:
 | RHEL           | 8.4 and lower | -                  | Yes            |
 | CentOS         | 9             | Yes                | -              |
 | CentOS         | 8             | Yes                | -              |
+| Fedora         | 38 and upper  | Yes                | -              |
+| Fedora (btrfs) | 38 and upper  | Yes                | -              |
 | Ubuntu Server  | 24            | Yes                | -              |
 | Windows        | 10            | Yes                | -              |
 | Windows Server | 2k22          | Yes                | -              |
@@ -129,7 +131,15 @@ easily create your conversion host manually.
 
 A conversion host is basically an OpenStack instance.
 
+The minimal requirements recommended for the conversion host settings (OpenStack flavor) for being able run from 1 to 2 migrations simultaneously are: 2 vcpus, 4Gb of ram and 16 Gb of disk.
+
+OS-Migrate supports parallel execution against the same conversion host, the more you increase the capacity of the conversion host (ram and vcpus) the more you can run migration in parallel.
+
+> **Note:** Consider as requirements rule allocating 1 vcpu and 2 GB of RAM per migrations
+
 > **Note:** Important: If you want to take benefit of the current supported OS, it's highly recommended to use a _CentOS-10_ release or _RHEL-9.5_ and superior. If you want to use other Linux distribution, make sure the virtio-win package is equal or higher than 1.40 version.
+
+> **Note:** Important: For btrfs file system support, since the RHEL and CentOS kernel don't support btrfs in the recent releases, you can use Fedora as the base OS of your conversion host. The btrfs file system is supported with Fedora conversion host.
 
 ```
 curl -O -k https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-20250217.0.x86_64.qcow2
