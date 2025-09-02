@@ -58,7 +58,7 @@
   ansible.builtin.set_fact:
     vddkpath: "{{ instance_data.instance.hw_folder }}"
 
-- name: Migrate Guest from Vmware using nbdkit
+- name: Migrate Guest from Vmware using nbdkit {{ vm_name }}
   os_migrate.vmware_migration_kit.migrate:
     dst_cloud: "{{ dst_cloud }}"
     user: "{{ vcenter_username }}"
@@ -72,8 +72,31 @@
     cbtsync: "{{ import_workloads_cbt_sync | bool }}"
     cutover: "{{ import_workloads_cutover | bool }}"
     instanceuuid: "{{ import_workloads_instance_uuid }}"
+    debug: "{{ import_workloads_debug | bool }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
+  ignore_errors: true
+
+- name: Pull migration log
+  ansible.builtin.fetch:
+    src: "{{ (migrate_output.msg | regex_search('/tmp/[^ ]+\\.log')) }}"
+    dest: "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+    flat: true
+  when: migrate_output is failed
+
+- name: Tail migration log
+  ansible.builtin.command: tail -n 50 "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+  register: migration_log_tail
+  delegate_to: localhost
+  when: migrate_output is failed
+
+- name: Fail with context if migration failed
+  ansible.builtin.fail:
+    msg: |
+      Migration failed for VM {{ vm_name }} under "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+      Last 50 debug lines:
+      {{ migration_log_tail.stdout }}
+  when: migrate_output is failed
 
 - name: Set fact for disk ID
   ansible.builtin.set_fact:
