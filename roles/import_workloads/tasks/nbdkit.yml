@@ -80,20 +80,21 @@
 - name: Pull migration log
   ansible.builtin.fetch:
     src: "{{ (migrate_output.msg | regex_search('/tmp/[^ ]+\\.log')) }}"
-    dest: "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+    dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/migration.log"
     flat: true
   when: migrate_output is failed
 
 - name: Tail migration log
-  ansible.builtin.command: tail -n 50 "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+  ansible.builtin.command: tail -n 50 "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/migration.log"
   register: migration_log_tail
+  changed_when: false
   delegate_to: localhost
   when: migrate_output is failed
 
 - name: Fail with context if migration failed
   ansible.builtin.fail:
     msg: |
-      Migration failed for VM {{ vm_name }} under "{{ os_migrate_vmw_data_dir}}/{{ vm_name }}/migration.log"
+      Migration failed for VM {{ vm_name }} under "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/migration.log"
       Last 50 debug lines:
       {{ migration_log_tail.stdout }}
   when: migrate_output is failed
