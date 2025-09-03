@@ -232,6 +232,38 @@ dst_cloud:
 ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @secrets.yml -e @myvars.yml
 ```
 
+#### Using Change Block Tracking (CBT)
+
+The Change Block Tracking (CBT) option allows you to pre-synchronize the disk data and then synchronize only the blocks that have changed between the last execution and the current state of the disk.
+OS-Migrate records the CBT ID as metadata in the Cinder volume. With this ID, OS-Migrate can copy only the changed blocks.
+
+```
+openstack volume show rhel-9 | grep properties
+| properties                     | changeID='52 64 3d 2e 44 c3 62 2f-d2 4a e9 fd 82 39 54 85/138', converted='false', osm='true' |
+```
+
+In this example, we can see the `changeID` property along with two additional pieces of information:
+  - `converted=false` means that the cutover has not yet been performed.
+  - `osm=true` means that OS-Migrate is managing this volume.
+
+By default, OS-Migrate migrates the entire virtual machine (disk and metadata) in one step and creates the OpenStack instance. To enable CBT-based synchronization, you must specify this option:
+
+```
+import_workloads_cbt_sync: true
+```
+
+
+Then run the migration playbook, and OS-Migrate will copy the data from your VMware guest to the OpenStack Cinder volume.
+
+When you are ready to perform the final cutover and migrate the virtual machine, set this option to `true`:
+
+```
+import_workloads_cutover: true
+```
+
+OS-Migrate will then synchronize the disk between the latest and current change IDs and convert the disk to run under KVM.
+After that, the normal workflow continues: the OpenStack instance is created from the Cinder volume with the network options you specified.
+
 ## VMware ACLs requirements
 
 To avoid to use the Administrator role and in order to be able to connect, parse the Vcenter datastore, manipulate the snapshots and migrate virtual machines, OS-Migrate needs the following ACLs for the Vcenter user:
@@ -448,6 +480,29 @@ You can see the logs into:
 
 ```
 tail -f /tmp/osm-nbdkit.log
+```
+
+### Enable Debugging Flags During Migration
+
+OS-Migrate creates a unique log file for each migration on the conversion host.
+This file is located in `/tmp` on the conversion host and, in case of failure, is pulled to the Ansible localhost in the OS-Migrate working directory (by default `/opt/os-migrate`), under a folder named after the virtual machine, for example:
+
+```
+/opt/os-migration/rhel-9.4/migration.log
+```
+
+On the conversion host, the log file follows this naming format:
+`osm-nbdkit-<vm-name>-<random-id>.log` where `<random-id>` is the same as the random ID used for the process ID (PID):
+
+```
+tail -f /tmp/osm-nbdkit-rhel-9.4-28vL39tB.log
+```
+
+When a failure occurs, especially during the conversion, it can be very useful to enable debug flags to increase verbosity and capture detailed debugging information.
+This can be done by setting:
+
+```
+import_workloads_debug: true
 ```
 
 ## Support
