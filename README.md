@@ -234,7 +234,7 @@ ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @
 
 ## VMware ACLs requirements
 
-To avoid to use the Administrator role and in order to be able to connect, parse the Vcenter datastore and manipulate the snapshots and migrate virtual machines, OS-Migrate needs the following ACLs for the Vcenter user:
+To avoid to use the Administrator role and in order to be able to connect, parse the Vcenter datastore, manipulate the snapshots and migrate virtual machines, OS-Migrate needs the following ACLs for the Vcenter user:
 
 | Category         | Privilege Group         | Privileges                                                                 |
 |------------------|-------------------------|----------------------------------------------------------------------------|
