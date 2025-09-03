@@ -171,12 +171,13 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	if err != nil {
 		return "", err
 	}
+	// If CBTSync is enabled and CutOver is false, skip V2V conversion
+	if c.CBTSync && !c.CutOver {
+		runV2V = false
+	}
 
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
-		if c.CBTSync && !c.CutOver {
-			runV2V = false
-		}
 		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
 			logger.Log.Infof("CBT enabled, creating new volume and set changeID: %s", changeID)
 			volMetadata = map[string]string{
