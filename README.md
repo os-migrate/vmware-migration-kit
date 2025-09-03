@@ -231,6 +231,19 @@ dst_cloud:
 ```
 ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @secrets.yml -e @myvars.yml
 ```
+
+## VMware ACLs requirements
+
+To avoid to use the Administrator role and in order to be able to connect, parse the Vcenter datastore and manipulate the snapshots and migrate virtual machines, OS-Migrate needs the following ACLs for the Vcenter user:
+
+| Category         | Privilege Group         | Privileges                                                                 |
+|------------------|-------------------------|----------------------------------------------------------------------------|
+| **Datastore**    | —                       | Browse datastore                                                           |
+| **Virtual Machine** | Guest operations       | All                                                                        |
+|                  | Provisioning            | Allow disk access<br>Allow file access<br>Allow read-only disk access<br>Allow virtual machine download |
+|                  | Service configuration   | Allow notifications<br>Allow polling of global event notifications<br>Read service configuration |
+|                  | Snapshot management     | Create snapshot<br>Remove snapshot<br>Rename snapshot<br>Revert to snapshot |
+
 ## Network requirements
 
 ### Required ports
