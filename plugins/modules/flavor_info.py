@@ -8,7 +8,7 @@ description:
     detailed information about a specific flavor, identified either by C(flavor_id) or C(flavor_name).
   - It is an information-gathering module and does not make any changes to the flavor or the cloud environment.
 author: "OpenStack tenant migration tools (@os-migrate)"
-version_added: "2.0.5"
+version_added: "1.0.0"
 options:
   cloud:
     description:
