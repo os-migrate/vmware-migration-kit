@@ -17,7 +17,7 @@
   os_migrate.vmware_migration_kit.export_flavor:
     guest_info_path: "{{ convert_metadata_guest_info_path }}"
     disk_info_path: "{{ convert_metadata_disk_info_path }}"
-    flavor_name: "osm-vmware-{{ vm_name }}"
+    flavor_name: "osm-vmware-{{ vm_name }}-{{ 9999 | random }}"
     path: "{{ convert_metadata_flavor_name_path }}"
   when: not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid
 

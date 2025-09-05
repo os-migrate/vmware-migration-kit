@@ -33,6 +33,7 @@ import (
 	gophercloud "github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
 	"github.com/gophercloud/gophercloud/v2/openstack/config"
@@ -473,4 +474,51 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 		return "", err
 	}
 	return server.ID, nil
+}
+
+func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorID, flavorName string) (*flavors.Flavor, error) {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compute client: %v", err)
+	}
+
+	var flavor *flavors.Flavor
+
+	if flavorID != "" {
+		f, err := flavors.Get(context.TODO(), client, flavorID).Extract()
+		if err != nil {
+			logger.Log.Infof("Failed to get flavor by ID %s: %v", flavorID, err)
+			return nil, err
+		}
+		flavor = f
+	} else if flavorName != "" {
+		// Lookup by name
+		pages, err := flavors.ListDetail(client, nil).AllPages(context.TODO())
+		if err != nil {
+			logger.Log.Infof("Failed to list flavors: %v", err)
+			return nil, err
+		}
+		allFlavors, err := flavors.ExtractFlavors(pages)
+		if err != nil {
+			logger.Log.Infof("Failed to extract flavors: %v", err)
+			return nil, err
+		}
+		found := false
+		for _, f := range allFlavors {
+			if f.Name == flavorName {
+				flavor = &f
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("Flavor not found: %s", flavorName)
+		}
+	} else {
+		return nil, fmt.Errorf("either flavorID or flavorName must be provided")
+	}
+
+	return flavor, nil
 }
