@@ -13,11 +13,15 @@
   register: flavor_name
   when: use_existing_flavor | default(true) | bool
 
+- name: Set fact for flavor
+  ansible.builtin.set_fact:
+    flavor_name_or_uuid: "{{ flavor_name.openstack_flavor_uuid | default('osm-vmware-{}-{}'.format(vm_name, 9999 | random)) }}"
+
 - name: Export flavor
   os_migrate.vmware_migration_kit.export_flavor:
     guest_info_path: "{{ convert_metadata_guest_info_path }}"
     disk_info_path: "{{ convert_metadata_disk_info_path }}"
-    flavor_name: "osm-vmware-{{ vm_name }}-{{ 9999 | random }}"
+    flavor_name: "{{ flavor_name_or_uuid }}"
     path: "{{ convert_metadata_flavor_name_path }}"
   when: not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid
 
@@ -25,10 +29,6 @@
   ansible.builtin.set_fact:
     flavor_name_path: "{{ convert_metadata_flavor_name_path }}"
   when: not use_existing_flavor | default(true) | bool or not flavor_name.openstack_flavor_uuid
-
-- name: Set fact for flavor
-  ansible.builtin.set_fact:
-    flavor_name_or_uuid: "{{ flavor_name.openstack_flavor_uuid | default('osm-vmware-' + vm_name) }}"
 
 - name: Set fact for create flavor
   ansible.builtin.set_fact:

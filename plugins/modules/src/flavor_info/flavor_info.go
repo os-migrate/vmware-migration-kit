@@ -26,7 +26,7 @@ import (
 
 // Ansible
 type ModuleArgs struct {
-	DstCloud   osm_os.DstCloud `json:"dst_cloud"`
+	Cloud      osm_os.DstCloud `json:"dst_cloud"`
 	FlavorName string          `json:"flavor_name"`
 	FlavorID   string          `json:"flavor_id"`
 }
@@ -91,7 +91,7 @@ func main() {
 	// Get the volume metadata
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.DstCloud)
+	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.Cloud)
 	if err != nil {
 		response.Msg = "Failed to authenticate Openstack client: " + err.Error()
 		FailJson(response)
