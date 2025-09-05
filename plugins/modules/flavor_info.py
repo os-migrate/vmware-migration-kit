@@ -19,7 +19,7 @@ options:
     required: true
   flavor_name:
     description:
-      - The name or UUID of the OpenStack flavor to retrieve.
+      - The name or the UUID of the OpenStack flavor to retrieve.
     type: str
     required: true
 requirements:
