@@ -46,6 +46,12 @@
     volumes_list: "{{ volume_uuid[1:] | default([]) }}"
   when: import_workloads_os_migrate_nbdkit
 
+- name: Get flavor UUID if flavor name is provided
+  os_migrate.vmware_migration_kit.flavor_info:
+    cloud: "{{ dst_cloud }}"
+    name: "{{ flavor_name_or_uuid }}"
+  register: flavor_info
+
 - name: Set nics fact for OS instance creation
   ansible.builtin.set_fact:
     nics:
@@ -69,7 +75,7 @@
         volumes: "{{ volumes_list }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: ["{{ security_groups }}"]
-        flavor: "{{ flavor_name_or_uuid }}"
+        flavor: "{{ flavor_info.flavors[0].id }}"
         key_name: "{{ ssh_key_name | default('') }}"
         boot_from_cinder: "{{ import_workloads_boot_from_cinder }}"
       delegate_to: localhost
