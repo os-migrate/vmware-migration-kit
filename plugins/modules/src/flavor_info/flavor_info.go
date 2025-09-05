@@ -26,7 +26,7 @@ import (
 
 // Ansible
 type ModuleArgs struct {
-	Cloud      osm_os.DstCloud `json:"dst_cloud"`
+	Cloud      osm_os.DstCloud `json:"cloud"`
 	FlavorName string          `json:"flavor_name"`
 	FlavorID   string          `json:"flavor_id"`
 }
