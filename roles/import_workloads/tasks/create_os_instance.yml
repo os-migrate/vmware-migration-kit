@@ -75,7 +75,7 @@
         volumes: "{{ volumes_list }}"
         boot_volume: "{{ boot_volume_uuid }}"
         security_groups: ["{{ security_groups }}"]
-        flavor: "{{ flavor_info.flavors[0].id }}"
+        flavor: "{{ flavor_info.flavor[0].id }}"
         key_name: "{{ ssh_key_name | default('') }}"
         boot_from_cinder: "{{ import_workloads_boot_from_cinder }}"
       delegate_to: localhost
