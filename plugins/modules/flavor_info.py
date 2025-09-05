@@ -17,18 +17,11 @@ options:
         C(project_domain_name), C(region_name), etc., or a C(cloud) key to use a clouds.yaml profile.
     type: dict
     required: true
-  flavor_id:
-    description:
-      - The UUID of the OpenStack flavor to retrieve.
-    type: str
-    required: false
   flavor_name:
     description:
-      - The name of the OpenStack flavor to retrieve.
+      - The name or UUID of the OpenStack flavor to retrieve.
     type: str
-    required: false
-    notes:
-      - Either C(flavor_id) or C(flavor_name) must be provided.
+    required: true
 requirements:
   - openstacksdk
 """
@@ -43,7 +36,7 @@ EXAMPLES = r"""
 - name: Get flavor information by flavor ID
   os_migrate.vmware_migration_kit.flavor_info:
     dst_cloud: "{{ my_openstack_auth_details }}"
-    flavor_id: "a2b529d8-4505-480d-a620-35d3624c11c6"
+    flavor_name: "a2b529d8-4505-480d-a620-35d3624c11c6"
   register: flavor_info_result
 
 - name: Get flavor information for multiple flavors using a loop

@@ -28,7 +28,6 @@ import (
 type ModuleArgs struct {
 	Cloud      osm_os.DstCloud `json:"cloud"`
 	FlavorName string          `json:"flavor_name"`
-	FlavorID   string          `json:"flavor_id"`
 }
 
 type Response struct {
@@ -96,13 +95,13 @@ func main() {
 		response.Msg = "Failed to authenticate Openstack client: " + err.Error()
 		FailJson(response)
 	}
-	flavor, err := osm_os.GetFlavorInfo(provider, moduleArgs.FlavorName, moduleArgs.FlavorID)
+	flavor, err := osm_os.GetFlavorInfo(provider, moduleArgs.FlavorName)
 	if err != nil {
-		response.Msg = "Failed to get flavor info for: " + moduleArgs.FlavorID + " or " + moduleArgs.FlavorName + " error: " + err.Error()
+		response.Msg = "Failed to get flavor info for: " + moduleArgs.FlavorName + " error: " + err.Error()
 		FailJson(response)
 	}
 	response.Changed = true
-	response.Msg = "Volume metadata info"
+	response.Msg = "Flavor info"
 	response.Flavor = flavor
 	ExitJson(response)
 }
