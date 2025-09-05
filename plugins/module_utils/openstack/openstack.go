@@ -514,7 +514,7 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorID, flavorName st
 			}
 		}
 		if !found {
-			return nil, fmt.Errorf("Flavor not found: %s", flavorName)
+			return nil, fmt.Errorf("flavor not found: %s", flavorName)
 		}
 	} else {
 		return nil, fmt.Errorf("either flavorID or flavorName must be provided")
