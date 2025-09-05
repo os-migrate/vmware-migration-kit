@@ -4,13 +4,13 @@ DOCUMENTATION = r"""
 module: flavor_info
 short_description: Retrieves details for a specified OpenStack flavor.
 description:
-  - This module connects to an OpenStack cloud using the provided C(dst_cloud) authentication details and fetches
+  - This module connects to an OpenStack cloud using the provided C(cloud) authentication details and fetches
     detailed information about a specific flavor, identified either by C(flavor_id) or C(flavor_name).
   - It is an information-gathering module and does not make any changes to the flavor or the cloud environment.
 author: "OpenStack tenant migration tools (@os-migrate)"
-version_added: "1.0.0"
+version_added: "2.0.5"
 options:
-  dst_cloud:
+  cloud:
     description:
       - A dictionary containing authentication and connection parameters for the destination OpenStack cloud.
       - This should include details like C(auth_url), C(username), C(password), C(project_name), C(user_domain_name),
@@ -29,19 +29,19 @@ requirements:
 EXAMPLES = r"""
 - name: Get flavor information by flavor name
   os_migrate.vmware_migration_kit.flavor_info:
-    dst_cloud: "{{ my_openstack_auth_details }}"
+    cloud: "{{ my_openstack_auth_details }}"
     flavor_name: "osm-vmware-haproxy-user1"
   register: flavor_info_result
 
 - name: Get flavor information by flavor ID
   os_migrate.vmware_migration_kit.flavor_info:
-    dst_cloud: "{{ my_openstack_auth_details }}"
+    cloud: "{{ my_openstack_auth_details }}"
     flavor_name: "a2b529d8-4505-480d-a620-35d3624c11c6"
   register: flavor_info_result
 
 - name: Get flavor information for multiple flavors using a loop
   os_migrate.vmware_migration_kit.flavor_info:
-    dst_cloud: "{{ my_openstack_auth_details }}"
+    cloud: "{{ my_openstack_auth_details }}"
     flavor_name: "{{ item }}"
   loop:
     - "osm-vmware-haproxy-user1"
@@ -50,7 +50,7 @@ EXAMPLES = r"""
 
 - name: Example from os-migrate role (adapted)
   vars:
-    dst_cloud_details:
+    cloud_details:
       auth_url: "http://keystone.example.com:5000/v3"
       username: "admin_user"
       password: "secret_password"
@@ -64,7 +64,7 @@ EXAMPLES = r"""
   tasks:
     - name: Get flavor information using loop
       os_migrate.vmware_migration_kit.flavor_info:
-        dst_cloud: "{{ dst_cloud_details }}"
+        dcloud: "{{ cloud_details }}"
         flavor_name: "{{ flavor_loop_var }}"
       loop: "{{ flavor_list }}"
       loop_control:
