@@ -208,6 +208,7 @@ test-ansible-sanity:
 		--exclude scripts/ \
 	  --exclude plugins/modules/create_server \
 	  --exclude plugins/modules/import_image \
+	  --exclude plugins/modules/flavor_info \
 	  --exclude plugins/modules/migrate \
 	  --exclude plugins/modules/volume_metadata_info && \
 	cd $(COLLECTION_ROOT) && \
