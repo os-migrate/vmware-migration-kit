@@ -106,7 +106,7 @@ func loadJSONFile(filePath string, target interface{}) error {
 	return nil
 }
 
-func getNetworkByName(provider *gophercloud.ProviderClient, networkName string) (*networks.Network, error) {
+func getNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*networks.Network, error) {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -115,8 +115,15 @@ func getNetworkByName(provider *gophercloud.ProviderClient, networkName string) 
 		return nil, err
 	}
 
+	// First try to get by ID (UUID)
+	network, err := networks.Get(context.TODO(), client, networkNameOrID).Extract()
+	if err == nil {
+		return network, nil
+	}
+
+	// If that fails, try to get by name
 	listOpts := networks.ListOpts{
-		Name: networkName,
+		Name: networkNameOrID,
 	}
 	pages, err := networks.List(client, listOpts).AllPages(context.TODO())
 	if err != nil {
@@ -131,11 +138,11 @@ func getNetworkByName(provider *gophercloud.ProviderClient, networkName string) 
 	}
 
 	if len(networkList) == 0 {
-		return nil, fmt.Errorf("network not found: %s", networkName)
+		return nil, fmt.Errorf("network not found: %s", networkNameOrID)
 	}
 
 	if len(networkList) > 1 {
-		return nil, fmt.Errorf("multiple networks found with name: %s", networkName)
+		return nil, fmt.Errorf("multiple networks found with name: %s", networkNameOrID)
 	}
 
 	return &networkList[0], nil
@@ -219,7 +226,7 @@ func main() {
 	var portUUIDs []PortInfo
 	for nicIndex, nic := range vmNics {
 		// Get network ID
-		network, err := getNetworkByName(provider, nic.Vlan)
+		network, err := getNetwork(provider, nic.Vlan)
 		if err != nil {
 			response.Msg = "Failed to get network: " + err.Error()
 			FailJson(response)
