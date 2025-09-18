@@ -37,6 +37,7 @@ The Ansible collection provides different steps to scale your migration from VMW
 - [Usage](#usage)
   - [Nbdkit (default)](#nbdkit-default)
   - [Virt-v2v](#virt-v2v)
+  - [Running migration from local shared NFS](#running-migration-from-local-shared-nfs)
   - [Ansible configuration](#ansible-configuration)
   - [Running Migration outside of Ansible](#running-migration-outside-of-ansible)
   - [Enable Debugging Flags During Migration] (#enable-debugging-flags-during-migration)
@@ -75,6 +76,7 @@ The following features are availables:
 - Multi nics
 - Parallel migration on a same conversion host
 - Ansible Automation Platform (AAP)
+- External shared storage
 
 ### Supported OS
 
@@ -402,6 +404,19 @@ In order to generate the thumbprint of your VMWare source cloud you need to use:
 # thumbprint
 openssl s_client -connect ESXI_SERVER_NAME:443 </dev/null |
    openssl x509 -in /dev/stdin -fingerprint -sha1 -noout
+```
+
+### Running migration from local shared NFS
+
+OS-Migrate is able to migrate directly from a local shared directory mounted on the conversion host.
+In case of the VMware virtual machines are located on an NFS server datastore and if this datastore can be accessed by
+the conversion host, then you can mount the NFS storage to the conversion host and provide the path of the NFS mount point.
+
+Then OS-Migrate will consume directly the disks of the virtual machines located on the NFS mount point.
+Configure the Ansible variable to speficy your mount point with:
+
+```
+import_workloads_local_disk_path: "/srv/nfs"
 ```
 
 ### Ansible configuration
