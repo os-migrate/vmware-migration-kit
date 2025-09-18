@@ -62,43 +62,50 @@ example for args.json file:
 */
 
 type MigrationConfig struct {
-	NbdkitConfig *nbdkit.NbdkitConfig
-	User         string
-	Password     string
-	Server       string
-	Libdir       string
-	VmName       string
-	OSMDataDir   string
-	VddkConfig   *vmware.VddkConfig
-	CBTSync      bool
-	CutOver      bool
-	OSClient     *gophercloud.ProviderClient
-	ConvHostName string
-	Compression  string
-	FirstBoot    string
-	InstanceUUID string
-	Debug        bool
-	CloutOpts    osm_os.DstCloud
+	NbdkitConfig       *nbdkit.NbdkitConfig
+	User               string
+	Password           string
+	Server             string
+	Libdir             string
+	VmName             string
+	OSMDataDir         string
+	VddkConfig         *vmware.VddkConfig
+	CBTSync            bool
+	CutOver            bool
+	OSClient           *gophercloud.ProviderClient
+	ConvHostName       string
+	Compression        string
+	FirstBoot          string
+	InstanceUUID       string
+	Debug              bool
+	CloudOpts          osm_os.DstCloud
+	LocalDiskPath      string
+	ManageExtVol       bool
+	CinderManageConfig *osm_os.CinderManageConfig
 }
 
 // Ansible
 type ModuleArgs struct {
-	DstCloud     osm_os.DstCloud `json:"dst_cloud"`
-	User         string
-	Password     string
-	Server       string
-	Libdir       string
-	VmName       string
-	VddkPath     string
-	OSMDataDir   string
-	CBTSync      bool
-	CutOver      bool
-	ConvHostName string
-	Compression  string
-	FirstBoot    string
-	UseSocks     bool
-	InstanceUUID string
-	Debug        bool
+	DstCloud       osm_os.DstCloud `json:"dst_cloud"`
+	User           string
+	Password       string
+	Server         string
+	Libdir         string
+	VmName         string
+	VddkPath       string
+	OSMDataDir     string
+	CBTSync        bool
+	CutOver        bool
+	ConvHostName   string
+	Compression    string
+	FirstBoot      string
+	UseSocks       bool
+	InstanceUUID   string
+	Debug          bool
+	LocalDiskPath  string
+	ExternalVolume bool
+	VolumeName     string
+	HostPool       string
 }
 
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
@@ -216,10 +223,22 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			logger.Log.Infof("UEFI firmware detected")
 			uefi = true
 		}
-		volume, err = osm_os.CreateVolume(c.OSClient, volOpts, uefi)
-		if err != nil {
-			logger.Log.Infof("Failed to create volume: %v", err)
-			return "", err
+		if c.ManageExtVol {
+			logger.Log.Infof("Managing existing external volume: %s on host: %s", c.CinderManageConfig.VolumeName, c.CinderManageConfig.HostPool)
+			volume, err = osm_os.CinderManage(c.OSClient, c.CinderManageConfig.VolumeName, c.CinderManageConfig.HostPool)
+			if err != nil {
+				logger.Log.Infof("Failed to manage existing external volume: %v", err)
+				return "", err
+			}
+			// Get volume (need to return volume object)
+		} else {
+			logger.Log.Infof("Creating new volume..")
+			// Create volume
+			volume, err = osm_os.CreateVolume(c.OSClient, volOpts, uefi)
+			if err != nil {
+				logger.Log.Infof("Failed to create volume: %v", err)
+				return "", err
+			}
 		}
 	}
 	// Attach volume
@@ -243,7 +262,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	}
 	// TODO: remove instanceName or handle it properly
 	defer func() {
-		if err := osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloutOpts); err != nil {
+		if err := osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloudOpts); err != nil {
 			logger.Log.Infof("Failed to detach volume: %v", err)
 		}
 	}()
@@ -263,7 +282,13 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			backing := disk.Backing.(types.BaseVirtualDeviceFileBackingInfo)
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
-			nbdSrv, err := c.NbdkitConfig.RunNbdKit(info.FileName)
+			var nbdSrv *nbdkit.NbdkitServer
+			if c.LocalDiskPath != "" {
+				logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
+				nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(c.LocalDiskPath)
+			} else {
+				nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
+			}
 			sock := nbdSrv.GetSocketPath()
 			defer func() {
 				if err := nbdSrv.Stop(); err != nil {
@@ -275,6 +300,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				logger.Log.Infof("Failed to run nbdkit: %v", err)
 				return "", err
 			}
+
 			if syncVol {
 				// Check change id
 				osChangeID, err := osm_os.GetOSChangeID(c.OSClient, volume.ID)
@@ -384,6 +410,11 @@ func main() {
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
 	debug := moduleArgs.Debug
+	localDisk := moduleArgs.LocalDiskPath
+	// Cinder manage options
+	externalVolume := moduleArgs.ExternalVolume
+	volumeName := moduleArgs.VolumeName
+	hostPool := moduleArgs.HostPool
 
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
@@ -447,16 +478,22 @@ func main() {
 					DiskKey:           d,
 				},
 			},
-			OSMDataDir:   osmdatadir,
-			OSClient:     provider,
-			CBTSync:      cbtsync,
-			CutOver:      cutover,
-			ConvHostName: convHostName,
-			Compression:  compression,
-			FirstBoot:    firsBoot,
-			InstanceUUID: instanceUUid,
-			Debug:        debug,
-			CloutOpts:    moduleArgs.DstCloud,
+			CinderManageConfig: &osm_os.CinderManageConfig{
+				VolumeName: volumeName,
+				HostPool:   hostPool,
+			},
+			ManageExtVol:  externalVolume,
+			OSMDataDir:    osmdatadir,
+			OSClient:      provider,
+			CBTSync:       cbtsync,
+			CutOver:       cutover,
+			ConvHostName:  convHostName,
+			Compression:   compression,
+			FirstBoot:     firsBoot,
+			InstanceUUID:  instanceUUid,
+			Debug:         debug,
+			LocalDiskPath: localDisk,
+			CloudOpts:     moduleArgs.DstCloud,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {

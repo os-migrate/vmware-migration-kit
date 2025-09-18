@@ -72,6 +72,11 @@ type ServerArgs struct {
 	Flavor         string
 }
 
+type CinderManageConfig struct {
+	VolumeName string
+	HostPool   string
+}
+
 func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
 	var opts gophercloud.AuthOptions
 	authURL := os.Getenv("OS_AUTH_URL")
@@ -514,4 +519,62 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 		flavor = f
 	}
 	return flavor, nil
+}
+
+func CinderManage(provider *gophercloud.ProviderClient, volumeName string, hostPool string) (*volumes.Volume, error) {
+	bsClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Fatalf("Failed to create block storage client: %v", err)
+		return nil, err
+	}
+	body := map[string]interface{}{
+		"volume": map[string]interface{}{
+			"host": hostPool,
+			"ref":  map[string]string{"source-name": volumeName},
+			"name": volumeName,
+		},
+	}
+	var resp struct {
+		Volume struct {
+			ID     string `json:"id"`
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"volume"`
+	}
+
+	manageURL := bsClient.ServiceURL("manageable_volumes")
+	_, err = bsClient.Post(context.TODO(), manageURL, body, &resp, nil)
+	if err != nil {
+		logger.Log.Fatalf("Error while managing existing volume: %v", err)
+		return nil, err
+	}
+	volume, err := GetVolume(provider, resp.Volume.ID)
+	if err != nil {
+		logger.Log.Fatalf("Failed to get managed volume: %v", err)
+		return nil, err
+	}
+	if volume.Status == "error" {
+		logger.Log.Fatalf("Managed volume is in error state, status: %s", volume.Status)
+		return nil, fmt.Errorf("managed volume is in error state, status: %s", volume.Status)
+	}
+	logger.Log.Infof("Successfully managed existing volume: %s, ID: %s", resp.Volume.Name, resp.Volume.ID)
+	return volume, nil
+}
+
+func GetVolume(provider *gophercloud.ProviderClient, volumeID string) (*volumes.Volume, error) {
+	bsClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Fatalf("Failed to create block storage client: %v", err)
+		return nil, err
+	}
+	volume, err := volumes.Get(context.TODO(), bsClient, volumeID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get volume: %v", err)
+		return nil, err
+	}
+	return volume, nil
 }
