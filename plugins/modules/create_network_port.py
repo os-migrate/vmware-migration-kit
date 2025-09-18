@@ -1,5 +1,19 @@
 #!/usr/bin/python
 
+# Copyright (c) 2025 Red Hat, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
@@ -14,8 +28,6 @@ DOCUMENTATION = r"""
 ---
 module: create_network_port
 short_description: Create network ports for a VM
-extends_documentation_fragment:
-    - os_migrate.vmware_migration_kit.openstack
 version_added: "2.9.0"
 author: "OpenStack tenant migration tools (@os-migrate)"
 description:
@@ -23,25 +35,11 @@ description:
 options:
   cloud:
     description:
-      - Cloud from clouds.yaml to use.
-      - Required if 'auth' parameter is not used.
-    required: false
-    type: raw
-  auth:
-    description:
-      - Required if 'cloud' param not used.
-    required: false
+      - A dictionary containing authentication and connection parameters for the destination OpenStack cloud.
+      - This should include details like C(auth_url), C(username), C(password), C(project_name), C(user_domain_name),
+        C(project_domain_name), C(region_name), etc., or a C(cloud) key to use a clouds.yaml profile.
     type: dict
-  auth_type:
-    description:
-      - Auth type plugin for OpenStack. Can be omitted if using password authentication.
-    required: false
-    type: str
-  region_name:
-    description:
-      - OpenStack region name. Can be omitted if using default region.
-    required: false
-    type: str
+    required: true
   os_migrate_nics_file_path:
     description:
       Path of the nics file dumped by the VMware migration kit.
