@@ -48,7 +48,8 @@ type NbdkitServer struct {
 	socket string
 }
 
-func (c *NbdkitConfig) RunNbdKitFromLocal(diskPath string) (*NbdkitServer, error) {
+func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitServer, error) {
+	path := fmt.Sprintf("/%s/%s", diskPath, diskName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
 	cmd := exec.Command(
 		"nbdkit",
@@ -60,7 +61,7 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskPath string) (*NbdkitServer, error
 		fmt.Sprintf("libdir=%s", c.Libdir),
 		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
 		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		diskPath,
+		path,
 	)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

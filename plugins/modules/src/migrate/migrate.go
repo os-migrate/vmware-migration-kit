@@ -22,7 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
+	"strings"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/ansible"
 	connectivity "vmware-migration-kit/plugins/module_utils/connectivity"
@@ -124,7 +124,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		logger.Log.Infof("Failed to get disks key: %v", err)
 		return "", err
 	}
-	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey))
+	diskNameStr := fmt.Sprintf("%02d", int(c.NbdkitConfig.VddkConfig.DiskKey)%100)
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
@@ -285,7 +285,8 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			var nbdSrv *nbdkit.NbdkitServer
 			if c.LocalDiskPath != "" {
 				logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
-				nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(c.LocalDiskPath)
+				nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(
+					strings.TrimSpace(strings.SplitN(info.FileName, " ", 2)[1]), c.LocalDiskPath)
 			} else {
 				nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
 			}
