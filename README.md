@@ -408,16 +408,17 @@ openssl s_client -connect ESXI_SERVER_NAME:443 </dev/null |
 
 ### Running migration from local shared NFS
 
-OS-Migrate is able to migrate directly from a local shared directory mounted on the conversion host.
-In case of the VMware virtual machines are located on an NFS server datastore and if this datastore can be accessed by
-the conversion host, then you can mount the NFS storage to the conversion host and provide the path of the NFS mount point.
+OS-Migrate can migrate directly from a local shared directory mounted on the conversion host.
+If the VMware virtual machines are located on an NFS datastore that is accessible to the conversion host, you can mount the NFS storage on the conversion host and provide the path to the NFS mount point.
 
-Then OS-Migrate will consume directly the disks of the virtual machines located on the NFS mount point.
-Configure the Ansible variable to speficy your mount point with:
+OS-Migrate will then directly consume the disks of the virtual machines located on the NFS mount point.
+Configure the Ansible variable to specify your mount point as follows:
 
 ```
 import_workloads_local_disk_path: "/srv/nfs"
 ```
+
+> **Note:** In this mode, only cold migration is supported.
 
 ### Ansible configuration
 
