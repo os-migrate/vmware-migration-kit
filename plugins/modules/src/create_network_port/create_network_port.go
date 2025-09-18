@@ -91,7 +91,12 @@ func loadJSONFile(filePath string, target interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %v", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the close error but don't fail the operation
+			logger.Log.Infof("Warning: failed to close file %s: %v", filePath, closeErr)
+		}
+	}()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
