@@ -125,7 +125,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		logger.Log.Infof("Failed to get disks key: %v", err)
 		return "", err
 	}
-	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey) % 100)
+	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey))
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
