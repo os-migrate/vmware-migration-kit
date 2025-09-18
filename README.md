@@ -1,15 +1,14 @@
-# VMWare to Openstack/Openshift tool kit
+# VMWare to Openstack tool kit
 
 This repository is a set of tools, Ansible and Python/Golang based for being able to migrate
-virtual machine from an ESXi/Vcenter environment to Openstack or Openshift environment.
+virtual machine from an ESXi/Vcenter environment to Openstack environment.
 
 The code used OS-Migrate Ansible collection in order to deploy conversion host and setup
 correctly the prerequistes in the Openstack destination cloud.
 It also used the VMware community collection in order to gather informations from the source
 VMware environment.
 
-The Ansible collection provides different steps to scale your migration from VMWare to Openstack
-and Openshift:
+The Ansible collection provides different steps to scale your migration from VMWare to Openstack:
 
 - A discovery phase where it analyzes the VMware source environment and provides collected data
   to help for the migration.
@@ -29,6 +28,10 @@ and Openshift:
   - [Nbdkit migration example with the Change Block Tracking](#nbdkit-migration-example-with-the-change-block-tracking)
   - [Migration demo from an AEE](#migration-demo-from-an-aee)
   - [Running migration](#running-migration)
+    - [Conversion host setup](#conversion-host-setup)
+    - [Inventory, Variables files and Ansible command](#inventory-variables-files-and-ansible-command)
+    - [Using Change Block Tracking (CBT)](#using-change-block-tracking-cbt)
+- [VMware ACLs requirements](#vmware-acls-requirements)
 - [Network requirements](#network-requirements)
   - [Required ports](#required-ports)
 - [Usage](#usage)
@@ -36,6 +39,7 @@ and Openshift:
   - [Virt-v2v](#virt-v2v)
   - [Ansible configuration](#ansible-configuration)
   - [Running Migration outside of Ansible](#running-migration-outside-of-ansible)
+  - [Enable Debugging Flags During Migration] (#enable-debugging-flags-during-migration)
 - [Support](#support)
 - [Licence](#licence)
 
@@ -124,7 +128,7 @@ And the live demo here:
 
 ### Running migration
 
-#### Conversion host
+#### Conversion host setup
 
 You can use os_migrate.os_migration collection to deploy a conversion, but you can
 easily create your conversion host manually.
