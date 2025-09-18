@@ -59,8 +59,6 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitSer
 		"--unix", socket,
 		"vddk",
 		fmt.Sprintf("libdir=%s", c.Libdir),
-		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
 		path,
 	)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
