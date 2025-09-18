@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/ansible"
@@ -124,7 +125,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		logger.Log.Infof("Failed to get disks key: %v", err)
 		return "", err
 	}
-	diskNameStr := fmt.Sprintf("%02d", int(c.NbdkitConfig.VddkConfig.DiskKey)%100)
+	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey) % 100)
 	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
