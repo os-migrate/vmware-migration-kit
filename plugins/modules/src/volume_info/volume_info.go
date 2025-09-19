@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"os"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
-
-	"github.com/gophercloud/gophercloud/v2"
 )
 
 // Ansible
@@ -77,26 +75,6 @@ func returnResponse(responseBody Response) {
 	}
 }
 
-func getVolumeInfo(provider *gophercloud.ProviderClient, volumeName string) (*VolumeInfo, error) {
-	// Use the shared utility function from the openstack module
-	sharedVolumeInfo, err := osm_os.GetVolumeInfo(provider, volumeName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to local VolumeInfo type
-	volumeInfo := &VolumeInfo{
-		ID:       sharedVolumeInfo.ID,
-		Name:     sharedVolumeInfo.Name,
-		Status:   sharedVolumeInfo.Status,
-		Size:     sharedVolumeInfo.Size,
-		Bootable: sharedVolumeInfo.Bootable,
-		Metadata: sharedVolumeInfo.Metadata,
-	}
-
-	return volumeInfo, nil
-}
-
 func main() {
 	var response Response
 	if len(os.Args) != 2 {
@@ -126,10 +104,20 @@ func main() {
 		FailJson(response)
 	}
 
-	volumeInfo, err := getVolumeInfo(provider, moduleArgs.Name)
+	sharedVolumeInfo, err := osm_os.GetVolumeInfo(provider, moduleArgs.Name)
 	if err != nil {
 		response.Msg = "Failed to get volume info for: " + moduleArgs.Name + " error: " + err.Error()
 		FailJson(response)
+	}
+
+	// Convert shared VolumeInfo to local VolumeInfo type
+	volumeInfo := &VolumeInfo{
+		ID:       sharedVolumeInfo.ID,
+		Name:     sharedVolumeInfo.Name,
+		Status:   sharedVolumeInfo.Status,
+		Size:     sharedVolumeInfo.Size,
+		Bootable: sharedVolumeInfo.Bootable,
+		Metadata: sharedVolumeInfo.Metadata,
 	}
 
 	response.Changed = true

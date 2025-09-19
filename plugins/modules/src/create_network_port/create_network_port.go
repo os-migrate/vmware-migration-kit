@@ -24,10 +24,6 @@ import (
 	"os"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
-
-	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/networks"
-	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 )
 
 // Ansible
@@ -110,16 +106,6 @@ func loadJSONFile(filePath string, target interface{}) error {
 	return nil
 }
 
-func getNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*networks.Network, error) {
-	// Use the shared utility function from the openstack module
-	return osm_os.GetNetwork(provider, networkNameOrID)
-}
-
-func createPort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups []string) (*ports.Port, error) {
-	// Use the shared utility function from the openstack module
-	return osm_os.CreatePort(provider, portName, networkID, macAddress, securityGroups)
-}
-
 func main() {
 	var response Response
 	if len(os.Args) != 2 {
@@ -167,14 +153,14 @@ func main() {
 	var portUUIDs []PortInfo
 	for nicIndex, nic := range vmNics {
 		// Get network ID
-		network, err := getNetwork(provider, nic.Vlan)
+		network, err := osm_os.GetNetwork(provider, nic.Vlan)
 		if err != nil {
 			response.Msg = "Failed to get network: " + err.Error()
 			FailJson(response)
 		}
 
 		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleArgs.VmName, nicIndex, nic.Vlan)
-		port, err := createPort(provider, portName, network.ID, nic.Mac, moduleArgs.SecurityGroups)
+		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, moduleArgs.SecurityGroups)
 		if err != nil {
 			response.Msg = "Failed to create port: " + err.Error()
 			FailJson(response)
