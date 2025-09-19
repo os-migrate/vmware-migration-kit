@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -49,7 +50,7 @@ type NbdkitServer struct {
 }
 
 func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitServer, error) {
-	path := fmt.Sprintf("/%s/%s", diskPath, diskName)
+	path := path.Join(diskPath, diskName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
 	cmd := exec.Command(
 		"nbdkit",
