@@ -21,12 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 
 	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack"
-	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 )
 
 // Ansible
@@ -81,46 +78,20 @@ func returnResponse(responseBody Response) {
 }
 
 func getVolumeInfo(provider *gophercloud.ProviderClient, volumeName string) (*VolumeInfo, error) {
-	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
-		Region: os.Getenv("OS_REGION_NAME"),
-	})
+	// Use the shared utility function from the openstack module
+	sharedVolumeInfo, err := osm_os.GetVolumeInfo(provider, volumeName)
 	if err != nil {
-		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return nil, err
 	}
 
-	// List volumes with the given name
-	listOpts := volumes.ListOpts{
-		Name: volumeName,
-	}
-	pages, err := volumes.List(client, listOpts).AllPages(context.TODO())
-	if err != nil {
-		logger.Log.Infof("Failed to list volumes: %v", err)
-		return nil, err
-	}
-
-	volumeList, err := volumes.ExtractVolumes(pages)
-	if err != nil {
-		logger.Log.Infof("Failed to extract volumes: %v", err)
-		return nil, err
-	}
-
-	if len(volumeList) == 0 {
-		return nil, fmt.Errorf("volume not found: %s", volumeName)
-	}
-
-	if len(volumeList) > 1 {
-		return nil, fmt.Errorf("multiple volumes found with name: %s", volumeName)
-	}
-
-	volume := volumeList[0]
+	// Convert to local VolumeInfo type
 	volumeInfo := &VolumeInfo{
-		ID:       volume.ID,
-		Name:     volume.Name,
-		Status:   volume.Status,
-		Size:     volume.Size,
-		Bootable: volume.Bootable,
-		Metadata: volume.Metadata,
+		ID:       sharedVolumeInfo.ID,
+		Name:     sharedVolumeInfo.Name,
+		Status:   sharedVolumeInfo.Status,
+		Size:     sharedVolumeInfo.Size,
+		Bootable: sharedVolumeInfo.Bootable,
+		Metadata: sharedVolumeInfo.Metadata,
 	}
 
 	return volumeInfo, nil

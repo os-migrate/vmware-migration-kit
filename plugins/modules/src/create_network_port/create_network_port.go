@@ -26,7 +26,6 @@ import (
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 
 	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/networks"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 )
@@ -112,76 +111,13 @@ func loadJSONFile(filePath string, target interface{}) error {
 }
 
 func getNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*networks.Network, error) {
-	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
-		Region: os.Getenv("OS_REGION_NAME"),
-	})
-	if err != nil {
-		logger.Log.Infof("Failed to create network client: %v", err)
-		return nil, err
-	}
-
-	// First try to get by ID (UUID)
-	network, err := networks.Get(context.TODO(), client, networkNameOrID).Extract()
-	if err == nil {
-		return network, nil
-	}
-
-	// If that fails, try to get by name
-	listOpts := networks.ListOpts{
-		Name: networkNameOrID,
-	}
-	pages, err := networks.List(client, listOpts).AllPages(context.TODO())
-	if err != nil {
-		logger.Log.Infof("Failed to list networks: %v", err)
-		return nil, err
-	}
-
-	networkList, err := networks.ExtractNetworks(pages)
-	if err != nil {
-		logger.Log.Infof("Failed to extract networks: %v", err)
-		return nil, err
-	}
-
-	if len(networkList) == 0 {
-		return nil, fmt.Errorf("network not found: %s", networkNameOrID)
-	}
-
-	if len(networkList) > 1 {
-		return nil, fmt.Errorf("multiple networks found with name: %s", networkNameOrID)
-	}
-
-	return &networkList[0], nil
+	// Use the shared utility function from the openstack module
+	return osm_os.GetNetwork(provider, networkNameOrID)
 }
 
 func createPort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups []string) (*ports.Port, error) {
-	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
-		Region: os.Getenv("OS_REGION_NAME"),
-	})
-	if err != nil {
-		logger.Log.Infof("Failed to create network client: %v", err)
-		return nil, err
-	}
-
-	createOpts := ports.CreateOpts{
-		Name:           portName,
-		NetworkID:      networkID,
-		MACAddress:     macAddress,
-		SecurityGroups: &securityGroups,
-		AllowedAddressPairs: []ports.AddressPair{
-			{
-				IPAddress:  "0.0.0.0/0",
-				MACAddress: macAddress,
-			},
-		},
-	}
-
-	port, err := ports.Create(context.TODO(), client, createOpts).Extract()
-	if err != nil {
-		logger.Log.Infof("Failed to create port: %v", err)
-		return nil, err
-	}
-
-	return port, nil
+	// Use the shared utility function from the openstack module
+	return osm_os.CreatePort(provider, portName, networkID, macAddress, securityGroups)
 }
 
 func main() {
