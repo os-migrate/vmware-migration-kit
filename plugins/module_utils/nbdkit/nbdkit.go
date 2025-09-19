@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -46,6 +47,48 @@ type NbdkitConfig struct {
 type NbdkitServer struct {
 	cmd    *exec.Cmd
 	socket string
+}
+
+func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitServer, error) {
+	path := path.Join(diskPath, diskName)
+	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
+	cmd := exec.Command(
+		"nbdkit",
+		"--readonly",
+		"--exit-with-parent",
+		"--foreground",
+		"--unix", socket,
+		"vddk",
+		fmt.Sprintf("libdir=%s", c.Libdir),
+		path,
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		logger.Log.Infof("Failed to start nbdkit: %v", err)
+		return nil, err
+	}
+	logger.Log.Infof("nbdkit started...")
+	logger.Log.Infof("Command: %v", cmd)
+	time.Sleep(100 * time.Millisecond)
+	err := WaitForNbdkit(socket, 30*time.Second)
+	if err != nil {
+		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
+		if cmd.Process != nil {
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				logger.Log.Infof("Failed to kill process: %v", err)
+			}
+			if err := removeSocket(socket); err != nil {
+				logger.Log.Infof("Failed to remove socket: %v", err)
+			}
+		}
+		return nil, err
+	}
+
+	return &NbdkitServer{
+		cmd:    cmd,
+		socket: socket,
+	}, nil
 }
 
 func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
