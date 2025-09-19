@@ -40,7 +40,7 @@ The Ansible collection provides different steps to scale your migration from VMW
   - [Running migration from local shared NFS](#running-migration-from-local-shared-nfs)
   - [Ansible configuration](#ansible-configuration)
   - [Running Migration outside of Ansible](#running-migration-outside-of-ansible)
-  - [Enable Debugging Flags During Migration] (#enable-debugging-flags-during-migration)
+  - [Enable Debugging Flags During Migration](#enable-debugging-flags-during-migration)
 - [Support](#support)
 - [Licence](#licence)
 
