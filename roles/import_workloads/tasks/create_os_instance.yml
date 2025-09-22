@@ -13,14 +13,14 @@
     OS_CLOUD: "{{ openstack_cloud }}"
 
 - name: Get volume information for virt-v2v
-  openstack.cloud.volume_info:
+  os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
     name: "{{ vm_name }}-sda"
   register: volume_result
   when: import_workloads_os_migrate_virt_v2v
 
 - name: Get volume information for Cinder boot
-  openstack.cloud.volume_info:
+  os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
     name: "{{ vm_name }}"
   register: cinder_volume_result
