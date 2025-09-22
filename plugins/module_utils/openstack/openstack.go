@@ -521,6 +521,63 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 	return flavor, nil
 }
 
+// VolumeInfo represents volume information
+type VolumeInfo struct {
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Status   string            `json:"status"`
+	Size     int               `json:"size"`
+	Bootable string            `json:"bootable"`
+	Metadata map[string]string `json:"metadata"`
+}
+
+// GetVolumeInfo retrieves volume information by name
+func GetVolumeInfo(provider *gophercloud.ProviderClient, volumeName string) (*VolumeInfo, error) {
+	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return nil, err
+	}
+
+	// List volumes with the given name
+	listOpts := volumes.ListOpts{
+		Name: volumeName,
+	}
+	pages, err := volumes.List(client, listOpts).AllPages(context.TODO())
+	if err != nil {
+		logger.Log.Infof("Failed to list volumes: %v", err)
+		return nil, err
+	}
+
+	volumeList, err := volumes.ExtractVolumes(pages)
+	if err != nil {
+		logger.Log.Infof("Failed to extract volumes: %v", err)
+		return nil, err
+	}
+
+	if len(volumeList) == 0 {
+		return nil, fmt.Errorf("volume not found: %s", volumeName)
+	}
+
+	if len(volumeList) > 1 {
+		return nil, fmt.Errorf("multiple volumes found with name: %s", volumeName)
+	}
+
+	volume := volumeList[0]
+	volumeInfo := &VolumeInfo{
+		ID:       volume.ID,
+		Name:     volume.Name,
+		Status:   volume.Status,
+		Size:     volume.Size,
+		Bootable: volume.Bootable,
+		Metadata: volume.Metadata,
+	}
+
+	return volumeInfo, nil
+}
+
 func CinderManage(provider *gophercloud.ProviderClient, volumeName string, hostPool string) (*volumes.Volume, error) {
 	bsClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
