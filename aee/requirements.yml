@@ -8,4 +8,4 @@ collections:
   - name: community.general
   - name: os_migrate.vmware_migration_kit
     type: file
-    source: tmp/os_migrate-vmware_migration_kit-2.0.5.tar.gz
+    source: tmp/os_migrate-vmware_migration_kit-2.0.6.tar.gz
