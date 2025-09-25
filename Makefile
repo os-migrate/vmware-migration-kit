@@ -209,6 +209,10 @@ test-ansible-sanity:
 	  --exclude plugins/modules/best_match_flavor \
 	  --exclude plugins/modules/create_network_port \
 	  --exclude plugins/modules/create_server \
+	  --exclude plugins/modules/delete_flavor \
+	  --exclude plugins/modules/delete_port \
+	  --exclude plugins/modules/delete_server \
+	  --exclude plugins/modules/delete_volume \
 	  --exclude plugins/modules/import_image \
 	  --exclude plugins/modules/flavor_info \
 	  --exclude plugins/modules/migrate \
