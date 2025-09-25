@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"regexp"
 )
 
 func FindDevName(volumeID string) (string, error) {
@@ -54,4 +55,9 @@ func GenRandom(length int) (string, error) {
 		result[i] = charset[num.Int64()]
 	}
 	return string(result), nil
+}
+
+func SafeVmName(vmName string) string {
+    re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+    return re.ReplaceAllString(vmName, "_")
 }
