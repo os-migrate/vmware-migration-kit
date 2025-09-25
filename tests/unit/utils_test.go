@@ -20,7 +20,34 @@ package moduleutils
 import (
 	"testing"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
+	"errors"
+	"io/fs"
 )
+
+// stunt doubles for file system
+type MockFs struct {
+	MockDirContents  []fs.DirEntry
+	MockDirError     error
+	MockSymlinkPath  string
+	MockSymlinkError error
+}
+
+// acts like filesystem
+func (m *MockFs) ReadDir(name string) ([]fs.DirEntry, error) {
+	return m.MockDirContents, m.MockDirError
+}
+
+func (m *MockFs) EvalSymlinks(path string) (string, error) {
+	return m.MockSymlinkPath, m.MockSymlinkError
+}
+
+// populating contents of a directory
+type mockDirEntry struct {
+	name string
+	fs.DirEntry
+}
+
+func (m *mockDirEntry) Name() string { return m.name }
 
 func TestGenRandom(t *testing.T) {
 	length := 10
@@ -32,3 +59,29 @@ func TestGenRandom(t *testing.T) {
 		t.Errorf("Expected string length %d, got %d", length, len(str))
 	}
 }
+
+// unexpected inputs werent handled
+func TestFindDevName_ShortVolumeID(t *testing.T)
+{
+	_, err := moduleutils.FindDevName("shortID")
+	if err == nil {
+		t.Fatalf("Expected an error for a short volumeID, but got nil")
+	}
+}
+
+func TestFindDevName_EmptyVolumeID(t *testing.T)
+{
+	_, err := moduleutils.FindDevName("")
+	if err == nil {
+		t.Fatalf("Expected an error for an empty volumeID, but got nil")
+	}
+}
+
+// TODO: (possibly with mocking)
+// succesful scenario - correct device, one match
+// multiple devices, one match - correct device when more dirs
+// multiple matches - confirm it returned first correct match
+// no matches - "not found" but fails gracefully
+// empty directory - ??
+// dir doesnt exist or unreadable - report it probably
+// broken symlink - ??
