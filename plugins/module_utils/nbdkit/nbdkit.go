@@ -30,6 +30,7 @@ import (
 	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/vmware"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 )
 
 type NbdkitConfig struct {
@@ -51,7 +52,8 @@ type NbdkitServer struct {
 
 func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitServer, error) {
 	path := path.Join(diskPath, diskName)
-	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
+	safeVmName := moduleutils.SafeVmName(c.VmName)
+	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
 	cmd := exec.Command(
 		"nbdkit",
 		"--readonly",
@@ -154,7 +156,8 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", c.VmName, c.UUID)
+	safeVmName := moduleutils.SafeVmName(c.VmName)
+	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
 	cmd := exec.Command(
 		"nbdkit",
 		"--readonly",
