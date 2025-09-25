@@ -103,3 +103,22 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 
 	return port, nil
 }
+
+// DeletePort deletes a network port by ID
+func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
+	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create network client: %v", err)
+		return err
+	}
+
+	err = ports.Delete(context.TODO(), client, portID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete port: %v", err)
+		return err
+	}
+
+	return nil
+}

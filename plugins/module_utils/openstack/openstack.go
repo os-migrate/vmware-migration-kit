@@ -521,6 +521,89 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 	return flavor, nil
 }
 
+// DeleteServer deletes a server by name or ID
+func DeleteServer(provider *gophercloud.ProviderClient, serverNameOrID string) error {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create compute client: %v", err)
+		return err
+	}
+
+	err = servers.Delete(context.TODO(), client, serverNameOrID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete server: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// DeleteVolume deletes a volume by name or ID
+func DeleteVolume(provider *gophercloud.ProviderClient, volumeNameOrID string) error {
+	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return err
+	}
+
+	// First try to delete by ID
+	err = volumes.Delete(context.TODO(), client, volumeNameOrID, volumes.DeleteOpts{}).ExtractErr()
+	if err == nil {
+		return nil
+	}
+
+	// If that fails, try to find by name and delete
+	volume, err := GetVolumeInfo(provider, volumeNameOrID)
+	if err != nil {
+		logger.Log.Infof("Failed to get volume info: %v", err)
+		return err
+	}
+
+	err = volumes.Delete(context.TODO(), client, volume.ID, volumes.DeleteOpts{}).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete volume: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// DeleteFlavor deletes a flavor by name or ID
+func DeleteFlavor(provider *gophercloud.ProviderClient, flavorNameOrID string) error {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create compute client: %v", err)
+		return err
+	}
+
+	// First try to delete by ID
+	err = flavors.Delete(context.TODO(), client, flavorNameOrID).ExtractErr()
+	if err == nil {
+		return nil
+	}
+
+	// If that fails, try to find by name and delete
+	flavor, err := GetFlavorInfo(provider, flavorNameOrID)
+	if err != nil {
+		logger.Log.Infof("Failed to get flavor info: %v", err)
+		return err
+	}
+
+	err = flavors.Delete(context.TODO(), client, flavor.ID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete flavor: %v", err)
+		return err
+	}
+
+	return nil
+}
+
 // VolumeInfo represents volume information
 type VolumeInfo struct {
 	ID       string            `json:"id"`
