@@ -16,8 +16,6 @@ tags:
   - vmware
   - migrations
 dependencies:
-  community.crypto: ">=1.4.0"
-  community.general: "<5.0.0"
   community.vmware: ">=1.0.0"
   openstack.cloud: ">=2.0.0"
   os_migrate.os_migrate: ">=0.0.1"
