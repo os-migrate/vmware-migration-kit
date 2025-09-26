@@ -20,7 +20,7 @@ package moduleutils
 import (
 	"crypto/rand"
 	"math/big"
-	"os"
+	//"os"
 	"path/filepath"
 	"strings"
 	"regexp"
@@ -34,17 +34,17 @@ type Filesystem interface {
     EvalSymlinks(path string) (string, error)
 }
 
-func FindDevName(volumeID string) (string, error) {
+func FindDevName(fs Filesystem, volumeID string) (string, error) {
 	if len(volumeID) < 18 {
     return "", fmt.Errorf("volumeID must be at least 18 characters long")
 	}
-	files, err := os.ReadDir("/dev/disk/by-id/")
+	files, err := fs.ReadDir("/dev/disk/by-id/")
 	if err != nil {
 		return "", err
 	}
 	for _, file := range files {
 		if strings.Contains(file.Name(), volumeID[:18]) {
-			devicePath, err := filepath.EvalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
+			devicePath, err := fs.EvalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
 			if err != nil {
 				return "", err
 			}
