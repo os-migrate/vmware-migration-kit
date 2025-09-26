@@ -1,6 +1,6 @@
 namespace: os_migrate
 name: vmware_migration_kit
-version: 2.0.6
+version: 2.0.7
 readme: README.md
 authors:
   - Mathieu Bultel <mat.bultel@gmail.com>
