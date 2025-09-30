@@ -20,13 +20,24 @@ package moduleutils
 import (
 	"crypto/rand"
 	"math/big"
-	//"os"
+	"os"
 	"path/filepath"
 	"strings"
 	"regexp"
 	"fmt"
 	"io/fs"
 )
+
+// real filesystem implementation
+type RealFs struct{}
+
+func (r *RealFs) ReadDir(name string) ([]fs.DirEntry, error) {
+    return os.ReadDir(name)
+}
+
+func (r *RealFs) EvalSymlinks(path string) (string, error) {
+    return filepath.EvalSymlinks(path)
+}
 
 // allows to fake filesystem
 type Filesystem interface {
