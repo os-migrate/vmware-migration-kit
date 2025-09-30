@@ -225,7 +225,7 @@ test-golangci-lint: check-root
 		-v $(MOUNT_PATH) \
 		-w /code \
 		$(SECURITY_OPT) \
-		golangci/golangci-lint:latest \
+		golangci/golangci-lint:v2.5.0 \
 		golangci-lint run --timeout 5m
 
 tests: test-pytest test-ansible-sanity test-ansible-lint test-golangci-lint
