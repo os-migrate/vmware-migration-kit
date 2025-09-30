@@ -6,6 +6,8 @@ import_workloads_os_migrate_virt_v2v: "{{ os_migrate_virt_v2v | default(false) 
 import_workloads_os_migrate_nbdkit: "{{ os_migrate_nbdkit | default(true) | bool }}"
 import_workloads_debug: "{{ debug | default(false) | bool }}"
 import_workloads_local_disk_path: "{{ local_disk_path | default(omit) }}"
+# Teardown for testing only or dry runs:
+import_workloads_os_migrate_tear_down: "{{ os_migrate_tear_down | default(false) | bool }}"
 
 # UUID of the conversion host instance
 import_workloads_instance_uuid: ""
