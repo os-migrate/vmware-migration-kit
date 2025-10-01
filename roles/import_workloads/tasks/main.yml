@@ -22,4 +22,3 @@
 - name: Teardown
   ansible.builtin.include_tasks: teardown.yml
   when: import_workloads_os_migrate_tear_down|default(false)|bool
-
