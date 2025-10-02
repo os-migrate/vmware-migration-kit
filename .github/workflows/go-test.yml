@@ -22,3 +22,4 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libnbd-dev pkg-config
       - name: Run Go unit tests
         run: go test -v ./...
+        

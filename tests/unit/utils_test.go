@@ -154,10 +154,7 @@ func TestFindDevName_NoMatches(t *testing.T) {
 // dir doesnt exist or unreadable
 func TestFindDevName_ReadDirError(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
-		return []fs.DirEntry{
-			&mockDirEntry{name: "some-other-disk-id"},
-			&mockDirEntry{name: "another-unrelated-disk"},
-		}, nil
+		return nil, fmt.Errorf("simulated ReadDir error")
 	}
 	mockEvalSymlinks := func(path string) (string, error) {
 		return "", nil
