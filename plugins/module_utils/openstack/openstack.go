@@ -521,8 +521,8 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 	return flavor, nil
 }
 
-// DeleteServer deletes a server by name or ID
-func DeleteServer(provider *gophercloud.ProviderClient, serverNameOrID string) error {
+// DeleteServer deletes a server by ID
+func DeleteServer(provider *gophercloud.ProviderClient, serverID string) error {
 	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -531,7 +531,7 @@ func DeleteServer(provider *gophercloud.ProviderClient, serverNameOrID string) e
 		return err
 	}
 
-	err = servers.Delete(context.TODO(), client, serverNameOrID).ExtractErr()
+	err = servers.Delete(context.TODO(), client, serverID).ExtractErr()
 	if err != nil {
 		logger.Log.Infof("Failed to delete server: %v", err)
 		return err
@@ -540,8 +540,8 @@ func DeleteServer(provider *gophercloud.ProviderClient, serverNameOrID string) e
 	return nil
 }
 
-// DeleteVolume deletes a volume by name or ID
-func DeleteVolume(provider *gophercloud.ProviderClient, volumeNameOrID string) error {
+// DeleteVolume deletes a volume by ID
+func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string) error {
 	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -550,20 +550,7 @@ func DeleteVolume(provider *gophercloud.ProviderClient, volumeNameOrID string) e
 		return err
 	}
 
-	// First try to delete by ID
-	err = volumes.Delete(context.TODO(), client, volumeNameOrID, volumes.DeleteOpts{}).ExtractErr()
-	if err == nil {
-		return nil
-	}
-
-	// If that fails, try to find by name and delete
-	volume, err := GetVolumeInfo(provider, volumeNameOrID)
-	if err != nil {
-		logger.Log.Infof("Failed to get volume info: %v", err)
-		return err
-	}
-
-	err = volumes.Delete(context.TODO(), client, volume.ID, volumes.DeleteOpts{}).ExtractErr()
+	err = volumes.Delete(context.TODO(), client, volumeID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.Log.Infof("Failed to delete volume: %v", err)
 		return err
@@ -572,8 +559,8 @@ func DeleteVolume(provider *gophercloud.ProviderClient, volumeNameOrID string) e
 	return nil
 }
 
-// DeleteFlavor deletes a flavor by name or ID
-func DeleteFlavor(provider *gophercloud.ProviderClient, flavorNameOrID string) error {
+// DeleteFlavor deletes a flavor by ID
+func DeleteFlavor(provider *gophercloud.ProviderClient, flavorID string) error {
 	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -582,20 +569,7 @@ func DeleteFlavor(provider *gophercloud.ProviderClient, flavorNameOrID string) e
 		return err
 	}
 
-	// First try to delete by ID
-	err = flavors.Delete(context.TODO(), client, flavorNameOrID).ExtractErr()
-	if err == nil {
-		return nil
-	}
-
-	// If that fails, try to find by name and delete
-	flavor, err := GetFlavorInfo(provider, flavorNameOrID)
-	if err != nil {
-		logger.Log.Infof("Failed to get flavor info: %v", err)
-		return err
-	}
-
-	err = flavors.Delete(context.TODO(), client, flavor.ID).ExtractErr()
+	err = flavors.Delete(context.TODO(), client, flavorID).ExtractErr()
 	if err != nil {
 		logger.Log.Infof("Failed to delete flavor: %v", err)
 		return err

@@ -213,7 +213,6 @@ test-ansible-sanity:
 	  --exclude plugins/modules/delete_port \
 	  --exclude plugins/modules/delete_server \
 	  --exclude plugins/modules/delete_volume \
-	  --exclude plugins/modules/import_image \
 	  --exclude plugins/modules/flavor_info \
 	  --exclude plugins/modules/migrate \
 	  --exclude plugins/modules/volume_info \
