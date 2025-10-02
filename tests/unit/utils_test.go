@@ -24,23 +24,6 @@ import (
 	"io/fs"
 )
 
-// stunt doubles for file system
-type MockFs struct {
-	MockDirContents  []fs.DirEntry
-	MockDirError     error
-	MockSymlinkPath  string
-	MockSymlinkError error
-}
-
-// acts like filesystem
-func (m *MockFs) ReadDir(name string) ([]fs.DirEntry, error) {
-	return m.MockDirContents, m.MockDirError
-}
-
-func (m *MockFs) EvalSymlinks(path string) (string, error) {
-	return m.MockSymlinkPath, m.MockSymlinkError
-}
-
 // populating contents of a directory
 type mockDirEntry struct {
 	name string
@@ -62,14 +45,14 @@ func TestGenRandom(t *testing.T) {
 
 // unexpected inputs werent handled
 func TestFindDevName_ShortVolumeID(t *testing.T) {
-	_, err := moduleutils.FindDevName(nil, "shortID")
+	_, err := moduleutils.FDevName(nil, nil, "shortID")
 	if err == nil {
 		t.Fatalf("Expected an error for a short volumeID, but got nil")
 	}
 }
 
 func TestFindDevName_EmptyVolumeID(t *testing.T) {
-	_, err := moduleutils.FindDevName(nil, "")
+	_, err := moduleutils.FDevName(nil, nil, "")
 	if err == nil {
 		t.Fatalf("Expected an error for an empty volumeID, but got nil")
 	}
@@ -77,17 +60,19 @@ func TestFindDevName_EmptyVolumeID(t *testing.T) {
 
 // succesful scenario - correct device, one match
 func TestFindDevName_Success(t *testing.T) {
-    mockFs := &MockFs{
-        MockDirContents: []fs.DirEntry{
-            &mockDirEntry{name: "36001405e9f12345678-and-other-stuff"},
-        },
-        MockSymlinkPath: "/dev/sda",
-    }
+    mockReadDir  := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
+			&mockDirEntry{name: "prefix-36001405e9f12345678-suffix"},
+		}, nil
+	}
 
-    volumeID := "36001405e9f123456789abcdef-and-more"
-    expectedDevice := "/dev/sda"
+    mockEvalSymlinks := func(path string) (string, error) {
+		return "/dev/sda", nil
+	}
+	volumeID := "36001405e9f12345678-and-more"
+	expectedDevice := "/dev/sda"
 
-    device, err := moduleutils.FindDevName(mockFs, volumeID)
+    device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 
     if err != nil {
         t.Fatalf("FindDevName returned an error: %v", err)
@@ -99,18 +84,20 @@ func TestFindDevName_Success(t *testing.T) {
 
 // multiple devices, one match - correct device when more dirs
 func TestFindDevName_MultipleDevicesOneMatch(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirContents: []fs.DirEntry{
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
 			&mockDirEntry{name: "some-other-disk-id"},
 			&mockDirEntry{name: "prefix-123456789012345678-suffix"},
 			&mockDirEntry{name: "another-unrelated-disk"},
-		},
-		MockSymlinkPath: "/dev/sdb",
+		}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "/dev/sdb", nil
 	}
 	volumeID := "123456789012345678-and-more"
 	expectedDevice := "/dev/sdb"
 
-	device, err := moduleutils.FindDevName(mockFs, volumeID)
+	device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err != nil {
 		t.Fatalf("FindDevName returned an error: %v", err)
 	}
@@ -121,17 +108,19 @@ func TestFindDevName_MultipleDevicesOneMatch(t *testing.T) {
 
 // multiple matches - confirm it returned first correct match
 func TestFindDevName_MultipleMatches(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirContents: []fs.DirEntry{
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
 			&mockDirEntry{name: "scsi-36001405e9f123456789abcdef"},
 			&mockDirEntry{name: "scsi-36001405e9f123456789abcdef-extra"},
-		},
-		MockSymlinkPath: "/dev/sdc",
+		}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "/dev/sdc", nil
 	}
 	volumeID := "36001405e9f123456789abcdef-and-more"
 	expectedDevice := "/dev/sdc"
 
-	device, err := moduleutils.FindDevName(mockFs, volumeID)
+	device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err != nil {
 		t.Fatalf("FindDevName returned an error: %v", err)
 	}
@@ -142,15 +131,18 @@ func TestFindDevName_MultipleMatches(t *testing.T) {
 
  // no matches - "not found" but fails gracefully
 func TestFindDevName_NoMatches(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirContents: []fs.DirEntry{
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
 			&mockDirEntry{name: "some-other-disk-id"},
 			&mockDirEntry{name: "another-unrelated-disk"},
-		},
+		}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "", nil
 	}
 	volumeID := "36001405e9f123456789abcdef-and-more"
 
-	device, err := moduleutils.FindDevName(mockFs, volumeID)
+	device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err != nil {
 		t.Fatalf("FindDevName returned an error: %v", err)
 	}
@@ -161,12 +153,18 @@ func TestFindDevName_NoMatches(t *testing.T) {
 
 // dir doesnt exist or unreadable
 func TestFindDevName_ReadDirError(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirError: fmt.Errorf("simulated ReadDir error"),
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
+			&mockDirEntry{name: "some-other-disk-id"},
+			&mockDirEntry{name: "another-unrelated-disk"},
+		}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "", nil
 	}
 	volumeID := "36001405e9f123456789abcdef-and-more"
 
-	_, err := moduleutils.FindDevName(mockFs, volumeID)
+	_, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err == nil {
 		t.Fatalf("Expected an error from ReadDir, but got nil")
 	}
@@ -177,12 +175,15 @@ func TestFindDevName_ReadDirError(t *testing.T) {
 
 // empty directory
 func TestFindDevName_EmptyDirectory(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirContents: []fs.DirEntry{},
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "", nil
 	}
 	volumeID := "36001405e9f123456789abcdef-and-more"
 
-	device, err := moduleutils.FindDevName(mockFs, volumeID)
+	device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err != nil {
 		t.Fatalf("FindDevName returned an error: %v", err)
 	}
@@ -193,15 +194,17 @@ func TestFindDevName_EmptyDirectory(t *testing.T) {
 
 // broken symlink
 func TestFindDevName_BrokenSymlink(t *testing.T) {
-	mockFs := &MockFs{
-		MockDirContents: []fs.DirEntry{
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
+		return []fs.DirEntry{
 			&mockDirEntry{name: "scsi-36001405e9f123456789abcdef"},
-		},
-		MockSymlinkError: fmt.Errorf("simulated EvalSymlinks error"),
+		}, nil
+	}
+	mockEvalSymlinks := func(path string) (string, error) {
+		return "", fmt.Errorf("simulated EvalSymlinks error")
 	}
 	volumeID := "36001405e9f123456789abcdef-and-more"
 
-	_, err := moduleutils.FindDevName(mockFs, volumeID)
+	_, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 	if err == nil {
 		t.Fatalf("Expected an error from EvalSymlinks, but got nil")
 	}

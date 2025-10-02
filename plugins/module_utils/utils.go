@@ -19,47 +19,39 @@ package moduleutils
 
 import (
 	"crypto/rand"
+	"fmt"
+	"io/fs"
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"regexp"
-	"fmt"
-	"io/fs"
+	"strings"
 )
 
-// real filesystem implementation
-type RealFs struct{}
-
-func (r *RealFs) ReadDir(name string) ([]fs.DirEntry, error) {
-    return os.ReadDir(name)
+func FindDevName(volumeID string) (string, error) {
+	return FDevName(os.ReadDir, filepath.EvalSymlinks, volumeID)
 }
 
-func (r *RealFs) EvalSymlinks(path string) (string, error) {
-    return filepath.EvalSymlinks(path)
-}
-
-// allows to fake filesystem
-type Filesystem interface {
-    ReadDir(name string) ([]fs.DirEntry, error)
-    EvalSymlinks(path string) (string, error)
-}
-
-func FindDevName(fs Filesystem, volumeID string) (string, error) {
+func FDevName(
+	readDir func(string) ([]fs.DirEntry, error),
+	evalSymlinks func(string) (string, error),
+	volumeID string,
+) (string, error) {
 	if len(volumeID) < 18 {
-    return "", fmt.Errorf("volumeID must be at least 18 characters long")
+		return "", fmt.Errorf("volumeID must be at least 18 characters long")
 	}
-	files, err := fs.ReadDir("/dev/disk/by-id/")
+
+	files, err := readDir("/dev/disk/by-id/")
 	if err != nil {
 		return "", err
 	}
+
 	for _, file := range files {
 		if strings.Contains(file.Name(), volumeID[:18]) {
-			devicePath, err := fs.EvalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
+			devicePath, err := evalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
 			if err != nil {
 				return "", err
 			}
-
 			return devicePath, nil
 		}
 	}
@@ -80,6 +72,6 @@ func GenRandom(length int) (string, error) {
 }
 
 func SafeVmName(vmName string) string {
-    re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
-    return re.ReplaceAllString(vmName, "_")
+	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	return re.ReplaceAllString(vmName, "_")
 }

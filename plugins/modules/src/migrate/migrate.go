@@ -268,8 +268,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		}
 	}()
 
-	realFs := &moduleutils.RealFs{}
-	devPath, err := moduleutils.FindDevName(realFs, volume.ID)
+	devPath, err := moduleutils.FindDevName(volume.ID)
 	if err != nil {
 		logger.Log.Infof("Failed to find device name: %v", err)
 		return "", err
