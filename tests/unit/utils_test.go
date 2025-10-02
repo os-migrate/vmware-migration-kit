@@ -209,7 +209,3 @@ func TestFindDevName_BrokenSymlink(t *testing.T) {
 		t.Errorf("Expected 'simulated EvalSymlinks error', got %v", err)
 	}
 }
-
-
-
-

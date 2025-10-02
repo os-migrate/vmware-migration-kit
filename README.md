@@ -548,4 +548,3 @@ For any issues related to the supported components of the collection itself, ple
 Apache License, Version 2.0
 
 See [COPYING](https://www.apache.org/licenses/LICENSE-2.0.txt)
-
