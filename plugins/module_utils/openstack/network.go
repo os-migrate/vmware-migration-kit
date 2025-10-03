@@ -20,7 +20,10 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
+	"strings"
+	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -72,6 +75,24 @@ func GetNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*
 	return &networkList[0], nil
 }
 
+// generateNewMACAddress generates a new MAC address with the same OUI as the original
+func generateNewMACAddress(originalMAC string) string {
+	// Parse the original MAC address
+	parts := strings.Split(originalMAC, ":")
+	if len(parts) != 6 {
+		// If parsing fails, generate a completely new MAC
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		return fmt.Sprintf("02:%02x:%02x:%02x:%02x:%02x",
+			r.Intn(256), r.Intn(256), r.Intn(256), r.Intn(256), r.Intn(256))
+	}
+
+	// Keep the first 3 bytes (OUI) and generate new last 3 bytes
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return fmt.Sprintf("%s:%s:%s:%02x:%02x:%02x",
+		parts[0], parts[1], parts[2],
+		r.Intn(256), r.Intn(256), r.Intn(256))
+}
+
 // CreatePort creates a network port with the specified parameters
 func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups []string) (*ports.Port, error) {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
@@ -82,24 +103,97 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		return nil, err
 	}
 
-	createOpts := ports.CreateOpts{
-		Name:           portName,
-		NetworkID:      networkID,
-		MACAddress:     macAddress,
-		SecurityGroups: &securityGroups,
-		AllowedAddressPairs: []ports.AddressPair{
-			{
-				IPAddress:  "0.0.0.0/0",
-				MACAddress: macAddress,
-			},
-		},
-	}
+	// Try to create port with the original MAC address first
+	originalMAC := macAddress
+	currentMAC := macAddress
+	maxRetries := 5
 
-	port, err := ports.Create(context.TODO(), client, createOpts).Extract()
-	if err != nil {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		createOpts := ports.CreateOpts{
+			Name:           portName,
+			NetworkID:      networkID,
+			MACAddress:     currentMAC,
+			SecurityGroups: &securityGroups,
+			AllowedAddressPairs: []ports.AddressPair{
+				{
+					IPAddress:  "0.0.0.0/0",
+					MACAddress: currentMAC,
+				},
+			},
+		}
+
+		port, err := ports.Create(context.TODO(), client, createOpts).Extract()
+		if err == nil {
+			// Success! Log if we had to change the MAC address
+			if currentMAC != originalMAC {
+				logger.Log.Infof("Port created successfully with modified MAC address: %s (original: %s)", currentMAC, originalMAC)
+			}
+			return port, nil
+		}
+
+		// Check if the error is due to MAC address conflict
+		if strings.Contains(err.Error(), "MacAddressInUse") {
+			logger.Log.Infof("MAC address %s is in use, generating new one (attempt %d/%d)", currentMAC, attempt+1, maxRetries)
+			currentMAC = generateNewMACAddress(originalMAC)
+			continue
+		}
+
+		// If it's not a MAC address conflict, return the error
 		logger.Log.Infof("Failed to create port: %v", err)
 		return nil, err
 	}
 
-	return port, nil
+	// If we've exhausted all retries, return an error
+	return nil, fmt.Errorf("failed to create port after %d attempts due to MAC address conflicts", maxRetries)
+}
+
+// WaitForPortStatus waits for a port to reach a specific status
+func WaitForPortStatus(client *gophercloud.ServiceClient, portID, status string, timeout int) error {
+	for i := 0; i < timeout; i++ {
+		port, err := ports.Get(context.TODO(), client, portID).Extract()
+		if err != nil {
+			// If port is not found, it might be deleted (which is what we want)
+			if status == "deleted" {
+				return nil
+			}
+			logger.Log.Infof("Failed to get port status: %v", err)
+			return err
+		}
+		if port.Status == status {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	logger.Log.Infof("Port %s did not reach status %s within the timeout", portID, status)
+	return fmt.Errorf("port %s did not reach status %s within the timeout", portID, status)
+}
+
+// DeletePort deletes a network port by ID
+func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
+	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create network client: %v", err)
+		return err
+	}
+
+	logger.Log.Infof("Deleting port %s...", portID)
+	err = ports.Delete(context.TODO(), client, portID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete port: %v", err)
+		return err
+	}
+
+	// Wait for port to be fully deleted to avoid MAC address conflicts
+	logger.Log.Infof("Waiting for port %s to be fully deleted...", portID)
+	err = WaitForPortStatus(client, portID, "deleted", 12) // 60 seconds timeout
+	if err != nil {
+		logger.Log.Infof("Port %s did not reach deleted status within timeout: %v", portID, err)
+		// Don't return error here as the port deletion might have succeeded
+		// but the status check failed due to timing issues
+	}
+
+	logger.Log.Infof("Port %s deleted successfully", portID)
+	return nil
 }
