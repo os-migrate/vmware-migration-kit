@@ -550,12 +550,45 @@ func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string) error {
 		return err
 	}
 
+	// Wait for volume to be in a deletable state (available or error)
+	// Volume status must be available or error or error_restoring or error_extending or error_managing
+	// and must not be migrating, attached, belong to a group, have snapshots, awaiting a transfer, or be disassociated from snapshots after volume transfer
+	logger.Log.Infof("Waiting for volume %s to be in deletable state...", volumeID)
+
+	// Check current volume status first
+	volume, err := volumes.Get(context.TODO(), client, volumeID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get volume status: %v", err)
+		return err
+	}
+
+	// If volume is already in a deletable state, proceed with deletion
+	if volume.Status == "available" || volume.Status == "error" || volume.Status == "error_restoring" ||
+		volume.Status == "error_extending" || volume.Status == "error_managing" {
+		logger.Log.Infof("Volume %s is in deletable state (%s), proceeding with deletion", volumeID, volume.Status)
+	} else {
+		logger.Log.Infof("Volume %s is in status '%s', waiting for it to become available or error...", volumeID, volume.Status)
+
+		// Wait for volume to become available (timeout: 60 seconds = 12 attempts * 5 seconds)
+		err = WaitForVolumeStatus(client, volumeID, "available", 12)
+		if err != nil {
+			// If it doesn't become available, try to wait for error status
+			logger.Log.Infof("Volume did not become available, trying to wait for error status...")
+			err = WaitForVolumeStatus(client, volumeID, "error", 12)
+			if err != nil {
+				logger.Log.Infof("Volume did not reach a deletable state within timeout: %v", err)
+				return fmt.Errorf("volume %s did not reach a deletable state within timeout", volumeID)
+			}
+		}
+	}
+
 	err = volumes.Delete(context.TODO(), client, volumeID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.Log.Infof("Failed to delete volume: %v", err)
 		return err
 	}
 
+	logger.Log.Infof("Volume %s deleted successfully", volumeID)
 	return nil
 }
 
