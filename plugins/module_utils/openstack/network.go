@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -104,6 +105,27 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 	return port, nil
 }
 
+// WaitForPortStatus waits for a port to reach a specific status
+func WaitForPortStatus(client *gophercloud.ServiceClient, portID, status string, timeout int) error {
+	for i := 0; i < timeout; i++ {
+		port, err := ports.Get(context.TODO(), client, portID).Extract()
+		if err != nil {
+			// If port is not found, it might be deleted (which is what we want)
+			if status == "deleted" {
+				return nil
+			}
+			logger.Log.Infof("Failed to get port status: %v", err)
+			return err
+		}
+		if port.Status == status {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	logger.Log.Infof("Port %s did not reach status %s within the timeout", portID, status)
+	return fmt.Errorf("port %s did not reach status %s within the timeout", portID, status)
+}
+
 // DeletePort deletes a network port by ID
 func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
@@ -114,11 +136,22 @@ func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
 		return err
 	}
 
+	logger.Log.Infof("Deleting port %s...", portID)
 	err = ports.Delete(context.TODO(), client, portID).ExtractErr()
 	if err != nil {
 		logger.Log.Infof("Failed to delete port: %v", err)
 		return err
 	}
 
+	// Wait for port to be fully deleted to avoid MAC address conflicts
+	logger.Log.Infof("Waiting for port %s to be fully deleted...", portID)
+	err = WaitForPortStatus(client, portID, "deleted", 12) // 60 seconds timeout
+	if err != nil {
+		logger.Log.Infof("Port %s did not reach deleted status within timeout: %v", portID, err)
+		// Don't return error here as the port deletion might have succeeded
+		// but the status check failed due to timing issues
+	}
+
+	logger.Log.Infof("Port %s deleted successfully", portID)
 	return nil
 }
