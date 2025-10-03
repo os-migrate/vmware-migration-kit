@@ -1,7 +1,7 @@
 # VMWare to Openstack tool kit
 
 This repository is a set of tools, Ansible and Python/Golang based for being able to migrate
-virtual machine from an ESXi/Vcenter environment to Openstack environment.
+virtual machine from an ESXi/Vcenter environment to Openstack environment's.
 
 The code used OS-Migrate Ansible collection in order to deploy conversion host and setup
 correctly the prerequistes in the Openstack destination cloud.
