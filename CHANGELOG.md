@@ -117,3 +117,22 @@ This minor release includes changelog update and support section in the README.m
 ## v2.0.5
 
 This minor release removes unused playbooks
+
+## v2.0.6
+
+This release is the latest minor release before cuting the dependency to Openstack.cloud.
+
+This release include new binaries and Gophercloud binding instead of Openstack.cloud modules.
+The Golang binaries has been reorg as well with correct documentation and Ansible-tests.
+
+## v2.0.7
+
+Minor release which removes unused import_image module and fix AEE push
+
+## v2.0.8
+
+- Fix bug when Vm name contains wrong chars
+
+## v2.0.9
+
+- Minor fix to create_instance task for AAP compatibility

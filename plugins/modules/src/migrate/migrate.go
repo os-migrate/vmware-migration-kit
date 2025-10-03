@@ -424,7 +424,8 @@ func main() {
 		response.Msg = "Failed to generate random string"
 		ansible.FailJson(response)
 	}
-	LogFile := "/tmp/osm-nbdkit-" + vmname + "-" + r + ".log"
+	safeVmName := moduleutils.SafeVmName(vmname)
+	LogFile := "/tmp/osm-nbdkit-" + safeVmName + "-" + r + ".log"
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
