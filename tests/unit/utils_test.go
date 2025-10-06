@@ -22,6 +22,8 @@ import (
 	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"fmt"
 	"io/fs"
+	"os/exec"
+    "strings"
 )
 
 // populating contents of a directory
@@ -207,5 +209,41 @@ func TestFindDevName_BrokenSymlink(t *testing.T) {
 	}
 	if err.Error() != "simulated EvalSymlinks error" {
 		t.Errorf("Expected 'simulated EvalSymlinks error', got %v", err)
+	}
+}
+
+func TestSafeVmName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"vm1", "vm1"},
+		{"vm-01", "vm_01"},
+		{"My VM", "My_VM"},
+		{"vm@#$%", "vm____"},
+		{"_already_ok_", "_already_ok_"},
+		{" ", "_"},
+		{"Mi-VM.2025", "Mi_VM_2025"},
+	}
+
+	for _, tt := range tests {
+		//Run each test in a subtest for better isolation and reporting
+		t.Run(tt.input, func(t *testing.T) {
+			result := moduleutils.SafeVmName(tt.input)
+			if result != tt.expected {
+				t.Errorf("SafeVmName(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+			//Verify it works in a shell command context	
+			cmd := exec.Command("echo", result)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("error executing command: %v", err)
+			}
+
+			output := strings.TrimSpace(string(out))
+			if output != result {
+				t.Errorf("exec output = %q; want %q", output, result)
+			}
+		})
 	}
 }
