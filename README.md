@@ -238,6 +238,34 @@ dst_cloud:
 ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @secrets.yml -e @myvars.yml
 ```
 
+#### OpenStack Flavor
+
+When using **VMware** as a source in **OS-Migrate**, there are several ways to handle the **flavor** for the resulting OpenStack instance.  
+Since VMware does not have a native flavor mechanism like OpenStack, OS-Migrate provides three approaches to manage this part:
+
+1. **Find the closest matching flavor**  
+   OS-Migrate will try to find the best matching flavor that fits the VM’s specifications.  
+   This can be enabled using the option:  
+   ```yaml
+   use_existing_flavor: true
+   ```  
+   If no flavor matches the VM’s specs, OS-Migrate will automatically create a new one.
+
+2. **Create a new flavor for the VM**  
+   OS-Migrate can create a dedicated flavor for each VM.  
+   The flavor name will follow this pattern:  
+   ```
+   osm-vmware-<vm_name>-<random_id>
+   ```  
+   Example: `osm-vmware-myvm-9999`
+
+3. **Provide a specific flavor UUID**  
+   You can also specify an existing flavor by providing its UUID:  
+   ```yaml
+   flavor_uuid: <your_flavor_uuid>
+   ```  
+   This option allows you to define custom properties on the flavor, which can be useful for **host aggregation** or **targeted placement** of instances on specific compute hosts.
+
 #### Using Change Block Tracking (CBT)
 
 The Change Block Tracking (CBT) option allows you to pre-synchronize the disk data and then synchronize only the blocks that have changed between the last execution and the current state of the disk.
