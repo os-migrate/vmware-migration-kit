@@ -102,13 +102,6 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		return nil, err
 	}
 
-	// Wait for port to become active
-	err = WaitForPortStatus(client, port.ID, "ACTIVE", 60) // 5 minutes timeout
-	if err != nil {
-		logger.Log.Infof("Failed to wait for port to become active: %v", err)
-		return nil, err
-	}
-
 	return port, nil
 }
 
