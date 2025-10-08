@@ -20,7 +20,7 @@ dependencies:
     package_system: "python3"
     python_path: "/usr/bin/python3"
 additional_build_files:
-  - src: ../os_migrate-vmware_migration_kit-2.0.6.tar.gz
+  - src: ../os_migrate-vmware_migration_kit-2.0.9.tar.gz
     dest: tmp/
 additional_build_steps:
   prepend_base:

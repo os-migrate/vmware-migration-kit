@@ -223,4 +223,13 @@ test-ansible-sanity:
 	deactivate
 	@$(MAKE) clean-venv
 
-tests: test-pytest test-ansible-sanity test-ansible-lint
+test-golangci-lint: check-root
+	@echo "*** Running golangci-lint in container ***"
+	$(CONTAINER_ENGINE) run --rm -t \
+		-v $(MOUNT_PATH) \
+		-w /code \
+		$(SECURITY_OPT) \
+		golangci/golangci-lint:v2.5.0 \
+		golangci-lint run --timeout 5m
+
+tests: test-pytest test-ansible-sanity test-ansible-lint test-golangci-lint

@@ -5,7 +5,6 @@ collections:
     version: 1.0.1
   - name: community.vmware
     version: 4.5.0
-  - name: community.general
   - name: os_migrate.vmware_migration_kit
     type: file
-    source: tmp/os_migrate-vmware_migration_kit-2.0.6.tar.gz
+    source: tmp/os_migrate-vmware_migration_kit-2.0.9.tar.gz
