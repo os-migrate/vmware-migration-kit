@@ -70,6 +70,7 @@ type ServerArgs struct {
 	Volumes        []string
 	SecurityGroups []string
 	Flavor         string
+	Timeout        int // Timeout in seconds for server creation (0 = no timeout)
 }
 
 type CinderManageConfig struct {
@@ -474,9 +475,20 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 	if err != nil {
 		return "", fmt.Errorf("failed to create server: %v", err)
 	}
-	err = servers.WaitForStatus(context.TODO(), client, server.ID, "ACTIVE")
+
+	// Create context with timeout if specified
+	var waitCtx context.Context
+	var cancel context.CancelFunc
+	if args.Timeout > 0 {
+		waitCtx, cancel = context.WithTimeout(context.Background(), time.Duration(args.Timeout)*time.Second)
+		defer cancel()
+	} else {
+		waitCtx = context.TODO()
+	}
+
+	err = servers.WaitForStatus(waitCtx, client, server.ID, "ACTIVE")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("server did not reach ACTIVE status: %v", err)
 	}
 	return server.ID, nil
 }

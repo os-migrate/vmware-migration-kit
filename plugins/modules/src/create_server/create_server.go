@@ -69,6 +69,7 @@ type ModuleArgs struct {
 	Flavor         string          `json:"flavor"`
 	KeyName        string          `json:"key_name"`
 	BootFromCinder bool            `json:"boot_from_cinder"`
+	Timeout        int             `json:"timeout"` // Timeout in seconds for server creation (default: 600)
 }
 
 type ModuleResponse struct {
@@ -150,6 +151,12 @@ func main() {
 			ansible.FailJson(response)
 		}
 
+		// Set default timeout if not specified
+		timeout := moduleArgs.Timeout
+		if timeout == 0 {
+			timeout = 600 // Default 10 minutes
+		}
+
 		ServerAgrs := osm_os.ServerArgs{
 			Name:           moduleArgs.Name,
 			Flavor:         moduleArgs.Flavor,
@@ -157,6 +164,7 @@ func main() {
 			SecurityGroups: moduleArgs.SecurityGroups,
 			Nics:           moduleArgs.Nics,
 			Volumes:        moduleArgs.Volumes,
+			Timeout:        timeout,
 		}
 		server, err := osm_os.CreateServer(provider, ServerAgrs)
 		if err != nil {
@@ -167,6 +175,12 @@ func main() {
 		return
 	}
 
+	// Set default timeout if not specified
+	timeout := moduleArgs.Timeout
+	if timeout == 0 {
+		timeout = 600 // Default 10 minutes
+	}
+
 	ServerAgrs := osm_os.ServerArgs{
 		Name:           moduleArgs.Name,
 		Flavor:         moduleArgs.Flavor,
@@ -174,6 +188,7 @@ func main() {
 		SecurityGroups: moduleArgs.SecurityGroups,
 		Nics:           moduleArgs.Nics,
 		Volumes:        moduleArgs.Volumes,
+		Timeout:        timeout,
 	}
 	server, err := osm_os.CreateServer(provider, ServerAgrs)
 	if err != nil {
