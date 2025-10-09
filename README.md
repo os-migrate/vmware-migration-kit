@@ -244,12 +244,12 @@ When using **VMware** as a source in **OS-Migrate**, there are several ways to h
 Since VMware does not have a native flavor mechanism like OpenStack, OS-Migrate provides three approaches to manage this part:
 
 1. **Find the closest matching flavor**  
-   OS-Migrate will try to find the best matching flavor that fits the VM’s specifications.  
+   OS-Migrate will try to find the best matching flavor that fits the VMs specifications.  
    This can be enabled using the option:  
    ```yaml
    use_existing_flavor: true
    ```  
-   If no flavor matches the VM’s specs, OS-Migrate will automatically create a new one.
+   If no flavor matches the VMs specs, OS-Migrate will automatically create a new one.
 
 2. **Create a new flavor for the VM**  
    OS-Migrate can create a dedicated flavor for each VM.  
