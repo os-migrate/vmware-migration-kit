@@ -32,8 +32,8 @@
       ansible.builtin.set_fact:
         guest_nic: >-
           {{ guest_nic | default([]) + [{
-                'vlan': mapped_vlan, 
-                'mac': vm_info_file[item].macaddress 
+                'vlan': mapped_vlan,
+                'mac': vm_info_file[item].macaddress
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       vars:

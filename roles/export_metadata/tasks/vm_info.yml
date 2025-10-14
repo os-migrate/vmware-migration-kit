@@ -42,9 +42,8 @@
 
 - name: Dump disk_info file
   ansible.builtin.copy:
-    content: "{{ {'disks': disk_info_raw.results | map(attribute='value') | list } | to_nice_json }}"
+    content: "{{ {'disks': disk_info_raw.results | map(attribute='value') | list} | to_nice_json }}"
     dest: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/disk_info.json"
     mode: '0644'
   delegate_to: localhost
   run_once: true
-
