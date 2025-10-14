@@ -1,16 +1,22 @@
-- name: Test flavor_info module against mock OpenStack
+# todo/ideas
+# - divide structure into: setup, running scenarios, cleanup
+# - tests: finding by id, listing all flavour, non existing flavours
+# - error conditions, failed auth, conection, maybe case sensitivity and special chars
+- name: Integration tests for flavor_info module against mock OpenStack
   hosts: localhost
   gather_facts: false
   vars:
     go_server_path: tests/integration/fake/openstack/srv.go
     server_url_file: /tmp/fake_os_url.txt
+    server_pid_file: /tmp/fake_os_server.pid
 
   tasks:
+# SETUP FOR FAKE SERVER
     - name: Start fake OpenStack server asynchronously
       ansible.builtin.command: go run "{{ go_server_path }}"
       args:
-        creates: "{{ server_url_file }}"
-      async: 10
+        creates: "{{ server_pid_file }}"
+      async: 30
       poll: 0
       register: fake_server_job
 
@@ -25,32 +31,42 @@
         src: "{{ server_url_file }}"
       register: fake_os_url_b64
 
-    - name: Read the server URL from the file
-      ansible.builtin.slurp:
-        src: "{{ server_url_file }}"
-      register: fake_os_url_b64
-
     - name: Set the server URL fact
       ansible.builtin.set_fact:
         fake_os_url: "{{ fake_os_url_b64['content'] | b64decode }}"
 
-    - name: Show the fake OpenStack URL
-      ansible.builtin.debug:
-        msg: "Fake OpenStack URL is {{ fake_os_url }}"
+    - name: Read the server PID from the file
+      ansible.builtin.slurp:
+        src: "{{ server_pid_file }}"
+      register: fake_os_pid_b64
 
-    - name: Call flavor_info against fake OpenStack
-      os_migrate.vmware_migration_kit.flavor_info:
-        cloud:
-          AuthURL: "{{ fake_os_url.stdout }}/v3"
-          Username: demo-user
-          Password: password
-          ProjectID: demo-id
-          ProjectName: demo
-          UserDomainName: default
-          RegionName: RegionOne
-        flavor_name: "small"
-      register: flavor_info
+    - name: Set the server PID fact
+      ansible.builtin.set_fact:
+        fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
 
-    - name: Show flavor_info result
-      ansible.builtin.debug:
-        var: flavor_info
+# TESTS SCENARIOS WIP/todo
+
+    - name: Run test scenarios
+      block:
+        - name: "TEST: find flavor by name"
+          ansible.builtin.debug:
+            msg: "TODO: Implement this test case"
+        - name: "TEST: non existent flavor"
+          ansible.builtin.debug:
+            msg: "TODO: Implement this test case"
+
+# CLEANUP
+
+      always:
+        - name: Stop fake OpenStack server
+          ansible.builtin.command: "kill {{ fake_os_pid }}"
+          changed_when: false
+          failed_when: false
+
+        - name: Clean URL and PID files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ server_url_file }}"
+            - "{{ server_pid_file }}"
