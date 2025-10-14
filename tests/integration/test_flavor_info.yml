@@ -1,26 +1,42 @@
-- hosts: localhost
-  gather_facts: no
+- name: Test flavor_info module against mock OpenStack
+  hosts: localhost
+  gather_facts: false
   vars:
     go_server_path: tests/integration/fake/openstack/srv.go
+    server_url_file: /tmp/fake_os_url.txt
 
   tasks:
     - name: Start fake OpenStack server asynchronously
       ansible.builtin.command: go run "{{ go_server_path }}"
+      args:
+        creates: "{{ server_url_file }}"
       async: 10
       poll: 0
       register: fake_server_job
 
-    - name: Wait for server URL to appear
-      ansible.builtin.pause:
-        seconds: 2
+    - name: Wait for the server URL file to be created
+      ansible.builtin.wait_for:
+        path: "{{ server_url_file }}"
+        state: present
+        timeout: 10
 
-    - name: Get the actual server URL from stdout
-      ansible.builtin.shell: "ps aux | grep fake_server/main.go | grep -v grep | head -1 | awk '{print $11}'"
-      register: fake_os_url
-      changed_when: false
+    - name: Read the server URL from the file
+      ansible.builtin.slurp:
+        src: "{{ server_url_file }}"
+      register: fake_os_url_b64
 
-    - ansible.builtin.debug:
-        msg: "Fake OpenStack URL is {{ fake_os_url.stdout }}"
+    - name: Read the server URL from the file
+      ansible.builtin.slurp:
+        src: "{{ server_url_file }}"
+      register: fake_os_url_b64
+
+    - name: Set the server URL fact
+      ansible.builtin.set_fact:
+        fake_os_url: "{{ fake_os_url_b64['content'] | b64decode }}"
+
+    - name: Show the fake OpenStack URL
+      ansible.builtin.debug:
+        msg: "Fake OpenStack URL is {{ fake_os_url }}"
 
     - name: Call flavor_info against fake OpenStack
       os_migrate.vmware_migration_kit.flavor_info:
@@ -35,5 +51,6 @@
         flavor_name: "small"
       register: flavor_info
 
-    - ansible.builtin.debug:
+    - name: Show flavor_info result
+      ansible.builtin.debug:
         var: flavor_info
