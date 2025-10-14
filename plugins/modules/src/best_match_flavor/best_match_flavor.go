@@ -39,16 +39,18 @@ type ModuleArgs struct {
 }
 
 type GuestInfo struct {
-	Instance struct {
-		HwProcessorCount int `json:"hw_processor_count"`
-		HwMemtotalMb     int `json:"hw_memtotal_mb"`
-	} `json:"instance"`
+	HwProcessorCount int `json:"hw_processor_count"`
+	HwMemtotalMb     int `json:"hw_memtotal_mb"`
+	HwFolder         string `json:"hw_folder,omitempty"`
+}
+
+
+type Disk struct {
+	Capacity int `json:"capacity"`
 }
 
 type DiskInfo struct {
-	GuestDiskInfo map[string]struct {
-		CapacityInKb int `json:"capacity_in_kb"`
-	} `json:"guest_disk_info"`
+	Disks []Disk `json:"disks"`
 }
 
 type Response struct {
@@ -89,15 +91,15 @@ func returnResponse(responseBody Response) {
 
 func getTotalDiskCapacity(diskInfo *DiskInfo) int {
 	totalCapacityKb := 0
-	for _, disk := range diskInfo.GuestDiskInfo {
-		totalCapacityKb += disk.CapacityInKb
+	for _, disk := range diskInfo.Disks {
+		totalCapacityKb += disk.Capacity
 	}
 	return totalCapacityKb / 1024 // Convert KB to MB
 }
 
 func flavorDistance(flavor *flavors.Flavor, guestInfo *GuestInfo, diskCapacityMb int) int {
-	vcpuDiff := int(math.Abs(float64(flavor.VCPUs - guestInfo.Instance.HwProcessorCount)))
-	ramDiff := int(math.Abs(float64(flavor.RAM - guestInfo.Instance.HwMemtotalMb)))
+	vcpuDiff := int(math.Abs(float64(flavor.VCPUs - guestInfo.HwProcessorCount)))
+	ramDiff := int(math.Abs(float64(flavor.RAM - guestInfo.HwMemtotalMb)))
 	diskDiff := int(math.Abs(float64(flavor.Disk - diskCapacityMb)))
 	return vcpuDiff + ramDiff + diskDiff
 }

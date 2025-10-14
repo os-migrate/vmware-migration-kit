@@ -1,9 +1,8 @@
 ---
 - name: Load metadata files
   ansible.builtin.set_fact:
-    vm_info: "{{ lookup('file', '{{ convert_metadata_vm_info_path }}') | from_json }}"
-    guest_info: "{{ lookup('file', '{{ convert_metadata_guest_info_path }}') | from_json }}"
-    disk_info: "{{ lookup('file', '{{ convert_metadata_disk_info_path }}') | from_json }}"
+    guest_info: "{{ lookup('file', convert_metadata_guest_info_path) | from_json }}"
+    disk_info: "{{ lookup('file', convert_metadata_disk_info_path) | from_json }}"
 
 - name: Get best matches for flavors
   os_migrate.vmware_migration_kit.best_match_flavor:
@@ -16,12 +15,6 @@
 - name: Set fact for flavor
   ansible.builtin.set_fact:
     flavor_name_or_uuid: "{{ flavor_name.openstack_flavor_uuid | default('osm-vmware-{}-{}'.format(vm_name, 9999 | random)) }}"
-  when: flavor_uuid is not defined
-
-- name: Set fact for existing flavor
-  ansible.builtin.set_fact:
-    flavor_name_or_uuid: "{{ flavor_uuid }}"
-  when: flavor_uuid is defined
 
 - name: Export flavor
   os_migrate.vmware_migration_kit.export_flavor:
@@ -58,6 +51,6 @@
       {
         "vm_name": "{{ vm_import.vm_name }}",
         "openstack": {{ vm_import.openstack | to_json }},
-        "vmware_guest_info": {{ guest_info.instance | combine(vm_import.vmware_guest_info) | to_json }},
+        "vmware_guest_info": {{ guest_info | combine(vm_import.vmware_guest_info) | to_json }},
         "migration": {{ vm_import.migration | to_json }}
       }
