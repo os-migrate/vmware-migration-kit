@@ -44,7 +44,9 @@ func NewFakeServer() *FakeServer {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"version":{"id":"v3.0","status":"stable"}}`))
+		if _, err := w.Write([]byte(`{"version":{"id":"v3.0","status":"stable"}}`)); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	})
 
 	// Keystone auth + catalog
@@ -84,7 +86,9 @@ func NewFakeServer() *FakeServer {
 				},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			log.Printf("Error encoding tokens response: %v", err)
+		}
 	})
 
 	// flavors list
@@ -100,13 +104,17 @@ func NewFakeServer() *FakeServer {
 				"disk":  f.Disk,
 			})
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavorsList})
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavorsList}); err != nil {
+			log.Printf("Error encoding flavors list: %v", err)
+		}
 	})
 
 	// flavors/detail
 	mux.HandleFunc("/v2.1/demo-id/flavors/detail", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"flavors": fakeFlavors})
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": fakeFlavors}); err != nil {
+			log.Printf("Error encoding flavors detail: %v", err)
+		}
 	})
 
 	// flavor get by ID
@@ -115,7 +123,9 @@ func NewFakeServer() *FakeServer {
 		id := r.URL.Path[len("/v2.1/demo-id/flavors/"):]
 		for _, f := range fakeFlavors {
 			if f.ID == id {
-				json.NewEncoder(w).Encode(map[string]interface{}{"flavor": f})
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{"flavor": f}); err != nil {
+					log.Printf("Error encoding flavor by ID: %v", err)
+				}
 				return
 			}
 		}
@@ -143,4 +153,3 @@ func main() {
 	// Keep the server running
 	select {}
 }
-
