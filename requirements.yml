@@ -5,3 +5,7 @@ collections:
     version: ">=0.0.1"
   - name: community.vmware
     version: ">=1.0.0"
+  - name: vmware.vmware
+    version: ">=2.4.0"
+  - name: vmware.vmware_rest
+    version: ">=4.9.0"
