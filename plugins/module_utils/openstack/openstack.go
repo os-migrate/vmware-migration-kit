@@ -177,6 +177,26 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
 }
 
+func WaitForServerStatus(client *gophercloud.ServiceClient, serverID, status string, timeout int) error {
+	for i := 0; i < timeout; i++ {
+		server, err := servers.Get(context.TODO(), client, serverID).Extract()
+		if err != nil {
+			logger.Log.Infof("Failed to get server status: %v", err)
+			return err
+		}
+		if server.Status == "ERROR" {
+			logger.Log.Infof("Server %s entered ERROR state", serverID)
+			return fmt.Errorf("server %s entered ERROR state", serverID)
+		}
+		if server.Status == status {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	logger.Log.Infof("Server %s did not reach status %s within the timeout", serverID, status)
+	return fmt.Errorf("server %s did not reach status %s within the timeout", serverID, status)
+}
+
 func UpdateVolumeMetadata(client *gophercloud.ProviderClient, volumeID string, metadata map[string]string) error {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
@@ -474,7 +494,7 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 	if err != nil {
 		return "", fmt.Errorf("failed to create server: %v", err)
 	}
-	err = servers.WaitForStatus(context.TODO(), client, server.ID, "ACTIVE")
+	err = WaitForServerStatus(client, server.ID, "ACTIVE", 3000)
 	if err != nil {
 		return "", err
 	}
