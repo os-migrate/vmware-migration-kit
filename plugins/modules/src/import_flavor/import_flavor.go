@@ -25,6 +25,7 @@ import (
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 
+	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
 	"gopkg.in/yaml.v3"
@@ -57,9 +58,9 @@ type CreatedFlavor struct {
 
 // ModuleResponse is returned to Ansible
 type ModuleResponse struct {
-	Changed       bool          `json:"changed"`
-	Failed        bool          `json:"failed"`
-	Msg           string        `json:"msg,omitempty"`
+	Changed       bool           `json:"changed"`
+	Failed        bool           `json:"failed"`
+	Msg           string         `json:"msg,omitempty"`
 	CreatedFlavor *CreatedFlavor `json:"created_flavor,omitempty"`
 }
 
@@ -120,7 +121,7 @@ func main() {
 	}
 
 	// Create Compute client
-	computeClient, err := openstack.NewComputeV2(provider, openstack.EndpointOpts{
+	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: moduleArgs.Cloud.RegionName,
 	})
 	if err != nil {
@@ -176,9 +177,9 @@ func main() {
 		Name:       flavorRes.Name,
 		RAM:        flavorRes.RAM,
 		VCPUs:      flavorRes.VCPUs,
-		Disk:       flavorRes.Disk,
-		Ephemeral:  flavorRes.Ephemeral,
-		Swap:       flavorRes.Swap,
+		Disk:       &flavorRes.Disk,
+		Ephemeral:  &flavorRes.Ephemeral,
+		Swap:       &flavorRes.Swap,
 		RxTxFactor: flavorRes.RxTxFactor,
 		IsPublic:   &flavorRes.IsPublic,
 	}
