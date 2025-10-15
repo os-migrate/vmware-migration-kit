@@ -6,6 +6,7 @@
   hosts: localhost
   gather_facts: false
   vars:
+  #  Path to the fake OpenStack server implementation
     go_server_path: tests/integration/fake/openstack/srv.go
     server_url_file: /tmp/fake_os_url.txt
     server_pid_file: /tmp/fake_os_server.pid
@@ -30,6 +31,7 @@
       ansible.builtin.slurp:
         src: "{{ server_url_file }}"
       register: fake_os_url_b64
+      failed_when: fake_os_url_b64.rc != 0
 
     - name: Set the server URL fact
       ansible.builtin.set_fact:
@@ -39,6 +41,7 @@
       ansible.builtin.slurp:
         src: "{{ server_pid_file }}"
       register: fake_os_pid_b64
+      failed_when: fake_os_pid_b64.rc != 0
 
     - name: Set the server PID fact
       ansible.builtin.set_fact:
@@ -48,19 +51,52 @@
 
     - name: Run test scenarios
       block:
-        - name: "TEST: find flavor by name"
+        - name: "TEST01: find flavor by name"
           ansible.builtin.debug:
-            msg: "TODO: Implement this test case"
-        - name: "TEST: non existent flavor"
+            msg: "TODO"
+        - name: "TEST02: find flavor by ID"
           ansible.builtin.debug:
-            msg: "TODO: Implement this test case"
+            msg: "TODO"
+        - name: "TEST03: list all flavors"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST04: non-existent flavor by name"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST05: invalid credentials"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST06: empty flavor name"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST07: verify flavor properties"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST08: loop through multiple flavors"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST09: verify detailed flavor properties"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST10: case sensitivity test"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST11: special characters in flavor name"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST12: connection failure"
+          ansible.builtin.debug:
+            msg: "TODO"
+        - name: "TEST13: all flavour with pagination"
+          ansible.builtin.debug:
+            msg: "TODO"
 
 # CLEANUP
 
       always:
         - name: Stop fake OpenStack server
           ansible.builtin.command: "kill {{ fake_os_pid }}"
-          changed_when: false
+          changed_when: true
           failed_when: false
 
         - name: Clean URL and PID files
