@@ -84,6 +84,7 @@ def get_total_disk_capacity(disk_info):
     total_gb = total_bytes / (1024 ** 3)
     return total_gb
 
+
 def run_module():
     module_args = dict(
         path=dict(type="str", required=True),
