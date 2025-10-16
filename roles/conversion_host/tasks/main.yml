@@ -60,9 +60,7 @@
     url: "{{ conversion_host_vmware_vix_disklib_url }}/{{ conversion_host_vmware_vix_disklib }}"
     dest: "/tmp/{{ conversion_host_vmware_vix_disklib }}"
     mode: "0644"
-  when:
-    - vmware_vix_disklib_installed.rc != 0
-    - libdir is not defined or not libdir.stat.exists
+  when: vmware_vix_disklib_installed.rc != 0 and (libdir is not defined or not libdir.stat.exists)
 
 - name: Install VMware VIX DiskLib
   ansible.builtin.dnf:
@@ -70,9 +68,7 @@
     state: present
     disable_gpg_check: true
     use_backend: dnf4
-  when:
-    - vmware_vix_disklib_installed.rc != 0
-    - libdir is not defined or not libdir.stat.exists
+  when: vmware_vix_disklib_installed.rc != 0 and (libdir is not defined or not libdir.stat.exists)
 
 - name: Check if virt-v2v-in-place exists in libexec
   ansible.builtin.stat:
