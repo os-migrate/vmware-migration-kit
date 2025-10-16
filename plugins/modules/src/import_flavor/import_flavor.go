@@ -30,8 +30,31 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
 	"gopkg.in/yaml.v3"
 )
-
-// FlavorResource represents only the essential flavor parameters
+/*This is the structure of the flavor file:		 
+	{
+        "os_migrate_version": "1.0.1",
+        "resources": [
+            {
+                "_info": {"id": None, "is_disabled": False},
+                "_migration_params": {},
+                "params": {
+                    "description": None,
+                    "disk": int(total_disk_capacity_gb),
+                    "ephemeral": 0,
+                    "extra_specs": {},
+                    "is_public": True,
+                    "name": flavor_name,
+                    "ram": ram,
+                    "rxtx_factor": 1.0,
+                    "swap": 0,
+                    "vcpus": vcpu,
+                },
+                "type": "openstack.compute.Flavor",
+            }
+        ],
+    }
+*/
+// FlavorResource represents only the params part of the flavor
 type FlavorResource struct {
 	Name        string  `yaml:"name"`
 	RAM         int     `yaml:"ram"`
@@ -44,7 +67,7 @@ type FlavorResource struct {
 	Description string  `yaml:"description"`
 }
 
-// ModuleArgs defines JSON arguments passed to the module
+// ModuleArgs defines JSON args passed to the module
 type ModuleArgs struct {
 	Cloud       osm_os.DstCloud `json:"cloud"`
 	FlavorsFile string          `json:"flavors_file"`
@@ -136,7 +159,7 @@ func main() {
 		fail("Failed to read flavors file: " + err.Error())
 	}
 
-	// Parse only the 'params' of the first resource
+	// Parse only the 'params' of the resource
 	var raw struct {
 		Resources []struct {
 			Params FlavorResource `yaml:"params"`
@@ -146,7 +169,7 @@ func main() {
 		logger.Log.Infof("Failed to parse flavors YAML: " + err.Error())
 		fail("Failed to parse flavors YAML: " + err.Error())
 	}
-
+	//Verify that at least one flavor is present
 	if len(raw.Resources) == 0 {
 		fail("No flavors found in the YAML file")
 	}
@@ -160,7 +183,7 @@ func main() {
 		logger.Log.Infof("Failed to list flavors: " + err.Error())
 		fail("Failed to list flavors: " + err.Error())
 	}
-
+	//Extract existing flavors into a map for easy lookup
 	allFlavors, _ := flavors.ExtractFlavors(allPages)
 	existing := make(map[string]string)
 	for _, f := range allFlavors {
