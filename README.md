@@ -29,7 +29,9 @@ The Ansible collection provides different steps to scale your migration from VMW
   - [Migration demo from an AEE](#migration-demo-from-an-aee)
   - [Running migration](#running-migration)
     - [Conversion host setup](#conversion-host-setup)
+    - [VMWare VDDK Setup](#vmware-vddk-setup)
     - [Inventory, Variables files and Ansible command](#inventory-variables-files-and-ansible-command)
+    - [OpenStack flavors](#openstack-flavor)
     - [Using Change Block Tracking (CBT)](#using-change-block-tracking-cbt)
 - [VMware ACLs requirements](#vmware-acls-requirements)
 - [Network requirements](#network-requirements)
@@ -41,6 +43,13 @@ The Ansible collection provides different steps to scale your migration from VMW
   - [Ansible configuration](#ansible-configuration)
   - [Running Migration outside of Ansible](#running-migration-outside-of-ansible)
   - [Enable Debugging Flags During Migration](#enable-debugging-flags-during-migration)
+- [Troubleshooting](#troubleshooting)
+  - [Connectivity from Conversion Host to VMware](#connectivity-from-conversion-host-to-vmware)
+  - [Collection Installation](#collection-installation)
+  - [vCenter User Permissions](#vcenter-user-permissions)
+  - [Guest Requirements](#guest-requirements)
+  - [Conversion Host requirements](#conversion-host-requirements)
+  - [Debugging tips](#debugging-tips)
 - [Support](#support)
 - [Licence](#licence)
 
@@ -158,6 +167,28 @@ openstack server create --flavor x.medium --image 14b1a895-5003-4396-888e-1fa55c
   --key-name default --network private   vmware-conv-host
 openstack server add floating ip vmware-conv-host 192.168.18.205
 ```
+
+#### VMware VDDK setup
+
+##### Download and extract the VMware VDDK
+
+1. In a browser, navigate to the [VMware VDDK version 8 download page](https://developer.vmware.com/web/dp/tool/vddk).
+2. Select **version 8.0.1** and click **Download**.
+
+> **Note:**
+> We support migration from **version 8.0.0** and later
+
+3. Save the VDDK archive file in a temporary directory.
+4. Extract the VDDK archive:
+
+   ```bash
+   tar -xzf VMware-vix-disklib-<version>.x86_64.tar.gz
+
+5. You can now specified the lib path via the variable `conversion_host_vmware_vix_disklib`. By default
+the lib path point to: /usr/lib/vmware-vix-disklib
+
+> **Note:**
+> If you want to skip the conversion_host role, you can use the variable: `import_workloads_libdir` instead.
 
 #### Inventory, Variables files and Ansible command
 
@@ -552,6 +583,175 @@ This can be done by setting:
 ```
 import_workloads_debug: true
 ```
+
+## Troubleshooting
+
+### Connectivity from Conversion Host to VMware
+
+Ensure network and name resolution are properly configured before running migrations.
+
+- **Port 902** (used for vSphere data transfer) must be reachable from the conversion host:
+  ```bash
+  curl -v telnet://<vcenter_ip>:902
+  # or
+  nc -zv <vcenter_ip> 902
+  ```
+  The connection should succeed.
+
+- **vCenter FQDN resolution**
+  The vCenter hostname must be resolvable by the conversion host.
+  If necessary, update `/etc/hosts`:
+  ```bash
+  echo "<vcenter_ip> vcenter.domain.local" | sudo tee -a /etc/hosts
+  ```
+
+  Example of a related error message:
+  ```
+  Host address lookup for server wmdinfesx907.mas.gov.sg failed: Name or service not known
+  ```
+
+- **OpenStack API resolution**
+  Similarly, ensure the OpenStack API endpoint is resolvable, using `/etc/hosts` if needed.
+
+
+### Collection Installation
+
+Proper installation of the Ansible collection and supporting binaries is critical for successful migrations.
+
+- **Installation source**
+  - Always install from a tagged release version (e.g. `v2.0.9`) instead of `latest`.
+  - When using **Ansible Automation Platform / AEE**, prefer installation via Automation Hub using the release tag.
+
+- **Binaries**
+  - Ensure that the binaries (e.g. `vmware-migration` tools) are present in the collection path.
+  - If the collection was installed using `ansible-galaxy collection install` or via a Git clone, verify binaries are included.
+    In AEE, binaries should already be present.
+
+- **Architecture mismatch**
+  - If you encounter:
+    ```
+    AnsiballZ_migrate: cannot execute binary file: Exec format error
+    ```
+    It indicates an architecture mismatch.
+    Check the binary type:
+    ```bash
+    file <binary>
+    ```
+    Ensure it matches your conversion host architecture (`x86_64`, `arm64`, etc.).
+
+
+### vCenter User Permissions
+
+Ensure that the VMware user used for migration has the correct privileges.
+
+- Refer to the ACL requirements documented here:
+  [VMware ACLs Requirements](https://github.com/os-migrate/vmware-migration-kit?tab=readme-ov-file#vmware-acls-requirements)
+
+- **User selection rule:**
+  - If the migration target IP corresponds to a **vCenter**, use a **vCenter user**.
+  - If the target IP corresponds to a **standalone ESXi host**, use an **ESXi user**.
+
+### Guest Requirements
+
+Before migration, ensure guest configuration is compatible with the conversion process.
+
+- **Persistent disks**
+  - All VM disks must be configured as *persistent* (default for most VMware disks).
+
+- **Consolidate disks**
+  - The disks should in a correct state: no alarms and consolidated.
+
+- **Supported filesystems**
+  - The conversion host must support the filesystem used by the guest OS.
+  - If not, use an alternative conversion host that supports it (e.g., use **Fedora** for `btrfs`).
+
+
+### Conversion Host Requirements
+
+The conversion host is responsible for reading VMware disks and converting them to OpenStack volumes.
+
+- **Dependencies**
+  - Ensure `vmware-vix-disklib-8.0.0` is installed and properly configured.
+
+- **Metadata service**
+  - Verify that the OpenStack metadata service is reachable.
+    Typical error when not reachable:
+    ```
+    Failed to fetch metadata: Get "http://169.254.169.254/openstack/latest/meta_data.json": dial tcp 169.254.169.254:80: connect: no route to host
+    ```
+
+  - **Workaround:**
+    Use a manual instance UUID in the import playbook:
+    ```yaml
+    import_workloads_instance_uuid: <uuid>
+    ```
+
+
+### Debugging Tips
+
+#### NBDKit Errors
+
+If you encounter an error such as:
+```
+nbdkit: error: server has no export named '': No such file or directory
+```
+
+This error can have multiple root causes. Start by reviewing the Red Hat Knowledge Base article:
+[https://access.redhat.com/solutions/7127535](https://access.redhat.com/solutions/7127535)
+
+Common causes include:
+1. Port 902 not open between conversion host and vCenter.
+2. vCenter FQDN not resolvable.
+3. Malformed `nbdkit` command (invalid characters or parameters).
+
+
+#### Manual Debug Procedure
+
+In the `migrate.log`, you will find both the `nbdkit` and `nbdcopy` commands used during migration.
+You can replay these manually for troubleshooting.
+
+##### Step 1 – Run `nbdkit` manually
+- Run the command displayed in the logs with:
+  - `--verbose` option.
+  - Double quotes around the VMDK path.
+  ```bash
+  nbdkit --verbose vddk ".../guest-00001.vmdk"
+  ```
+
+- If the migration snapshot has been deleted, remove the snapshot option in the command.
+  `nbdkit` will then attempt to consume the base disk directly.
+
+##### Step 2 – Run `nbdcopy` in another shell
+- Open a second terminal and run the `nbdcopy` command as shown in the logs.
+- Observe the output from `nbdkit`. You should see a line ending with:
+  ```
+  vddk: config_complete.
+  ```
+
+##### Step 3 – Analyze authentication & paths
+- At this point, authentication is **already verified** by the migration process.
+- The VMDK path should be valid and provided by VMware API itself:
+  ```
+  [Datastore 1] path/to/the/guest-00001.vmdk
+  ```
+
+##### Step 4 – Migration log insights
+- The log entry:
+  ```
+  volume not found
+  ```
+  is informational.
+  It indicates that the destination volume (Cinder) does not exist yet and will be created during migration.
+
+- If the volume already exists:
+  - Set `import_workloads_cbt_sync: true` to perform delta synchronization.
+  - If `import_workloads_cutover: false`, the migration will only sync changes.
+  - If `import_workloads_cutover: true`, the final conversion will be executed.
+
+### Summary
+
+By ensuring correct connectivity, installation, user ACLs, and host setup, most migration issues can be avoided.
+For persistent or unclear errors, reproduce the NBDKit and NBDCopy commands manually as described above to isolate the issue.
 
 ## Support
 

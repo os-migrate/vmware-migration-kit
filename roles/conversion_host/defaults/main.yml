@@ -2,3 +2,4 @@ conversion_host_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
 # Change this to the correct official repository URL
 conversion_host_vmware_vix_disklib_url: https://repo.storware.eu/vprotect/current/el9/
 conversion_host_vmware_vix_disklib: vmware-vix-disklib-8.0.0-20521017.el9.x86_64.rpm
+conversion_host_vmware_lib_dir: /usr/lib/vmware-vix-disklib
