@@ -41,13 +41,17 @@
 - name: Check if libdir is set and exists
   ansible.builtin.stat:
     path: "{{ conversion_host_vmware_lib_dir }}"
-  register: libdir
+  register: libdir_result
   ignore_errors: true
 
 - name: Fail if libdir path does not exist on the conversion host
   ansible.builtin.fail:
     msg: "The libdir {{ import_workloads_libdir }} does not exist on the conversion host."
-  when: not libdir.stat.exists
+  when: not libdir_result.stat.exists
+
+- name: Set libdir fact
+  ansible.builtin.set_fact:
+    libdir: "{{ libdir_result.stat.path }}"
 
 - name: Check if virt-v2v-in-place exists in libexec
   ansible.builtin.stat:
