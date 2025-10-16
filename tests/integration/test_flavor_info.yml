@@ -1,3 +1,4 @@
+---
 - name: Integration tests for flavor_info module against mock OpenStack
   hosts: localhost
   gather_facts: false
@@ -15,51 +16,68 @@
       project_domain_name: "default"
       region_name: "RegionOne"
   tasks:
-# SETUP FOR FAKE SERVER
-    - name: Start fake OpenStack server asynchronously
-      ansible.builtin.command: go run "{{ go_server_path }}"
-      args:
-        creates: "{{ server_pid_file }}"
-      async: 30
-      poll: 0
-      register: fake_server_job
+    # SETUP FOR FAKE SERVER
+    - name: Setup fake OpenStack server
+      tags: setup
+      block:
+        - name: Start fake OpenStack server asynchronously
+          ansible.builtin.command: go run "{{ go_server_path }}"
+          args:
+            creates: "{{ server_pid_file }}"
+          async: 30
+          poll: 0
+          register: fake_server_job
 
-    - name: Wait for the server URL file to be created
-      ansible.builtin.wait_for:
-        path: "{{ server_url_file }}"
-        state: present
-        timeout: 10
+        - name: Wait for the server URL file to be created
+          ansible.builtin.wait_for:
+            path: "{{ server_url_file }}"
+            state: present
+            timeout: 10
 
-    - name: Read the server URL from the file
-      ansible.builtin.slurp:
-        src: "{{ server_url_file }}"
-      register: fake_os_url_b64
-      failed_when: fake_os_url_b64.rc != 0
+        - name: Read the server URL from the file
+          ansible.builtin.slurp:
+            src: "{{ server_url_file }}"
+          register: fake_os_url_b64
+          failed_when: fake_os_url_b64.rc != 0
 
-    - name: Set the server URL fact
-      ansible.builtin.set_fact:
-        fake_os_url: "{{ fake_os_url_b64['content'] | b64decode }}"
+        - name: Set the server URL fact
+          ansible.builtin.set_fact:
+            fake_os_url: "{{ fake_os_url_b64['content'] | b64decode }}"
 
-    - name: Read the server PID from the file
-      ansible.builtin.slurp:
-        src: "{{ server_pid_file }}"
-      register: fake_os_pid_b64
-      failed_when: fake_os_pid_b64.rc != 0
+        - name: Read the server PID from the file
+          ansible.builtin.slurp:
+            src: "{{ server_pid_file }}"
+          register: fake_os_pid_b64
+          failed_when: fake_os_pid_b64.rc != 0
 
-    - name: Set the server PID fact
-      ansible.builtin.set_fact:
-        fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
-# TESTS SCENARIOS WIP
+        - name: Set the server PID fact
+          ansible.builtin.set_fact:
+            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+    # TESTS SCENARIOS WIP
     - name: Run test scenarios
+      tags: tests
       block:
         - name: "TEST01: Find flavors by name with detailed property check"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_name: "{{ item.name }}"
           loop:
-            - { name: 'small', id: '1', ram: 2048, vcpus: 1, disk: 20 }
-            - { name: 'medium', id: '2', ram: 4096, vcpus: 2, disk: 40 }
-            - { name: 'large', id: '3', ram: 8192, vcpus: 4, disk: 80 }
+            loop:
+              - name: 'small'
+                id: '1'
+                ram: 2048
+                vcpus: 1
+                disk: 20
+              - name: 'medium'
+                id: '2'
+                ram: 4096
+                vcpus: 2
+                disk: 40
+              - name: 'large'
+                id: '3'
+                ram: 8192
+                vcpus: 4
+                disk: 80
           register: result_by_name
         - name: "ASSERT: All flavors found by name have correct properties"
           ansible.builtin.assert:
@@ -72,13 +90,16 @@
           loop: "{{ result_by_name.results }}"
 
         - name: "TEST02: Find flavors by ID"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_id: "{{ item.id }}"
           loop:
-            - { id: '1', name: 'small' }
-            - { id: '2', name: 'medium' }
-            - { id: '3', name: 'large' }
+            - id: '1'
+              name: 'small'
+            - id: '2'
+              name: 'medium'
+            - id: '3'
+              name: 'large'
           register: result_by_id
         - name: "ASSERT: All flavors were found correctly by ID"
           ansible.builtin.assert:
@@ -89,7 +110,7 @@
           loop: "{{ result_by_id.results }}"
 
         - name: "TEST03: List all flavors"
-          os_migrate.vmware_migration_kit.flavor_info:
+          oos_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
           register: result_all_flavors
         - name: "ASSERT: All three flavors were returned"
@@ -98,7 +119,7 @@
               - "result_all_flavors.flavors | length == 3"
 
         - name: "TEST04: non-existent flavor by name"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_name: "non-existent-flavor"
           register: result_non_existent
@@ -108,8 +129,12 @@
               - "result_non_existent.flavors | length == 0"
 
         - name: "TEST05: Invalid credentials"
-          os_migrate.vmware_migration_kit.flavor_info:
-            cloud: "{{ cloud_config | combine({'password': 'wrong-password'}) }}"
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
+            cloud: >-
+              {{
+                cloud_config |
+                combine({'password': 'wrong-password'})
+              }}
           register: result_bad_auth
           failed_when: false
         - name: "ASSERT: Invalid credentials cause an authentication error"
@@ -119,7 +144,7 @@
               - "'authentication failed' in result_bad_auth.msg | lower"
 
         - name: "TEST06: empty flavor name"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_name: ""
           register: result_empty_name
@@ -129,13 +154,16 @@
               - "result_empty_name.flavors | length == 0"
 
         - name: "TEST07: Case sensitivity test by name"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_name: "{{ item.input_name }}"
           loop:
-            - { input_name: 'Small', expected_name: 'small' }
-            - { input_name: 'Medium', expected_name: 'medium' }
-            - { input_name: 'Large', expected_name: 'large' }
+            - input_name: 'Small'
+              expected_name: 'small'
+            - input_name: 'Medium'
+              expected_name: 'medium'
+            - input_name: 'Large'
+              expected_name: 'large'
           register: result_case
         - name: "ASSERT: Case-insensitive search finds the correct flavor"
           ansible.builtin.assert:
@@ -144,23 +172,32 @@
           loop: "{{ result_case.results }}"
 
         - name: "TEST08: All flavors with leading/trailing whitespace"
-          os_migrate.vmware_migration_kit.flavor_info:
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
             flavor_name: "{{ item.input_name }}"
           loop:
-            - { input_name: ' small ', expected_name: 'small' }
-            - { input_name: ' medium ', expected_name: 'medium' }
-            - { input_name: ' large ', expected_name: 'large' }
+            - input_name: ' small '
+              expected_name: 'small'
+            - input_name: ' medium '
+              expected_name: 'medium'
+            - input_name: ' large '
+              expected_name: 'large'
           register: result_whitespace
-        - name: "ASSERT: Leading/trailing whitespace is trimmed correctly for all flavors"
+        - name: >-
+            ASSERT: Leading/trailing whitespace is trimmed
+            correctly for all flavors
           ansible.builtin.assert:
             that:
               - "item.flavors[0].name == item.item.expected_name"
           loop: "{{ result_whitespace.results }}"
 
         - name: "TEST09: Connection failure"
-          os_migrate.vmware_migration_kit.flavor_info:
-            cloud: "{{ cloud_config | combine({'auth_url': 'http://127.0.0.1:12345'}) }}"
+          os_migrate_vmware.vmware_migration_kit.flavor_info:
+            cloud: >-
+              {{
+                cloud_config |
+                combine({'auth_url': 'http://127.0.0.1:12345'})
+              }}
           register: result_connection_fail
           failed_when: false
         - name: "ASSERT: Connection failure produces the correct error message"
@@ -168,9 +205,10 @@
             that:
               - "result_connection_fail.failed"
               - "'connection refused' in result_connection_fail.msg | lower"
-# CLEANUP
+      # CLEANUP
       always:
         - name: Stop fake OpenStack server
+          tags: cleanup
           ansible.builtin.command: "kill {{ fake_os_pid }}"
           changed_when: false
           failed_when: false
