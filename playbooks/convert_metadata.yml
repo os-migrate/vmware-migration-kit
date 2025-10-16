@@ -18,16 +18,19 @@
         import_workloads_path: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/import_workloads.json"
 
     - name: Import flavors from YAML
-      os_migrate.vmware_migration_kit.import_flavors:
+      os_migrate.vmware_migration_kit.import_flavor:
         cloud: "{{ dst_cloud }}"
-        flavors_file: "{{ os_migrate_data_dir }}/flavors.yml"
+        flavors_file: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
       register: imported_flavors
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm_name
       when: create_flavor
 
     - name: Show imported flavor IDs
       debug:
         var: imported_flavors
-        
+
 - name: Sync to conversion host
   hosts: conversion_host
   vars:
