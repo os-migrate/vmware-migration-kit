@@ -19,9 +19,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
 )
@@ -37,9 +39,10 @@ var fakeFlavors = []flavors.Flavor{
 	{ID: "3", Name: "large", RAM: 8192, VCPUs: 4, Disk: 80},
 }
 
-var muxServerURL string
+// var muxServerURL string
 
 func NewFakeServer() *FakeServer {
+	fs := &FakeServer{}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +80,7 @@ func NewFakeServer() *FakeServer {
 						"endpoints": []map[string]interface{}{
 							{
 								"region":    "RegionOne",
-								"url":       muxServerURL + "/v2.1/demo-id",
+								"url":       fs.URL + "/v2.1/demo-id",
 								"interface": "public",
 								"id":        "fake-compute-endpoint",
 							},
@@ -131,15 +134,20 @@ func NewFakeServer() *FakeServer {
 		}
 		http.NotFound(w, r)
 	})
+	fs.server = httptest.NewServer(mux)
+	fs.URL = fs.server.URL
+	log.Println("Fake OpenStack server running at:", fs.URL)
 
-	s := httptest.NewServer(mux)
-	muxServerURL = s.URL
-	log.Println("Fake OpenStack server running at:", s.URL)
-
-	return &FakeServer{
-		URL:    s.URL,
-		server: s,
+	if err := os.WriteFile("/tmp/fake_os_url.txt", []byte(fs.URL), 0644); err != nil {
+		log.Fatalf("Failed to write URL file: %v", err)
 	}
+
+	pid := os.Getpid()
+	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
+		log.Fatalf("Failed to write PID file: %v", err)
+	}
+
+	return fs
 }
 
 func (f *FakeServer) Close() {

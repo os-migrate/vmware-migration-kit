@@ -38,7 +38,6 @@
           ansible.builtin.slurp:
             src: "{{ server_url_file }}"
           register: fake_os_url_b64
-          failed_when: fake_os_url_b64.rc != 0
 
         - name: Set the server URL fact
           ansible.builtin.set_fact:
@@ -48,7 +47,6 @@
           ansible.builtin.slurp:
             src: "{{ server_pid_file }}"
           register: fake_os_pid_b64
-          failed_when: fake_os_pid_b64.rc != 0
 
         - name: Set the server PID fact
           ansible.builtin.set_fact:
