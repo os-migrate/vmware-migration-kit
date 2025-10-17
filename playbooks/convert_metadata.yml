@@ -27,10 +27,6 @@
         loop_var: vm_name
       when: create_flavor
 
-    - name: Show imported flavor IDs
-      debug:
-        var: imported_flavors
-
 - name: Sync to conversion host
   hosts: conversion_host
   vars:
