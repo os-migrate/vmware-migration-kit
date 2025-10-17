@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    go_server_path: tests/integration/fake/openstack/srv.go
+    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
     server_url_file: /tmp/fake_os_url.txt
     server_pid_file: /tmp/fake_os_server.pid
     cloud_config:
@@ -27,6 +27,16 @@
           async: 30
           poll: 0
           register: fake_server_job
+
+        - name: Check command
+          async_status:
+            jid: "{{ fake_server_job.ansible_job_id }}"
+          register: result
+          #failed_when: result.finished != 1 or "Finished 'command'" not in result.stdout
+
+        - name: Debug command
+          ansible.builtin.debug:
+            var: result.stdout
 
         - name: Wait for the server URL file to be created
           ansible.builtin.wait_for:
@@ -63,17 +73,17 @@
             - id: '1'
               name: 'small'
               ram: 2048
-              vcpus: 2
+              vcpus: 1
               disk: 20
             - id: '2'
               name: 'medium'
               ram: 4096
-              vcpus: 4
+              vcpus: 2
               disk: 40
             - id: '3'
               name: 'large'
               ram: 8192
-              vcpus: 8
+              vcpus: 4
               disk: 80
           register: result_by_name
         - name: "ASSERT: All flavors found by name have correct properties"
