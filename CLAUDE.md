@@ -4,7 +4,7 @@
 
 This is an Ansible collection (`os_migrate.vmware_migration_kit`) that provides tools for migrating virtual machines from VMware (ESXi/vCenter) environments to OpenStack clouds. The collection uses a hybrid approach combining Ansible automation with custom Golang modules for high-performance migration operations.
 
-**Version:** 2.0.8
+**Version:** 2.0.9
 **License:** Apache-2.0
 **Repository:** https://github.com/os-migrate/vmware-migration-kit
 
@@ -133,6 +133,10 @@ vmware-migration-kit/
 - `import_workloads_cbt_sync`: Enable CBT synchronization (boolean)
 - `import_workloads_cutover`: Perform final cutover (boolean)
 
+**Flavor Options:**
+- `use_existing_flavor`: Find best matching flavor or create new one (boolean)
+- `flavor_uuid`: Specify exact flavor UUID (useful for host aggregation/targeted placement)
+
 ### Network Requirements
 
 **Conversion Host Egress:**
@@ -221,6 +225,8 @@ make test-golangci-lint    # Go code quality
 
 **Ansible Collections:**
 - `community.vmware` >= 1.0.0
+- `vmware.vmware` >= 2.4.0
+- `vmware.vmware_rest` >= 4.9.0
 - `openstack.cloud` >= 2.0.0 (legacy, being phased out)
 - `os_migrate.os_migrate` >= 0.0.1
 
@@ -292,7 +298,15 @@ Minimum vCenter permissions needed:
 7. **Parallel Execution**: NBDKit uses Unix sockets to allow parallel migrations on same host
 8. **Support Scope**: Only support collection code, not external dependencies
 
-## Recent Changes (v2.0.8)
+## Recent Changes (v2.0.9)
+
+- Minor fix to create_instance task for AAP compatibility
+- Added vmware.vmware and vmware.vmware_rest collections as dependencies
+- Added flavor_uuid option for explicit flavor specification (enables host aggregation)
+- Fixed ansible test sanity issues
+- Added unit test for workload name sanitization
+
+### Previous Version (v2.0.8)
 
 - Fixed VM name sanitization for invalid characters
 - Replaced openstack.cloud modules with native Gophercloud bindings

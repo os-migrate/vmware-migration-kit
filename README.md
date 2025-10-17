@@ -5,7 +5,7 @@ virtual machine from an ESXi/Vcenter environment to Openstack environment.
 
 The code used OS-Migrate Ansible collection in order to deploy conversion host and setup
 correctly the prerequistes in the Openstack destination cloud.
-It also used the VMware community collection in order to gather informations from the source
+It also used the VMware and VMware_rest collections in order to gather informations from the source
 VMware environment.
 
 The Ansible collection provides different steps to scale your migration from VMWare to Openstack:
@@ -761,7 +761,7 @@ The @os-migrate team provides full support for the components included directly 
 
 ### External Dependencies
 
-Our support policy does not extend to external or third-party dependencies. If an issue is found to be caused by a bug within one of these external components, we are unable to provide a resolution. We want to assure you that the collection itself has been thoroughly tested to ensure its stability and functionality. Furthermore, we are actively working to improve the collection and reduce its reliance on community dependencies in future versions.
+Our support policy does not extend to external or third-party dependencies. If an issue is found to be caused by a bug within one of these external components, we are unable to provide a resolution. We want to assure you that the collection itself has been thoroughly tested to ensure its stability and functionality.
 
 ### Versioning
 

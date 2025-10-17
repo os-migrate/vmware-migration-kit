@@ -3,8 +3,6 @@ collections:
     version: 2.2.0
   - name: os_migrate.os_migrate
     version: 1.0.1
-  - name: community.vmware
-    version: 4.5.0
   - name: vmware.vmware
     version: 2.4.0
   - name: vmware.vmware_rest
