@@ -80,16 +80,9 @@ else:
 
 
 def get_total_disk_capacity(disk_info):
-    total_capacity_kb = (
-        sum(
-            [
-                disk_info["guest_disk_info"][disk]["capacity_in_kb"]
-                for disk in disk_info["guest_disk_info"].keys()
-            ]
-        )
-        / 1024
-    )
-    return total_capacity_kb
+    total_bytes = sum(disk["capacity"] for disk in disk_info["disks"])
+    total_gb = total_bytes / (1024 ** 3)
+    return total_gb
 
 
 def run_module():
@@ -126,9 +119,9 @@ def run_module():
     with open(module.params["disk_info_path"]) as disk_file:
         disk_info = json.load(disk_file)
 
-    total_disk_capacity_gb = get_total_disk_capacity(disk_info) / 1024
-    vcpu = guest_info["instance"]["hw_processor_count"]
-    ram = guest_info["instance"]["hw_memtotal_mb"]
+    total_disk_capacity_gb = get_total_disk_capacity(disk_info)
+    vcpu = guest_info["hw_processor_count"]
+    ram = guest_info["hw_memtotal_mb"]
 
     # Dump flavor data structure filled with guest_info and disk_info
     data = {

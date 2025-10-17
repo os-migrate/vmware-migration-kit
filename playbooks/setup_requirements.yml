@@ -29,4 +29,5 @@
         - requests
         - pyVim
         - pyVmomi
+        - aiohttp
       when: not runner_from_aee | default(false)
