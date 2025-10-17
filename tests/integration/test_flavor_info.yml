@@ -7,14 +7,15 @@
     server_url_file: /tmp/fake_os_url.txt
     server_pid_file: /tmp/fake_os_server.pid
     cloud_config:
-      auth_url: "{{ fake_os_url }}/v3"
-      username: "demo-user"
-      password: "password"
-      project_name: "demo"
-      project_id: "demo-id"
-      user_domain_name: "default"
-      project_domain_name: "default"
-      region_name: "RegionOne"
+      auth:
+        auth_url: "{{ fake_os_url }}/v3"
+        username: "demo-user"
+        password: "password"
+        project_name: "demo"
+        project_id: "demo-id"
+        user_domain_name: "default"
+        project_domain_name: "default"
+        region_name: "RegionOne"
   tasks:
     # SETUP FOR FAKE SERVER
     - name: Setup fake OpenStack server
@@ -29,10 +30,10 @@
           register: fake_server_job
 
         - name: Check command
-          async_status:
+          ansible.builtin.async_status:
             jid: "{{ fake_server_job.ansible_job_id }}"
           register: result
-          #failed_when: result.finished != 1 or "Finished 'command'" not in result.stdout
+          # failed_when: result.finished != 1 or "Finished 'command'" not in result.stdout
 
         - name: Debug command
           ansible.builtin.debug:
@@ -65,6 +66,10 @@
     - name: Run test scenarios
       tags: tests
       block:
+        - name: Debug the cloud config
+          ansible.builtin.debug:
+            var: cloud_config
+
         - name: "TEST01: Find flavors by name with detailed property check"
           os_migrate.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
@@ -89,11 +94,11 @@
         - name: "ASSERT: All flavors found by name have correct properties"
           ansible.builtin.assert:
             that:
-              - "item.flavors[0].name == item.item.name"
-              - "item.flavors[0].id == item.item.id"
-              - "item.flavors[0].ram == item.item.ram"
-              - "item.flavors[0].vcpus == item.item.vcpus"
-              - "item.flavors[0].disk == item.item.disk"
+              - "item.flavor.name == item.item.name"
+              - "item.flavor.id == item.item.id"
+              - "item.flavor.ram == item.item.ram"
+              - "item.flavor.vcpus == item.item.vcpus"
+              - "item.flavor.disk == item.item.disk"
           loop: "{{ result_by_name.results }}"
 
         - name: "TEST02: Find flavors by ID"
@@ -111,9 +116,9 @@
         - name: "ASSERT: All flavors were found correctly by ID"
           ansible.builtin.assert:
             that:
-              - "item.flavors | length == 1"
-              - "item.flavors[0].id == item.item.id"
-              - "item.flavors[0].name == item.item.name"
+              - "item.flavor | length == 1"
+              - "item.flavor.id == item.item.id"
+              - "item.flavor.name == item.item.name"
           loop: "{{ result_by_id.results }}"
 
         - name: "TEST03: List all flavors"
