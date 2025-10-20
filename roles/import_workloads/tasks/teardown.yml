@@ -1,16 +1,14 @@
 # Cleanup
 - name: Delete OS instance
-  openstack.cloud.server:
-    state: absent
-    name: "{{ instance_uuid }}"
+  os_migrate.vmware_migration_kit.delete_server:
     cloud: "{{ dst_cloud }}"
+    name: "{{ instance_uuid }}"
   when:
     - delete_os_instance|default(true)|bool
     - instance_uuid is defined
 
 - name: Delete Cinder Volume
-  openstack.cloud.volume:
-    state: absent
+  os_migrate.vmware_migration_kit.delete_volume:
     cloud: "{{ dst_cloud }}"
     name: "{{ uuid }}"
   loop: "{{ volume_uuid }}"
@@ -21,8 +19,7 @@
     - volume_uuid is defined
 
 - name: Delete neutron port
-  openstack.cloud.port:
-    state: absent
+  os_migrate.vmware_migration_kit.delete_port:
     cloud: "{{ dst_cloud }}"
     name: "{{ port['port-id'] }}"
   loop: "{{ nics }}"
@@ -34,8 +31,7 @@
   failed_when: false
 
 - name: Delete flavor
-  openstack.cloud.compute_flavor:
-    state: absent
+  os_migrate.vmware_migration_kit.delete_flavor:
     cloud: "{{ dst_cloud }}"
     name: "{{ flavor_name_or_uuid }}"
   when:
