@@ -13,6 +13,7 @@ version_added: "1.0.0"
 description:
     - "This module reads a flavor definition from a YAML file and imports it into an OpenStack cloud."
     - "If the flavor already exists, it returns the existing flavor ID without making changes."
+author: "OpenStack tenant migration tools (@os-migrate)"
 options:
   cloud:
     description:
