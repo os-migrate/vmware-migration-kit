@@ -199,7 +199,6 @@ test-ansible-sanity:
 	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
 	echo "*** Using temporary collections path: $$ANSIBLE_COLLECTIONS_PATH ***" && \
 	$(MAKE) build && \
-	go mod tidy && \
 	echo "*** Installing collection dependencies... ***" && \
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
