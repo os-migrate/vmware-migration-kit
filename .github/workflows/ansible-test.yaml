@@ -25,4 +25,4 @@ jobs:
         run: go mod tidy
       - name: Run ansible-test
         shell: bash
-        run: make test-ansible-sanity 
+        run: make test-ansible-sanity
