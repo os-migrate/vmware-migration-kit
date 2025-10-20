@@ -119,6 +119,8 @@ clean-binaries: check-root
 		find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" -delete; \
 		echo "*** Cleanup complete. ***"; \
 	fi
+	@echo "*** Update GO dependencies and checksums ***"; \
+	go mod tidy
 
 # Target to build the collection
 build: check-root clean-build clean-binaries binaries
