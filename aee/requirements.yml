@@ -1,6 +1,4 @@
 collections:
-  - name: openstack.cloud
-    version: 2.2.0
   - name: vmware.vmware
     version: 2.4.0
   - name: vmware.vmware_rest
