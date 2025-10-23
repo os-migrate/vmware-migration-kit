@@ -18,7 +18,6 @@ tags:
 dependencies:
   vmware.vmware: ">=2.4.0"
   vmware.vmware_rest: ">=4.9.0"
-  openstack.cloud: ">=2.0.0"
   os_migrate.os_migrate: ">=0.0.1"
 repository: "https://github.com/os-migrate/vmware-migration-kit"
 homepage: "https://github.com/os-migrate/vmware-migration-kit"
