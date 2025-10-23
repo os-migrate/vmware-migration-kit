@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 
@@ -509,11 +510,13 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 		return nil, fmt.Errorf("failed to create compute client: %v", err)
 	}
 
+	nameOrID := strings.TrimSpace(flavorNameOrID)
+
 	var flavor *flavors.Flavor
-	f, err := flavors.Get(context.TODO(), client, flavorNameOrID).Extract()
+	f, err := flavors.Get(context.TODO(), client, nameOrID).Extract()
 	if err != nil {
 		// Search by name
-		logger.Log.Infof("Failed to get flavor by ID, searching by name: %s", flavorNameOrID)
+		logger.Log.Infof("Failed to get flavor by ID, searching by name: %s", nameOrID)
 		pages, err := flavors.ListDetail(client, nil).AllPages(context.TODO())
 		if err != nil {
 			logger.Log.Infof("Failed to list flavors: %v", err)
@@ -526,14 +529,14 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 		}
 		found := false
 		for _, f := range allFlavors {
-			if f.Name == flavorNameOrID {
+			if strings.EqualFold(f.Name, nameOrID) {
 				flavor = &f
 				found = true
 				break
 			}
 		}
 		if !found {
-			return nil, fmt.Errorf("flavor not found: %s", flavorNameOrID)
+			return nil, fmt.Errorf("flavor not found: %s", nameOrID)
 		}
 	} else {
 		flavor = f
