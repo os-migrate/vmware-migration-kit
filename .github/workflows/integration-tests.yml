@@ -1,12 +1,13 @@
+---
 name: Ansible Integration Tests
 
-on:
-    push:
-      branches:
-        - main
-    pull_request:
-      branches:
-        - main
+'on':
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   integration:
@@ -44,6 +45,7 @@ jobs:
       - name: Run integration playbook
         env:
           ANSIBLE_STDOUT_CALLBACK: yaml
-        run: ansible-playbook -i localhost_inventory.yml tests/integration/test_flavor_info.yml
-
-
+        run: >-
+          ansible-playbook
+          -i localhost_inventory.yml
+          tests/integration/test_flavor_info.yml

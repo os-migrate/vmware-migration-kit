@@ -69,7 +69,7 @@
           ansible.builtin.debug:
             var: cloud_config
 
-        #happy path with detailed property check
+        # happy path with detailed property check
         - name: "TEST01: Find flavors by name with detailed property check"
           os_migrate.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
@@ -101,7 +101,7 @@
               - "item.flavor.disk == item.item.disk"
           loop: "{{ result_by_name.results }}"
 
-        #happy path when search by id (=name)
+        # happy path when search by id (=name)
         - name: "TEST02: Find flavors by ID"
           os_migrate.vmware_migration_kit.flavor_info:
             cloud: "{{ cloud_config }}"
@@ -157,11 +157,18 @@
           ansible.builtin.debug:
             var: result_bad_auth
 
-        - name: "ASSERT: Invalid credentials handled (mock server may not validate)"
+        - name: >-
+            ASSERT: Invalid credentials handled
+            (mock server may not validate)
           ansible.builtin.assert:
             that:
-              - "result_bad_auth.failed or (result_bad_auth.flavor is defined and result_bad_auth.flavor.name == 'small')"
-            msg: "Either auth failed as expected, or mock server doesn't validate credentials"
+              - >-
+                result_bad_auth.failed or (
+                result_bad_auth.flavor is defined and
+                result_bad_auth.flavor.name == 'small')
+            msg: >-
+              Either auth failed as expected, or mock server doesn't
+              validate credentials
 
         - name: "TEST05: empty flavor name"
           os_migrate.vmware_migration_kit.flavor_info:
@@ -193,7 +200,9 @@
         - name: "ASSERT: Case-insensitive search succeeds"
           ansible.builtin.assert:
             that:
-              - "item.flavor is not none and item.flavor.name == item.item.expected_name"
+              - >-
+                item.flavor is not none and
+                item.flavor.name == item.item.expected_name
           loop: "{{ result_case.results }}"
 
         - name: "TEST07: Leading/trailing whitespace is trimmed"
@@ -212,7 +221,9 @@
         - name: "ASSERT: Whitespace-trimmed search succeeds"
           ansible.builtin.assert:
             that:
-              - "item.flavor is not none and item.flavor.name == item.item.expected_name"
+              - >-
+                item.flavor is not none and
+                item.flavor.name == item.item.expected_name
           loop: "{{ result_whitespace.results }}"
 
         - name: "TEST08: Connection failure"
@@ -239,9 +250,13 @@
         - name: "ASSERT: Connection failure produces an error"
           ansible.builtin.assert:
             that:
-              - "'Failed to authenticate Openstack client' in result_connection_fail.msg"
+              - >-
+                'Failed to authenticate Openstack client' in
+                result_connection_fail.msg
               - "result_connection_fail.msg | length > 50"
-              - "not ('authentication failed' in result_connection_fail.msg | lower)"
+              - >-
+                not ('authentication failed' in
+                result_connection_fail.msg | lower)
               - "result_connection_fail.flavor is none"
       # CLEANUP
       always:
