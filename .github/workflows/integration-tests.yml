@@ -1,0 +1,49 @@
+name: Ansible Integration Tests
+
+on:
+    push:
+      branches:
+        - main
+    pull_request:
+      branches:
+        - main
+
+jobs:
+  integration:
+    name: Ansible Integration Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.0'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-tests.txt -r requirements.txt
+      - name: Build module binaries
+        run: |
+          set -euo pipefail
+          modules_dir="plugins/modules"
+          for folder in ${modules_dir}/src/*; do
+            if [ -d "$folder" ]; then
+              name=$(basename "$folder")
+              echo "Building $name"
+              (cd "$folder" && go build -ldflags="-s -w" -a -o "../../$name")
+            fi
+          done
+      - name: Build Ansible collection
+        run: ansible-galaxy collection build
+      - name: Install collection locally
+        run: ansible-galaxy collection install *.tar.gz --force-with-deps
+      - name: Run integration playbook
+        env:
+          ANSIBLE_STDOUT_CALLBACK: yaml
+        run: ansible-playbook -i localhost_inventory.yml tests/integration/test_flavor_info.yml
+
+
