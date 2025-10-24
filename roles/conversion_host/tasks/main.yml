@@ -38,30 +38,20 @@
     use_backend: dnf4
   when: os_migrate_virt_v2v|default(false)|bool
 
-- name: Check if vmware-vix-disklib is present
-  ansible.builtin.dnf:
-    name: vmware-vix-disklib
-    state: present
-    use_backend: dnf4
-  check_mode: true
-  register: vmware_vix_disklib_installed
+- name: Check if libdir is set and exists
+  ansible.builtin.stat:
+    path: "{{ conversion_host_vmware_lib_dir }}"
+  register: libdir_result
   ignore_errors: true
-  changed_when: false
 
-- name: Download VMware VIX DiskLib
-  ansible.builtin.get_url:
-    url: "{{ conversion_host_vmware_vix_disklib_url }}/{{ conversion_host_vmware_vix_disklib }}"
-    dest: "/tmp/{{ conversion_host_vmware_vix_disklib }}"
-    mode: "0644"
-  when: vmware_vix_disklib_installed.rc != 0
+- name: Fail if libdir path does not exist on the conversion host
+  ansible.builtin.fail:
+    msg: "The libdir {{ import_workloads_libdir }} does not exist on the conversion host."
+  when: not libdir_result.stat.exists
 
-- name: Install VMware VIX DiskLib
-  ansible.builtin.dnf:
-    name: "/tmp/{{ conversion_host_vmware_vix_disklib }}"
-    state: present
-    disable_gpg_check: true
-    use_backend: dnf4
-  when: vmware_vix_disklib_installed.rc != 0
+- name: Set libdir fact
+  ansible.builtin.set_fact:
+    libdir: "{{ libdir_result.stat.path }}"
 
 - name: Check if virt-v2v-in-place exists in libexec
   ansible.builtin.stat:
