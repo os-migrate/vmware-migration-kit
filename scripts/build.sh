@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 dnf -y update
 dnf config-manager --enable crb
