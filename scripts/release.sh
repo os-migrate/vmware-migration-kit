@@ -42,8 +42,7 @@ echo "Changelog entry: $CHANGELOG"
 ########################################
 if [[ -f galaxy.yml ]]; then
   echo "Updating galaxy.yml..."
-  sed -i.bak -E "s/^version: .*/version: ${VERSION}/" galaxy.yml
-  rm -f galaxy.yml.bak
+  sed -i'' -e "s/^version: .*/version: ${VERSION}/" galaxy.yml
 else
   echo "galaxy.yml not found!"
   exit 1
@@ -61,8 +60,7 @@ echo "Built tarball: $TARBALL"
 ########################################
 if [[ -f aee/requirements.yml ]]; then
   echo "Updating aee/requirements.yml..."
-  sed -i.bak -E "s|(os_migrate-vmware_migration_kit-)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${VERSION}\2|" aee/requirements.yml
-  rm -f aee/requirements.yml.bak
+  sed -E -i'' -e "s|(os_migrate-vmware_migration_kit-)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${VERSION}\2|" aee/requirements.yml
 else
   echo "aee/requirements.yml not found!"
   exit 1
@@ -73,8 +71,7 @@ fi
 ########################################
 if [[ -f aee/execution-environment.yml ]]; then
   echo "Updating aee/execution-environment.yml..."
-  sed -i.bak -E "s|(os_migrate-vmware_migration_kit-)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${VERSION}\2|" aee/execution-environment.yml
-  rm -f aee/execution-environment.yml.bak
+  sed -E -i'' -e "s|(os_migrate-vmware_migration_kit-)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${VERSION}\2|" aee/execution-environment.yml
 else
   echo "aee/execution-environment.yml not found!"
   exit 1
