@@ -209,6 +209,11 @@ test-ansible-sanity:
 	  --exclude plugins/modules/best_match_flavor \
 	  --exclude plugins/modules/create_network_port \
 	  --exclude plugins/modules/create_server \
+	  --exclude plugins/modules/import_flavor \
+	  --exclude plugins/modules/delete_flavor \
+	  --exclude plugins/modules/delete_port \
+	  --exclude plugins/modules/delete_server \
+	  --exclude plugins/modules/delete_volume \
 	  --exclude plugins/modules/flavor_info \
 	  --exclude plugins/modules/migrate \
 	  --exclude plugins/modules/volume_info \
@@ -219,4 +224,13 @@ test-ansible-sanity:
 	deactivate
 	@$(MAKE) clean-venv
 
-tests: test-pytest test-ansible-sanity test-ansible-lint
+test-golangci-lint: check-root
+	@echo "*** Running golangci-lint in container ***"
+	$(CONTAINER_ENGINE) run --rm -t \
+		-v $(MOUNT_PATH) \
+		-w /code \
+		$(SECURITY_OPT) \
+		golangci/golangci-lint:v2.5.0 \
+		golangci-lint run --timeout 5m
+
+tests: test-pytest test-ansible-sanity test-ansible-lint test-golangci-lint

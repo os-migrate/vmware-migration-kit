@@ -56,7 +56,7 @@
 
 - name: Extract vddkpath from guest_info.json
   ansible.builtin.set_fact:
-    vddkpath: "{{ instance_data.instance.hw_folder }}"
+    vddkpath: "{{ instance_data.hw_folder }}"
 
 - name: Migrate Guest from Vmware using nbdkit {{ vm_name }}
   os_migrate.vmware_migration_kit.migrate:
@@ -74,6 +74,7 @@
     instanceuuid: "{{ import_workloads_instance_uuid }}"
     debug: "{{ import_workloads_debug | bool }}"
     localdiskpath: "{{ import_workloads_local_disk_path | default(omit) }}"
+    libdir: "{{ import_workloads_libdir | default(omit) }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true

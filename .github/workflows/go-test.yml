@@ -1,4 +1,4 @@
-name: Ansible Sanity tests
+name: Go Unit Tests
 
 on:
   push:
@@ -10,19 +10,17 @@ on:
 
 jobs:
   build:
-    name: Ansible Sanity tests
+    name: Go Unit Tests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.0'
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libnbd-dev pkg-config
       - name: Prepare Go modules
         run: go mod tidy
-      - name: Run ansible-test
-        shell: bash
-        run: make test-ansible-sanity
+      - name: Run Go unit tests
+        run: go test -v ./...

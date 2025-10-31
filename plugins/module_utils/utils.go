@@ -19,24 +19,39 @@ package moduleutils
 
 import (
 	"crypto/rand"
+	"fmt"
+	"io/fs"
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 func FindDevName(volumeID string) (string, error) {
-	files, err := os.ReadDir("/dev/disk/by-id/")
+	return FDevName(os.ReadDir, filepath.EvalSymlinks, volumeID)
+}
+
+func FDevName(
+	readDir func(string) ([]fs.DirEntry, error),
+	evalSymlinks func(string) (string, error),
+	volumeID string,
+) (string, error) {
+	if len(volumeID) < 18 {
+		return "", fmt.Errorf("volumeID must be at least 18 characters long")
+	}
+
+	files, err := readDir("/dev/disk/by-id/")
 	if err != nil {
 		return "", err
 	}
+
 	for _, file := range files {
 		if strings.Contains(file.Name(), volumeID[:18]) {
-			devicePath, err := filepath.EvalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
+			devicePath, err := evalSymlinks(filepath.Join("/dev/disk/by-id/", file.Name()))
 			if err != nil {
 				return "", err
 			}
-
 			return devicePath, nil
 		}
 	}
@@ -54,4 +69,9 @@ func GenRandom(length int) (string, error) {
 		result[i] = charset[num.Int64()]
 	}
 	return string(result), nil
+}
+
+func SafeVmName(vmName string) string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	return re.ReplaceAllString(vmName, "_")
 }

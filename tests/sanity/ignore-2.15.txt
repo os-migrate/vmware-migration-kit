@@ -1,8 +1,14 @@
 plugins/modules/best_match_flavor.py validate-modules:missing-gplv3-license
 plugins/modules/create_network_port.py validate-modules:missing-gplv3-license
 plugins/modules/create_server.py validate-modules:missing-gplv3-license
+plugins/modules/delete_flavor.py validate-modules:missing-gplv3-license
+plugins/modules/delete_port.py validate-modules:missing-gplv3-license
+plugins/modules/delete_server.py validate-modules:missing-gplv3-license
+plugins/modules/delete_volume.py validate-modules:missing-gplv3-license
 plugins/modules/export_flavor.py validate-modules:missing-gplv3-license
 plugins/modules/flavor_info.py validate-modules:missing-gplv3-license
 plugins/modules/import_vmware_volume.py validate-modules:missing-gplv3-license
 plugins/modules/migrate.py validate-modules:missing-gplv3-license
+plugins/modules/volume_info.py validate-modules:missing-gplv3-license
 plugins/modules/volume_metadata_info.py validate-modules:missing-gplv3-license
+plugins/modules/import_flavor.py validate-modules:missing-gplv3-license

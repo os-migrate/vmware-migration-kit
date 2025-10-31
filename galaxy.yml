@@ -1,6 +1,6 @@
 namespace: os_migrate
 name: vmware_migration_kit
-version: 2.0.7
+version: 2.0.9
 readme: README.md
 authors:
   - Mathieu Bultel <mat.bultel@gmail.com>
@@ -16,9 +16,8 @@ tags:
   - vmware
   - migrations
 dependencies:
-  community.vmware: ">=1.0.0"
-  openstack.cloud: ">=2.0.0"
-  os_migrate.os_migrate: ">=0.0.1"
+  vmware.vmware: ">=2.4.0"
+  vmware.vmware_rest: ">=4.9.0"
 repository: "https://github.com/os-migrate/vmware-migration-kit"
 homepage: "https://github.com/os-migrate/vmware-migration-kit"
 issues: "https://github.com/os-migrate/vmware-migration-kit/issues"

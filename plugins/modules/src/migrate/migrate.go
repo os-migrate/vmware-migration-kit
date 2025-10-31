@@ -156,7 +156,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	// If syncVol is true, it means that CBT is enable and the VM should be shutting down before
 	// running V2V conversion
 	// Also, shutdown if OS is Windows, (@TODO) otherwise make it optional
-	if syncVol || isWin {
+	if (syncVol && c.CutOver) || isWin {
 		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
 			logger.Log.Infof("Failed to power off vm %v", err)
@@ -424,7 +424,8 @@ func main() {
 		response.Msg = "Failed to generate random string"
 		ansible.FailJson(response)
 	}
-	LogFile := "/tmp/osm-nbdkit-" + vmname + "-" + r + ".log"
+	safeVmName := moduleutils.SafeVmName(vmname)
+	LogFile := "/tmp/osm-nbdkit-" + safeVmName + "-" + r + ".log"
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

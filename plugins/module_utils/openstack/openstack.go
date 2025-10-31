@@ -177,6 +177,26 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
 }
 
+func WaitForServerStatus(client *gophercloud.ServiceClient, serverID, status string, timeout int) error {
+	for i := 0; i < timeout; i++ {
+		server, err := servers.Get(context.TODO(), client, serverID).Extract()
+		if err != nil {
+			logger.Log.Infof("Failed to get server status: %v", err)
+			return err
+		}
+		if server.Status == "ERROR" {
+			logger.Log.Infof("Server %s entered ERROR state", serverID)
+			return fmt.Errorf("server %s entered ERROR state", serverID)
+		}
+		if server.Status == status {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	logger.Log.Infof("Server %s did not reach status %s within the timeout", serverID, status)
+	return fmt.Errorf("server %s did not reach status %s within the timeout", serverID, status)
+}
+
 func UpdateVolumeMetadata(client *gophercloud.ProviderClient, volumeID string, metadata map[string]string) error {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
@@ -474,7 +494,7 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 	if err != nil {
 		return "", fmt.Errorf("failed to create server: %v", err)
 	}
-	err = servers.WaitForStatus(context.TODO(), client, server.ID, "ACTIVE")
+	err = WaitForServerStatus(client, server.ID, "ACTIVE", 3000)
 	if err != nil {
 		return "", err
 	}
@@ -519,6 +539,96 @@ func GetFlavorInfo(provider *gophercloud.ProviderClient, flavorNameOrID string) 
 		flavor = f
 	}
 	return flavor, nil
+}
+
+// DeleteServer deletes a server by ID
+func DeleteServer(provider *gophercloud.ProviderClient, serverID string) error {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create compute client: %v", err)
+		return err
+	}
+
+	err = servers.Delete(context.TODO(), client, serverID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete server: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// DeleteVolume deletes a volume by ID
+func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string) error {
+	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return err
+	}
+
+	// Wait for volume to be in a deletable state (available or error)
+	// Volume status must be available or error or error_restoring or error_extending or error_managing
+	// and must not be migrating, attached, belong to a group, have snapshots, awaiting a transfer, or be disassociated from snapshots after volume transfer
+	logger.Log.Infof("Waiting for volume %s to be in deletable state...", volumeID)
+
+	// Check current volume status first
+	volume, err := volumes.Get(context.TODO(), client, volumeID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get volume status: %v", err)
+		return err
+	}
+
+	// If volume is already in a deletable state, proceed with deletion
+	if volume.Status == "available" || volume.Status == "error" || volume.Status == "error_restoring" ||
+		volume.Status == "error_extending" || volume.Status == "error_managing" {
+		logger.Log.Infof("Volume %s is in deletable state (%s), proceeding with deletion", volumeID, volume.Status)
+	} else {
+		logger.Log.Infof("Volume %s is in status '%s', waiting for it to become available or error...", volumeID, volume.Status)
+
+		// Wait for volume to become available (timeout: 60 seconds = 12 attempts * 5 seconds)
+		err = WaitForVolumeStatus(client, volumeID, "available", 12)
+		if err != nil {
+			// If it doesn't become available, try to wait for error status
+			logger.Log.Infof("Volume did not become available, trying to wait for error status...")
+			err = WaitForVolumeStatus(client, volumeID, "error", 12)
+			if err != nil {
+				logger.Log.Infof("Volume did not reach a deletable state within timeout: %v", err)
+				return fmt.Errorf("volume %s did not reach a deletable state within timeout", volumeID)
+			}
+		}
+	}
+
+	err = volumes.Delete(context.TODO(), client, volumeID, volumes.DeleteOpts{}).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete volume: %v", err)
+		return err
+	}
+
+	logger.Log.Infof("Volume %s deleted successfully", volumeID)
+	return nil
+}
+
+// DeleteFlavor deletes a flavor by ID
+func DeleteFlavor(provider *gophercloud.ProviderClient, flavorID string) error {
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create compute client: %v", err)
+		return err
+	}
+
+	err = flavors.Delete(context.TODO(), client, flavorID).ExtractErr()
+	if err != nil {
+		logger.Log.Infof("Failed to delete flavor: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 // VolumeInfo represents volume information
