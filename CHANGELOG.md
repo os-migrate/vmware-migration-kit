@@ -136,3 +136,7 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.0.9
 
 - Minor fix to create_instance task for AAP compatibility
+
+## v2.1.0
+
+- Cut dependencies with uncertified collections
