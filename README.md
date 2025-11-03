@@ -271,30 +271,30 @@ ansible-playbook -i inventory.yml os_migrate.vmware_migration_kit.migration -e @
 
 #### OpenStack Flavor
 
-When using **VMware** as a source in **OS-Migrate**, there are several ways to handle the **flavor** for the resulting OpenStack instance.  
+When using **VMware** as a source in **OS-Migrate**, there are several ways to handle the **flavor** for the resulting OpenStack instance.
 Since VMware does not have a native flavor mechanism like OpenStack, OS-Migrate provides three approaches to manage this part:
 
-1. **Find the closest matching flavor**  
-   OS-Migrate will try to find the best matching flavor that fits the VMs specifications.  
-   This can be enabled using the option:  
+1. **Find the closest matching flavor**
+   OS-Migrate will try to find the best matching flavor that fits the VMs specifications.
+   This can be enabled using the option:
    ```yaml
    use_existing_flavor: true
-   ```  
+   ```
    If no flavor matches the VMs specs, OS-Migrate will automatically create a new one.
 
-2. **Create a new flavor for the VM**  
-   OS-Migrate can create a dedicated flavor for each VM.  
-   The flavor name will follow this pattern:  
+2. **Create a new flavor for the VM**
+   OS-Migrate can create a dedicated flavor for each VM.
+   The flavor name will follow this pattern:
    ```
    osm-vmware-<vm_name>-<random_id>
-   ```  
+   ```
    Example: `osm-vmware-myvm-9999`
 
-3. **Provide a specific flavor UUID**  
-   You can also specify an existing flavor by providing its UUID:  
+3. **Provide a specific flavor UUID**
+   You can also specify an existing flavor by providing its UUID:
    ```yaml
    flavor_uuid: <your_flavor_uuid>
-   ```  
+   ```
    This option allows you to define custom properties on the flavor, which can be useful for **host aggregation** or **targeted placement** of instances on specific compute hosts.
 
 #### Using Change Block Tracking (CBT)
@@ -770,6 +770,8 @@ Please note that support is provided exclusively for the latest version of the c
 ### How to Get Support
 
 For any issues related to the supported components of the collection itself, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
+
+The upstream documentation is available [here](https://github.com/os-migrate/documentation). For Red Hat Certified and Supported documentation, please see [Red Hat OpenStack VMWare Migration Toolkit](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/docs/).
 
 ## License
 
