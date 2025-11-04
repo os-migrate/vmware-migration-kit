@@ -224,6 +224,24 @@ test-ansible-sanity:
 	deactivate
 	@$(MAKE) clean-venv
 
+integration-test:
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt && \
+	export TMPDIR="$$(mktemp -d)" && \
+	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
+	echo "*** Using temporary collections path: $$ANSIBLE_COLLECTIONS_PATH ***" && \
+	$(MAKE) build && \
+	echo "*** Installing collection dependencies... ***" && \
+	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
+	echo "*** Running integration tests... ***" && \
+	ansible-playbook -i $(COLLECTION_ROOT)/localhost_inventory.yml $(COLLECTION_ROOT)/tests/integration/test_flavor_info.yml && \
+	echo "*** Integration tests completed successfully ***" && \
+	rm -rf $$TMPDIR && \
+	deactivate
+	@$(MAKE) clean-venv
+
 test-golangci-lint: check-root
 	@echo "*** Running golangci-lint in container ***"
 	$(CONTAINER_ENGINE) run --rm -t \
