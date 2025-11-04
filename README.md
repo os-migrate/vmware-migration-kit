@@ -43,23 +43,15 @@ The following features are availables:
 
 ### Supported OS
 
-Currently we are supporting the following matrice:
+=== Supported OS
 
-| OS Family      | Version       | Supported & Tested | Not Tested Yet |
-| -------------- | ------------- | ------------------ | -------------- |
-| RHEL           | 9.4           | Yes                | -              |
-| RHEL           | 9.3 and lower | Yes                | -              |
-| RHEL           | 8.5           | Yes                | -              |
-| RHEL           | 8.4 and lower | -                  | Yes            |
-| CentOS         | 9             | Yes                | -              |
-| CentOS         | 8             | Yes                | -              |
-| Fedora         | 38 and upper  | Yes                | -              |
-| Fedora (btrfs) | 38 and upper  | Yes                | -              |
-| Ubuntu Server  | 24            | Yes                | -              |
-| Windows        | 10            | Yes                | -              |
-| Windows Server | 2k22          | Yes                | -              |
-| Suse           | X             | -                  | Yes            |
+The VMware Migration Toolkit uses virt-v2v for conversion. For a list of
+supported guest operating systems for virt-v2v, see the Red Hat Knowledgebase article:
+https://access.redhat.com/articles/1351473[ Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10].
 
+RHOSO uses Kernel-based Virtual Machine (KVM) for hypervisors. For a list of certified
+guest operating systems for KVM, see the Red Hat Knowledgebase article:
+https://access.redhat.com/articles/certified-hypervisors[Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtualization, Red Hat OpenShift Virtualization and Red Hat Enterprise Linux with KVM].
 
 ### Migration demo from an AEE
 
@@ -79,4 +71,4 @@ For any issues related to the supported components of the collection itself, ple
 
 Apache License, Version 2.0
 
-See [COPYING](https://www.apache.org/licenses/LICENSE-2.0.txt)
+See [LICENCE](https://www.apache.org/licenses/LICENSE-2.0.txt)
