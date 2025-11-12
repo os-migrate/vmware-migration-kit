@@ -456,10 +456,7 @@ func main() {
 
 	var disks []int32
 	var volume []string
-	runV2V := true
-	if skipV2V {
-		runV2V = false
-	}
+	runV2V := !skipV2V
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
 		logger.Log.Infof("Failed to get disks: %v", err)
