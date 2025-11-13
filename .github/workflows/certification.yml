@@ -1,0 +1,124 @@
+---
+# Ansible collection certification main workflow.
+# Contains tests run by Galaxy-importer on Automation Hub.
+# For additional testing options, see
+# https://github.com/ansible-collections/certification#optional
+name: "cert"
+
+concurrency:
+  group: cert-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  # Below is an example cron scheduler,
+  # tweak it as per your requirement
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  # Build the collection and run galaxy-importer on it
+  # skipping ansible-lint as it runs as a separate job
+  build-import:
+    name: "Build & import collection"
+    env:
+      CHECK_REQUIRED_TAGS: "True"
+      RUN_ANSIBLE_LINT: "False"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Ensure ansible-core and galaxy-importer is installed
+        shell: bash
+        run: |
+          python -m pip install ansible-core galaxy-importer
+
+      - name: Update galaxy-importer.cfg
+        shell: bash
+        run: |
+          cat > /tmp/galaxy-importer.cfg << EOF
+          [galaxy-importer]
+          CHECK_REQUIRED_TAGS=${{ env.CHECK_REQUIRED_TAGS }}
+          RUN_ANSIBLE_LINT=${{ env.RUN_ANSIBLE_LINT }}
+          EOF
+
+          export GALAXY_IMPORTER_CONFIG=/tmp/galaxy-importer.cfg
+
+      - name: Build the collection tarball and run galaxy importer on it
+        shell: bash
+        run: |
+          python -m galaxy_importer.main --git-clone-path . --output-path /tmp
+
+  # Run ansible-lint with profile "production"
+  # and skipping sanity checks as they run as a separate job
+  lint:
+    name: "Lint production"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-lint
+        run: pip install ansible-lint
+
+      - name: Run ansible-lint
+        run: ansible-lint --profile=production -x sanity
+
+  # Run sanity checks against the collection
+  sanity:
+    name: Sanity (Ⓐ${{ matrix.ansible }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ansible:
+          # It's important that Sanity is tested against all stable-X.Y branches
+          # Testing against `devel` may fail as new tests are added.
+          # An alternative to `devel` is the `milestone` branch with
+          # gets synchronized with `devel` every few weeks and therefore
+          # tends to be a more stable target. Be aware that it is not updated
+          # around creation of a new stable branch, this might cause a problem
+          # that two different versions of ansible-test use the same sanity test
+          # ignore.txt file.
+          # Add new versions announced in
+          # https://github.com/ansible-collections/news-for-maintainers
+          # in a timely manner, consider dropping testing against EOL
+          # versions and versions you don't support.
+          - stable-2.17
+          - stable-2.18
+          - stable-2.20
+          - milestone
+          # - devel
+
+    steps:
+      # Run sanity tests inside a Docker container.
+      # The docker container has all the pinned dependencies that are
+      # required and all Python versions Ansible supports.
+      - name: Perform sanity testing
+        # See the documentation for the following GitHub action on
+        # https://github.com/ansible-community/ansible-test-gh-action/blob/main/README.md
+        uses: ansible-community/ansible-test-gh-action@release/v1
+        with:
+          ansible-core-version: ${{ matrix.ansible }}
+          testing-type: sanity
+          # Uncomment to configure a codecov token.
+          # Check here whether a token is required: https://docs.codecov.com/docs/codecov-tokens
+          # Collections in the github.com/ansible-collections/ namespace usually do not need a token.
+          # codecov-token: ${{ secrets.CODECOV_TOKEN }}
+          # OPTIONAL If your sanity tests require code
+          # from other collections, install them like this
+          # test-deps: >-
+          #   ansible.netcommon
+          #   ansible.utils
+          # OPTIONAL If set to true, will test only against changed files,
+          # which should improve CI performance. See limitations on
+          # https://github.com/ansible-community/ansible-test-gh-action#pull-request-change-detection
+          pull-request-change-detection: false
