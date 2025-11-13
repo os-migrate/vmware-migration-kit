@@ -68,6 +68,13 @@ options:
     type: bool
     required: false
     default: false
+  skipconversion:
+    description:
+      - Optional. If C(true), skips the conversion step, if the disk does not require conversion or is not a filesystem.
+      - Use this option with caution, as skipping conversion may lead to incompatibilities in the target environment.
+    type: bool
+    required: false
+    default: false
   instanceuuid:
     description:
       - UUID of an OpenStack instance. This can be the UUID of an existing placeholder instance to which the migrated disks/VM should
