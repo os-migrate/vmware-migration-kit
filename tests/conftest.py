@@ -12,7 +12,7 @@ class VirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            f"esx://{self.params['vcenter_username']}@{self.params['vcenter_hostname']}/Datacenter/{self.params['esxi_hostname']}?no_verify=1",
+            f"vpx://{self.params['vcenter_username'].replace('@', '%40')}@{self.params['vcenter_hostname']}/Datacenter/{self.params['esxi_hostname']}?no_verify=1",
             "-it",
             "vddk",
             "-io",
