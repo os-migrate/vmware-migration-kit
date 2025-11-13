@@ -94,6 +94,7 @@ func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.Provi
 			TenantID:         moduleOpts.ProjectID,
 			TenantName:       moduleOpts.ProjectName,
 			DomainName:       moduleOpts.UserDomainName,
+			AllowReauth:      true,
 		}
 	}
 	provider, err := config.NewProviderClient(ctx, opts, config.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
