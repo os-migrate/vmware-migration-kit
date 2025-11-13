@@ -71,6 +71,7 @@
     usesocks: "{{ import_workloads_use_socks | bool }}"
     cbtsync: "{{ import_workloads_cbt_sync | bool }}"
     cutover: "{{ import_workloads_cutover | bool }}"
+    skipconversion: "{{ import_workloads_skip_conversion | bool }}"
     instanceuuid: "{{ import_workloads_instance_uuid }}"
     debug: "{{ import_workloads_debug | bool }}"
     localdiskpath: "{{ import_workloads_local_disk_path | default(omit) }}"
