@@ -1,12 +1,8 @@
 ---
-- name: Find vddk-libdir
-  ansible.builtin.shell: >
-    set -o pipefail
-    find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
-  args:
-    executable: /bin/bash
-  changed_when: false
-  register: vddk_libdir
+- name: Set vddk-libdir
+  ansible.builtin.set_fact:
+    vddk_libdir:
+      stdout: "{{ import_workloads_libdir | default('/usr/lib/vmware-vix-disklib') }}"
 
 - name: Dump passwd file
   ansible.builtin.shell: |
@@ -22,10 +18,10 @@
   environment:
     OS_CLOUD: "{{ os_cloud_environ }}"
   os_migrate.vmware_migration_kit.import_vmware_volume:
-    vcenter_username: "{{ vcenter_username }}"
-    vcenter_hostname: "{{ vcenter_hostname }}"
-    esxi_hostname: "{{ esxi_hostname }}"
-    vddk_libdir: "{{ vddk_libdir }}"
-    vddk_thumbprint: "{{ vddk_thumbprint }}"
-    conversion_host_id: "{{ conversion_host_id }}"
+    vcenter_username: "none"
+    vcenter_hostname: "none"
+    esxi_hostname: "none"
+    vddk_libdir: "/usr/lib/vmware-vix-disklib"
+    vddk_thumbprint: "none"
+    conversion_host_id: "b8463364-de22-4adb-95b7-81a87d621534"
     vm_name: "{{ vm_name }}"
