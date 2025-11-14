@@ -15,7 +15,7 @@ class TestVirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            f"esx://{vcenter_username}@{vcenter_hostname}/Datacenter/{esxi_hostname}?no_verify=1",
+            f"vpx://{vcenter_username.replace('@', '%40')}@{vcenter_hostname}/Datacenter/{esxi_hostname}?no_verify=1",
             "-it",
             "vddk",
             "-io",
