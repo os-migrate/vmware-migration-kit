@@ -43,8 +43,6 @@ The following features are availables:
 
 ### Supported OS
 
-=== Supported OS
-
 The VMware Migration Toolkit uses virt-v2v for conversion. For a list of
 supported guest operating systems for virt-v2v, see the Red Hat Knowledgebase article:
 https://access.redhat.com/articles/1351473[ Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10].

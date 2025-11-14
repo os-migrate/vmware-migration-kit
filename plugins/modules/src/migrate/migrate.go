@@ -97,6 +97,7 @@ type ModuleArgs struct {
 	OSMDataDir     string
 	CBTSync        bool
 	CutOver        bool
+	SkipConversion bool
 	ConvHostName   string
 	Compression    string
 	FirstBoot      string
@@ -409,6 +410,7 @@ func main() {
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
+	skipV2V := moduleArgs.SkipConversion
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
 	debug := moduleArgs.Debug
@@ -454,7 +456,7 @@ func main() {
 
 	var disks []int32
 	var volume []string
-	runV2V := true
+	runV2V := !skipV2V
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
 		logger.Log.Infof("Failed to get disks: %v", err)
