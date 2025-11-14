@@ -2,7 +2,7 @@
 - name: Find vddk-libdir
   ansible.builtin.shell: >
     set -o pipefail
-    find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
+    find / -path /usr/share/doc -prune -o -name vmware-vix-disklib -print 2>/dev/null | xargs -r dirname | sort -u
   args:
     executable: /bin/bash
   changed_when: false
