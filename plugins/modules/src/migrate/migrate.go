@@ -154,10 +154,12 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	if err != nil {
 		return "", err
 	}
-	// If syncVol is true, it means that CBT is enable and the VM should be shutting down before
-	// running V2V conversion
-	// Also, shutdown if OS is Windows, (@TODO) otherwise make it optional
-	if (syncVol && c.CutOver) || isWin {
+	// If CBTSync is enabled and CutOver is false, skip V2V conversion
+	if c.CBTSync && !c.CutOver {
+		runV2V = false
+	}
+	// We need to shutdown the Windows VM before taking the snapshot when we have to run V2V
+	if runV2V && isWin {
 		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
 			logger.Log.Infof("Failed to power off vm %v", err)
@@ -179,10 +181,6 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	err = c.NbdkitConfig.VddkConfig.VirtualMachine.Properties(ctx, c.NbdkitConfig.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
 	if err != nil {
 		return "", err
-	}
-	// If CBTSync is enabled and CutOver is false, skip V2V conversion
-	if c.CBTSync && !c.CutOver {
-		runV2V = false
 	}
 
 	var volMetadata map[string]string
