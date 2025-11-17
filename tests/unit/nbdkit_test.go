@@ -58,7 +58,7 @@ func TestRunNbdKitFromLocal_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	origPath := os.Getenv("PATH")
 	// // write fake nbdkit and prepend to PATH
-	// fake := writeFakeNbdkit(t, tempDir)
+	writeFakeNbdkit(t, tempDir)
 	if err := os.Setenv("PATH", tempDir+string(os.PathListSeparator)+origPath); err != nil {
 		t.Fatalf("failed to set PATH: %v", err)
 	}
