@@ -18,12 +18,12 @@
 package moduleutils
 
 import (
-	"testing"
-	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"fmt"
 	"io/fs"
 	"os/exec"
-    "strings"
+	"strings"
+	"testing"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 )
 
 // populating contents of a directory
@@ -62,26 +62,26 @@ func TestFindDevName_EmptyVolumeID(t *testing.T) {
 
 // succesful scenario - correct device, one match
 func TestFindDevName_Success(t *testing.T) {
-    mockReadDir  := func(path string) ([]fs.DirEntry, error) {
+	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
 			&mockDirEntry{name: "prefix-36001405e9f12345678-suffix"},
 		}, nil
 	}
 
-    mockEvalSymlinks := func(path string) (string, error) {
+	mockEvalSymlinks := func(path string) (string, error) {
 		return "/dev/sda", nil
 	}
 	volumeID := "36001405e9f12345678-and-more"
 	expectedDevice := "/dev/sda"
 
-    device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
+	device, err := moduleutils.FDevName(mockReadDir, mockEvalSymlinks, volumeID)
 
-    if err != nil {
-        t.Fatalf("FindDevName returned an error: %v", err)
-    }
-    if device != expectedDevice {
-        t.Errorf("Expected device %s, got %s", expectedDevice, device)
-    }
+	if err != nil {
+		t.Fatalf("FindDevName returned an error: %v", err)
+	}
+	if device != expectedDevice {
+		t.Errorf("Expected device %s, got %s", expectedDevice, device)
+	}
 }
 
 // multiple devices, one match - correct device when more dirs
@@ -131,7 +131,7 @@ func TestFindDevName_MultipleMatches(t *testing.T) {
 	}
 }
 
- // no matches - "not found" but fails gracefully
+// no matches - "not found" but fails gracefully
 func TestFindDevName_NoMatches(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -233,7 +233,7 @@ func TestSafeVmName(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("SafeVmName(%q) = %q; want %q", tt.input, result, tt.expected)
 			}
-			//Verify it works in a shell command context	
+			//Verify it works in a shell command context
 			cmd := exec.Command("echo", result)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
