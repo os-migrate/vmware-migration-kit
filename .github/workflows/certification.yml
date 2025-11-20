@@ -3,7 +3,7 @@
 # Contains tests run by Galaxy-importer on Automation Hub.
 # For additional testing options, see
 # https://github.com/ansible-collections/certification#optional
-name: "cert"
+name: "Ansible Collection Certification"
 
 concurrency:
   group: cert-${{ github.head_ref || github.run_id }}
