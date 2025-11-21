@@ -64,7 +64,11 @@ And the live demo here:
 
 ### Support
 
+As Red Hat Ansible Certified Content, this collection is entitled to support through Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner.
+
 For any issues related to the supported components of the collection itself, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
+
+If you installed this collection from Galaxy or GitHub, you can find help from the Ansible community on the [Ansible Forum](https://forum.ansible.com/).
 
 ## License
 
