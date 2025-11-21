@@ -1,2 +1,1 @@
 ansible==11.5.0
-jmespath==1.0.1
