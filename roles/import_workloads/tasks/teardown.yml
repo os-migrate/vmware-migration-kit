@@ -27,6 +27,7 @@
     loop_var: port
   when:
     - delete_os_port|default(true)|bool
+    - os_migrate_create_network_ports|default(true)|bool
     - nics is defined
   failed_when: false
 
