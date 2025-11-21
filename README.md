@@ -20,7 +20,8 @@ The Ansible collection provides different steps to scale your migration from VMW
   machine migration in two steps. The migration can also be done without conversion host.
 
 ## Full Documentation
-  For detailed guides, prerequisites, and troubleshooting, please see our [full documentation site](https://os-migrate.github.io/documentation/).
+
+For detailed guides, prerequisites, and troubleshooting, please see our [full documentation site](https://os-migrate.github.io/documentation/).
 
 ## Features and supported OS
 
@@ -45,17 +46,17 @@ The following features are availables:
 
 The VMware Migration Toolkit uses virt-v2v for conversion. For a list of
 supported guest operating systems for virt-v2v, see the Red Hat Knowledgebase article:
-https://access.redhat.com/articles/1351473[ Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10].
+[Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10](https://access.redhat.com/articles/1351473).
 
 RHOSO uses Kernel-based Virtual Machine (KVM) for hypervisors. For a list of certified
 guest operating systems for KVM, see the Red Hat Knowledgebase article:
-https://access.redhat.com/articles/certified-hypervisors[Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtualization, Red Hat OpenShift Virtualization and Red Hat Enterprise Linux with KVM].
+[Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtualization, Red Hat OpenShift Virtualization and Red Hat Enterprise Linux with KVM](https://access.redhat.com/articles/certified-hypervisors).
 
 ### Migration demo from an AEE
 
 The content of the Ansible Execution Environment can be found here:
 
-<https://github.com/os-migrate/aap/blob/main/aae-container-file>
+[aae-container-file](https://github.com/os-migrate/aap/blob/main/aae-container-file)
 
 And the live demo here:
 
@@ -69,4 +70,4 @@ For any issues related to the supported components of the collection itself, ple
 
 Apache License, Version 2.0
 
-See [LICENCE](https://www.apache.org/licenses/LICENSE-2.0.txt)
+See [LICENCE](https://github.com/os-migrate/vmware-migration-kit/blob/main/LICENSE)
