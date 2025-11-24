@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	myopenstack "vmware-migration-kit/plugins/module_utils/openstack"
+	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 
 	"github.com/gophercloud/gophercloud/v2"
 	th "github.com/gophercloud/gophercloud/v2/testhelper"
@@ -57,7 +57,7 @@ func TestCreatePortSuccess(t *testing.T) {
 
 	securityGroups := []string{"sg-01"}
 
-	port, err := myopenstack.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups)
+	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups)
 	if err != nil {
 		t.Fatalf("CreatePort returned error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestCreatePortClientInitFailure(t *testing.T) {
 		return "", gophercloud.ErrEndpointNotFound{}
 	}
 
-	_, err := myopenstack.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", nil)
+	_, err := osm_os.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", nil)
 	if err == nil {
 		t.Fatalf("expected error but got nil")
 	}
@@ -102,7 +102,7 @@ func TestCreatePortCreateError(t *testing.T) {
 
 	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
 
-	_, err := myopenstack.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", nil)
+	_, err := osm_os.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", nil)
 	if err == nil {
 		t.Fatalf("expected Create error but got none")
 	}
