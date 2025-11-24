@@ -80,28 +80,19 @@ All of these are configurable with Ansible boolean variables.
 
 ## Testing
 
-Currently we are supporting the following matrice:
+The VMware Migration Toolkit uses virt-v2v for conversion. For a list of
+supported guest operating systems for virt-v2v, see the Red Hat Knowledgebase article:
+Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10.
 
-| OS Family      | Version       | Supported & Tested | Not Tested Yet |
-| -------------- | ------------- | ------------------ | -------------- |
-| RHEL           | 9.4           | Yes                | -              |
-| RHEL           | 9.3 and lower | Yes                | -              |
-| RHEL           | 8.5           | Yes                | -              |
-| RHEL           | 8.4 and lower | -                  | Yes            |
-| CentOS         | 9             | Yes                | -              |
-| CentOS         | 8             | Yes                | -              |
-| Fedora         | 38 and upper  | Yes                | -              |
-| Fedora (btrfs) | 38 and upper  | Yes                | -              |
-| Ubuntu Server  | 24            | Yes                | -              |
-| Windows        | 10            | Yes                | -              |
-| Windows Server | 2k22          | Yes                | -              |
-| Suse           | X             | -                  | Yes            |
-
-By ensuring correct connectivity, installation, user ACLs, and host setup, most migration issues can be avoided.
-For persistent or unclear errors, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
+RHOSO uses Kernel-based Virtual Machine (KVM) for hypervisors. For a list of certified
+guest operating systems for KVM, see the Red Hat Knowledgebase article:
+Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtualization, Red Hat OpenShift Virtualization and Red Hat Enterprise Linux with KVM.
 
 
 ## Support
+
+By ensuring correct connectivity, installation, user ACLs, and host setup, most migration issues can be avoided.
+For persistent or unclear errors, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
 
 As Red Hat Ansible Certified Content, this collection is entitled to support through the Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner. If a support case cannot be opened with Red Hat and the collection has been obtained either from Galaxy or GitHub, there may community help available on the [Ansible Forum](https://forum.ansible.com/).
 
