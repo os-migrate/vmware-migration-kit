@@ -21,12 +21,6 @@ The Ansible collection provides different steps to scale your migration from VMW
   a near zero down time with the change block tracking VMware option (CBT) and so perform the virtual
   machine migration in two steps. The migration can also be done without conversion host.
 
-<<<<<<< Updated upstream
-## Full Documentation
-
-For detailed guides, prerequisites, and troubleshooting, please see our [full documentation site](https://os-migrate.github.io/documentation/).
-=======
->>>>>>> Stashed changes
 
 ## Requirements
 
@@ -39,15 +33,6 @@ This section list the required minimum versions of Ansible and Python, and any P
 
 To install from [ansible automation hub](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/) start by clicking download tarball to pull latest.
 
-<<<<<<< Updated upstream
-The VMware Migration Toolkit uses virt-v2v for conversion. For a list of
-supported guest operating systems for virt-v2v, see the Red Hat Knowledgebase article:
-[Converting virtual machines from other hypervisors to KVM with virt-v2v in RHEL 7, RHEL 8, RHEL 9, and RHEL 10](https://access.redhat.com/articles/1351473).
-
-RHOSO uses Kernel-based Virtual Machine (KVM) for hypervisors. For a list of certified
-guest operating systems for KVM, see the Red Hat Knowledgebase article:
-[Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtualization, Red Hat OpenShift Virtualization and Red Hat Enterprise Linux with KVM](https://access.redhat.com/articles/certified-hypervisors).
-=======
 Before using this collection, you need to install it with the Ansible Galaxy command-line tool:
 
 ```
@@ -55,7 +40,6 @@ ansible-galaxy collection install os_migrate.vmware_migration_kit
 ```
 
 You can also include it in a requirements.yml file and install it with ansible-galaxy collection install -r requirements.yml, using the format:
->>>>>>> Stashed changes
 
 
 ```yaml
@@ -63,11 +47,7 @@ collections:
   - name: os_migrate.vmware_migration_kit
 ```
 
-<<<<<<< Updated upstream
-[aae-container-file](https://github.com/os-migrate/aap/blob/main/aae-container-file)
-=======
 To upgrade the collection to the latest available version, run the following command:
->>>>>>> Stashed changes
 
 ```
 ansible-galaxy collection install os_migrate.vmware_migration_kit --upgrade
@@ -79,24 +59,11 @@ You can also install a specific version of the collection. Use the following syn
 ansible-galaxy collection install os_migrate.vmware_migration_kit:==1.0.0
 ```
 
-<<<<<<< Updated upstream
-As Red Hat Ansible Certified Content, this collection is entitled to support through Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner.
-
-For any issues related to the supported components of the collection itself, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
-
-If you installed this collection from Galaxy or GitHub, you can find help from the Ansible community on the [Ansible Forum](https://forum.ansible.com/).
-
-## License
-=======
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
 
->>>>>>> Stashed changes
 
 ## Use Cases
 
-<<<<<<< Updated upstream
-See [LICENCE](https://github.com/os-migrate/vmware-migration-kit/blob/main/LICENSE)
-=======
 There are different ways to run the migration from VMware to OpenStack.
 
 - The default is by using nbdkit server with a conversion host (an Openstack instance hosted in the destination cloud).
@@ -141,9 +108,7 @@ As Red Hat Ansible Certified Content, this collection is entitled to support thr
 
 ## Release Notes and Roadmap
 
-Changelog: https://github.com/os-migrate/vmware-migration-kit/blob/main/CHANGELOG.md
-Roadmap:
-
+For information on our changelog, see https://github.com/os-migrate/vmware-migration-kit/blob/main/CHANGELOG.md.
 
 ## Related Information
 
@@ -153,4 +118,3 @@ For detailed guides, prerequisites, and troubleshooting, please see our docs htt
 ## License Information
 
 Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0.txt
->>>>>>> Stashed changes
