@@ -32,8 +32,17 @@ This section list the required minimum versions of Ansible and Python, and any P
 ## Installation
 
 ### Red Hat Customers
-
 Red Hat customers can install this collection from the [Ansible Automation Hub](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/?sort=-pulp_created).
+
+
+### Community Users
+Community users can install this collection from Ansible Galaxy or GitHub. For detailed installation and usage instructions, refer to the [VMware to OpenStack Guide](https://os-migrate.github.io/documentation/#os-migrate-vmware-guide_vmware).
+
+To install from Galaxy:
+
+```
+ansible-galaxy collection install os_migrate.vmware_migration_kit
+```
 
 To install, use the Ansible Galaxy command-line tool:
 
@@ -60,15 +69,6 @@ You can also install a specific version of the collection. Use the following syn
 ansible-galaxy collection install os_migrate.vmware_migration_kit:==1.0.0
 ```
 
-### Community Users
-Community users can install this collection from Ansible Galaxy or GitHub. For detailed installation and usage instructions, refer to the [VMware to OpenStack Guide](https://github.com/os-migrate/documentation/blob/main/source/operator-vmware-guide.adoc).
-
-To install from Galaxy:
-
-```
-ansible-galaxy collection install os_migrate.vmware_migration_kit
-```
-
 To install from GitHub:
 
 ```
@@ -76,7 +76,6 @@ git clone https://github.com/os-migrate/vmware-migration-kit
 ```
 
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
-
 
 ## Use Cases
 
