@@ -140,3 +140,8 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.1.0
 
 - Cut dependencies with uncertified collections
+
+## v2.1.2
+
+- Documentation refactoring
+- Bug fix for neutron port creation
