@@ -31,23 +31,24 @@ This section list the required minimum versions of Ansible and Python, and any P
 
 ## Installation
 
-To install from [ansible automation hub](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/) start by clicking download tarball to pull latest.
+### Red Hat Customers
 
-Before using this collection, you need to install it with the Ansible Galaxy command-line tool:
+Red Hat customers can install this collection from the [Ansible Automation Hub](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/?sort=-pulp_created).
+
+To install, use the Ansible Galaxy command-line tool:
 
 ```
 ansible-galaxy collection install os_migrate.vmware_migration_kit
 ```
 
-You can also include it in a requirements.yml file and install it with ansible-galaxy collection install -r requirements.yml, using the format:
-
+You can also include it in a `requirements.yml` file and install it with `ansible-galaxy collection install -r requirements.yml`, using the format:
 
 ```yaml
 collections:
   - name: os_migrate.vmware_migration_kit
 ```
 
-To upgrade the collection to the latest available version, run the following command:
+To upgrade the collection to the latest available version, run:
 
 ```
 ansible-galaxy collection install os_migrate.vmware_migration_kit --upgrade
@@ -57,6 +58,21 @@ You can also install a specific version of the collection. Use the following syn
 
 ```
 ansible-galaxy collection install os_migrate.vmware_migration_kit:==1.0.0
+```
+
+### Community Users
+Community users can install this collection from Ansible Galaxy or GitHub. For detailed installation and usage instructions, refer to the [VMware to OpenStack Guide](https://github.com/os-migrate/documentation/blob/main/source/operator-vmware-guide.adoc).
+
+To install from Galaxy:
+
+```
+ansible-galaxy collection install os_migrate.vmware_migration_kit
+```
+
+To install from GitHub:
+
+```
+git clone https://github.com/os-migrate/vmware-migration-kit
 ```
 
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
@@ -91,15 +107,33 @@ Certified Guest Operating Systems in Red Hat OpenStack Platform, Red Hat Virtual
 
 ## Support
 
-By ensuring correct connectivity, installation, user ACLs, and host setup, most migration issues can be avoided.
-For persistent or unclear errors, please feel free to raise an [Issue](https://github.com/os-migrate/vmware-migration-kit/issues) on our GitHub repository.
+This collection is maintained by the Red Hat OpenStack Migration team.
 
-As Red Hat Ansible Certified Content, this collection is entitled to support through the Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner. If a support case cannot be opened with Red Hat and the collection has been obtained either from Galaxy or GitHub, there may community help available on the [Ansible Forum](https://forum.ansible.com/).
+By ensuring correct connectivity, installation, user ACLs, and host setup, most migration issues can be avoided.
+
+### Customer Support
+
+As Red Hat Ansible Certified Content, this collection is entitled to support through the Ansible Automation Platform (AAP) using the **Create issue** button on the top right corner of the [Automation Hub](https://console.redhat.com/ansible/automation-hub/).
+
+### Community Support
+
+If a support case cannot be opened with Red Hat and the collection has been obtained either from Galaxy or GitHub, community help is available through:
+
+- **GitHub Issues**: Open a bug report or feature request at [https://github.com/os-migrate/vmware-migration-kit/issues](https://github.com/os-migrate/vmware-migration-kit/issues)
+- **Ansible Forum**: Get community assistance at [https://forum.ansible.com/](https://forum.ansible.com/)
 
 
 ## Release Notes and Roadmap
 
-For information on our changelog, see https://github.com/os-migrate/vmware-migration-kit/blob/main/CHANGELOG.md.
+### Red Hat Customers
+
+For Red Hat customers using this collection through Ansible Automation Hub, release information and distributions are available at:
+[https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/distributions/](https://console.redhat.com/ansible/automation-hub/repo/published/os_migrate/vmware_migration_kit/distributions/)
+
+### Community Users
+
+For community users who obtained this collection from Galaxy or GitHub, changelog information is available at:
+[https://github.com/os-migrate/vmware-migration-kit/blob/main/CHANGELOG.md](https://github.com/os-migrate/vmware-migration-kit/blob/main/CHANGELOG.md)
 
 ## Related Information
 
