@@ -88,12 +88,6 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		NetworkID:      networkID,
 		MACAddress:     macAddress,
 		SecurityGroups: &securityGroups,
-		AllowedAddressPairs: []ports.AddressPair{
-			{
-				IPAddress:  "0.0.0.0/0",
-				MACAddress: macAddress,
-			},
-		},
 	}
 
 	port, err := ports.Create(context.TODO(), client, createOpts).Extract()
