@@ -17,7 +17,7 @@ class VirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            "vpx://{}@{}/Datacenter/{}?no_verify=1".format(
+            "vpx://{}@{}/Datacenter/host/{}?no_verify=1".format(
                 self.params["vcenter_username"].replace("@", "%40"),
                 self.params["vcenter_hostname"],
                 self.params["esxi_hostname"],
