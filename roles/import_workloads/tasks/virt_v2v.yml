@@ -28,6 +28,7 @@
   os_migrate.vmware_migration_kit.import_vmware_volume:
     vcenter_username: "{{ vcenter_username }}"
     vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_datacenter: "{{ vcenter_datacenter }}"
     esxi_hostname: "{{ esxi_hostname }}"
     cloud: "{{ dst_cloud }}"
     vddk_libdir: "{{ vddk_libdir.stdout_lines[0] }}"
