@@ -10,7 +10,7 @@
 
 - name: Dump passwd file
   ansible.builtin.shell: |
-    echo "{{ vcenter_password }}" > /tmp/passwd
+    echo '{{ vcenter_password }}' > /tmp/passwd
   changed_when: false
 
 - name: Make sure virtqemud is started

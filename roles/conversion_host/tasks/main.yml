@@ -1,6 +1,8 @@
-- name: Install Openstack SIG repo
+- name: Enable EPEL and nbkit for virt-v2v migration
   ansible.builtin.dnf:
-    name: centos-release-openstack-bobcat
+    name: 
+      - epel-release
+      - nbdkit
     state: present
     use_backend: dnf4
   when: os_migrate_virt_v2v|default(false)|bool
@@ -32,10 +34,9 @@
     name: openstacksdk>1.0.0
 
 - name: Install openstack client
-  ansible.builtin.dnf:
-    name: python3-openstackclient
+  ansible.builtin.pip:
+    name: python-openstackclient
     state: present
-    use_backend: dnf4
   when: os_migrate_virt_v2v|default(false)|bool
 
 - name: Check if libdir is set and exists
