@@ -1,12 +1,18 @@
 ---
 - name: Find vddk-libdir
-  ansible.builtin.shell: >
-    set -o pipefail
-    find / -path /usr/share/doc -prune -o -name vmware-vix-disklib -print 2>/dev/null | xargs -r dirname | sort -u
-  args:
-    executable: /bin/bash
+  ansible.builtin.shell: |
+    for d in /usr/lib /usr/lib64 /opt; do
+      if [ -d "$d/vmware-vix-disklib" ]; then
+        echo "$d/vmware-vix-disklib"
+      fi
+    done
   changed_when: false
   register: vddk_libdir
+
+- name: Fail if vddk-libdir was not found
+  ansible.builtin.fail:
+    msg: "VDDK library directory not found. Please make sure vmware-vix-disklib is installed on this host."
+  when: vddk_libdir.stdout_lines | length == 0
 
 - name: Dump passwd file
   ansible.builtin.shell: |
@@ -24,7 +30,7 @@
     vcenter_hostname: "{{ vcenter_hostname }}"
     esxi_hostname: "{{ esxi_hostname }}"
     cloud: "{{ dst_cloud }}"
-    vddk_libdir: "{{ vddk_libdir.stdout }}"
+    vddk_libdir: "{{ vddk_libdir.stdout_lines[0] }}"
     vddk_thumbprint: "{{ vddk_thumbprint }}"
     conversion_host_id: "{{ conversion_host_id }}"
     vm_name: "{{ vm_name }}"
