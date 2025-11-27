@@ -25,13 +25,14 @@
     state: started
 
 - name: Import VMware volume to Openstack
+  environment:
+    OS_CLOUD: "{{ os_cloud_environ }}"
   os_migrate.vmware_migration_kit.import_vmware_volume:
     vcenter_username: "{{ vcenter_username }}"
     vcenter_hostname: "{{ vcenter_hostname }}"
     vcenter_datacenter: "{{ vcenter_datacenter }}"
     vcenter_cluster: "{{ vcenter_cluster }}"
     esxi_hostname: "{{ esxi_hostname }}"
-    cloud: "{{ dst_cloud }}"
     vddk_libdir: "{{ vddk_libdir.stdout_lines[0] }}"
     vddk_thumbprint: "{{ vddk_thumbprint }}"
     conversion_host_id: "{{ conversion_host_id }}"
