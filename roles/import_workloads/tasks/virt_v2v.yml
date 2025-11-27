@@ -29,6 +29,7 @@
     vcenter_username: "{{ vcenter_username }}"
     vcenter_hostname: "{{ vcenter_hostname }}"
     vcenter_datacenter: "{{ vcenter_datacenter }}"
+    vcenter_cluster: "{{ vcenter_cluster }}"
     esxi_hostname: "{{ esxi_hostname }}"
     cloud: "{{ dst_cloud }}"
     vddk_libdir: "{{ vddk_libdir.stdout_lines[0] }}"
