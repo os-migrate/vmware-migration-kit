@@ -34,36 +34,9 @@ class VirtV2V:
             "-oo",
             "server-id={}".format(self.params["conversion_host_id"]),
         ]
-        cmd.extend(self._convert_cloud_to_virtv2v_options())
         cmd.append(self.params["vm_name"])
 
         return cmd
-
-    def _convert_cloud_to_virtv2v_options(self):
-        cloud = self.params["cloud"]
-        opts = []
-
-        auth = cloud.get("auth", {})
-
-        mapping = {
-            "auth_url": "auth-url",
-            "username": "username",
-            "password": "password",
-            "project_name": "project-name",
-            "project_id": "project-id",
-            "user_domain_name": "user-domain-name",
-        }
-
-        for k, v in auth.items():
-            if k in mapping:
-                opts.append("-oo")
-                opts.append(f"{mapping[k]}={v}")
-
-        if cloud.get("region_name"):
-            opts.append("-oo")
-            opts.append(f"region-name={cloud['region_name']}")
-
-        return opts
 
     def run_command(self, cmd):
         try:
