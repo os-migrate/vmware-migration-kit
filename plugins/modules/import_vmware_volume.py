@@ -124,6 +124,7 @@ def main():
         argument_spec=dict(
             vcenter_username=dict(type="str", required=True),
             vcenter_hostname=dict(type="str", required=True),
+            vcenter_datacenter=dict(type="str", required=True),
             esxi_hostname=dict(type="str", required=True),
             cloud=dict(type="dict", required=True),
             vddk_libdir=dict(type="str", required=True),
