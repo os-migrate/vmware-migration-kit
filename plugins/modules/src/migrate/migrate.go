@@ -454,7 +454,7 @@ func main() {
 
 	var disks []int32
 	var volume []string
-	var forceV2V bool = false
+	var forceV2V = false
 	runV2V := !skipV2V
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
