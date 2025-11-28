@@ -347,7 +347,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				err = nbdkit.V2VConversion(devPath, netConfScript, c.Debug)
 				if err != nil {
 					logger.Log.Infof("Failed to convert disk: %v", err)
-					return "", err
+					return "V2VFail", err
 				}
 				err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 				if err != nil {
@@ -454,6 +454,7 @@ func main() {
 
 	var disks []int32
 	var volume []string
+	var forceV2V = false
 	runV2V := !skipV2V
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
@@ -462,9 +463,12 @@ func main() {
 		ansible.FailJson(response)
 	}
 	for k, d := range disks {
-		if k != 0 {
+		if k != 0 && !forceV2V {
 			runV2V = false
+		} else if forceV2V {
+			runV2V = true
 		}
+		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
 				User:        user,
@@ -500,9 +504,15 @@ func main() {
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
-			logger.Log.Infof("Failed to migrate VM: %v", err)
-			response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + LogFile
-			ansible.FailJson(response)
+			if volUUID == "V2VFail" && len(disks) > 1 && k+1 < len(disks) {
+				logger.Log.Infof("V2V conversion failed for disk %d, skipping to next disk...", d)
+				forceV2V = true
+				continue
+			} else {
+				logger.Log.Infof("Failed to migrate VM: %v", err)
+				response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + LogFile
+				ansible.FailJson(response)
+			}
 		}
 		volume = append(volume, volUUID)
 	}
