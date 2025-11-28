@@ -23,9 +23,10 @@
 
 - name: Check virtio-win version
   ansible.builtin.fail:
-    msg: "The package virtio-win is not installed or the version is lower than 1.9.40"
+    msg: "[WARNING]: The package virtio-win is not installed or the version is lower than {{ conversion_host_virtio_win_min_version }}"
   when:
-    - "'virtio-win' not in ansible_facts.packages or ansible_facts.packages['virtio-win'][0].version is version('1.9.40', '<')"
+    - "'virtio-win' not in ansible_facts.packages or ansible_facts.packages['virtio-win'][0].version is version('{{ conversion_host_virtio_win_min_version }}', '<')"
+  ignore_errors: true
 
 - name: Install openstacksdk
   ansible.builtin.pip:

@@ -1,3 +1,5 @@
 conversion_host_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
 # Install VMware VIX DiskLib if not already installed, see documentation for details
 conversion_host_vmware_lib_dir: /usr/lib/vmware-vix-disklib
+# Virtio-win package version
+conversion_host_virtio_win_min_version: "1.9.40"
