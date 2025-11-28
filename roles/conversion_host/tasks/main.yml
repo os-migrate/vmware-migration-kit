@@ -1,6 +1,6 @@
 - name: Enable EPEL and nbkit for virt-v2v migration
   ansible.builtin.dnf:
-    name: 
+    name:
       - epel-release
       - nbdkit
     state: present
