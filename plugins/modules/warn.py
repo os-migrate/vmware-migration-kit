@@ -54,10 +54,6 @@ from ansible.module_utils.basic import AnsibleModule
 import sys
 
 
-def print_warning(message):
-    sys.stderr.write(f"[WARNING]: {message}\n")
-
-
 def main():
     module_args = dict(
         msg=dict(type='str', required=True)
@@ -69,10 +65,8 @@ def main():
     )
 
     msg = module.params["msg"]
-
-    # Print actual warning on stderr
-    print_warning(msg)
-    module.exit_json(changed=False, message=msg)
+    module.warn(msg)
+    module.exit_json(changed=False)
 
 
 if __name__ == '__main__':
