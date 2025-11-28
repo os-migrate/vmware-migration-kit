@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import, division, print_function
-
 __metaclass__ = type
 
 import subprocess
@@ -12,14 +11,16 @@ class VirtV2V:
         self.params = params
 
     def build_command(self):
-        return [
+        cmd = [
             "virt-v2v",
             "-ip",
             "/tmp/passwd",
             "-ic",
-            "vpx://{}@{}/Datacenter/{}?no_verify=1".format(
+            "vpx://{}@{}/{}/host/{}/{}?no_verify=1".format(
                 self.params["vcenter_username"].replace("@", "%40"),
                 self.params["vcenter_hostname"],
+                self.params["vcenter_datacenter"],
+                self.params["vcenter_cluster"],
                 self.params["esxi_hostname"],
             ),
             "-it",
@@ -32,8 +33,10 @@ class VirtV2V:
             "openstack",
             "-oo",
             "server-id={}".format(self.params["conversion_host_id"]),
-            self.params["vm_name"],
         ]
+        cmd.append(self.params["vm_name"])
+
+        return cmd
 
     def run_command(self, cmd):
         try:
@@ -42,7 +45,7 @@ class VirtV2V:
         except subprocess.CalledProcessError as e:
             return dict(
                 changed=False,
-                msg="Command failed: {}".format(e),
+                msg=f"Command failed: {e}",
                 stdout=e.stdout,
                 stderr=e.stderr,
             )
