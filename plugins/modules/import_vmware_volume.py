@@ -29,6 +29,16 @@ options:
             - Hostname or IP address of the VMware vCenter server.
         type: str
         required: true
+    vcenter_datacenter:
+        description:
+            - Name of the datacenter in vCenter where the VM resides.
+        type: str
+        required: true
+    vcenter_cluster:
+        description:
+            - Name of the cluster in vCenter where the VM resides.
+        type: str
+        required: true
     esxi_hostname:
         description:
             - Hostname or IP address of the ESXi host where the virtual machine is located.
@@ -57,6 +67,7 @@ options:
             - Name of the virtual machine to be converted.
         type: str
         required: true
+
 
 notes:
     - This module requires the virt-v2v tool to be installed on the target system.
@@ -124,6 +135,8 @@ def main():
         argument_spec=dict(
             vcenter_username=dict(type="str", required=True),
             vcenter_hostname=dict(type="str", required=True),
+            vcenter_datacenter=dict(type="str", required=True),
+            vcenter_cluster=dict(type="str", required=True),
             esxi_hostname=dict(type="str", required=True),
             vddk_libdir=dict(type="str", required=True),
             vddk_thumbprint=dict(type="str", required=True),
