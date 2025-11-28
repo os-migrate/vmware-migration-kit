@@ -51,7 +51,6 @@ message:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-import sys
 
 
 def main():
