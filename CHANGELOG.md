@@ -149,3 +149,9 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.1.3
 
 - Fix build script
+
+## v2.1.4
+
+- Fix regression with mac address export
+- Fix legacy virt-v2v workflow
+- Improve virtio-win check
