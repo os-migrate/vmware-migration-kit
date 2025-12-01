@@ -130,7 +130,7 @@ build: check-root clean-build clean-binaries binaries
 
 # Target to build the collection for production (without teardown tasks)
 build-prod: check-root clean-build clean-binaries binaries
-    @echo "*** Building Ansible collection for production...***"
+	@echo "*** Building Ansible collection for production...***"
 	@echo "*** Cleaning the teardown tasks as they are not needed in production ***"
 	sed -i '22,$$d' $(COLLECTION_ROOT)/roles/import_workloads/tasks/main.yml
 	truncate -s -1 $(COLLECTION_ROOT)/roles/import_workloads/tasks/main.yml
