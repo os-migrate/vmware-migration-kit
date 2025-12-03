@@ -9,20 +9,39 @@ on:
       - main
 
 jobs:
-  build:
-    name: Ansible Sanity tests
+  sanity:
+    name: Ansible Sanity tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "2.7"
+          - "3.6"
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.0'
+
       - name: Prepare Go modules
         run: go mod tidy
+
       - name: Run ansible-test
         shell: bash
         run: make test-ansible-sanity
