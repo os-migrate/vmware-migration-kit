@@ -220,7 +220,7 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
+	ansible-test sanity --python $(PYTHON_VERSION) --requirements --test compile \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/best_match_flavor \
