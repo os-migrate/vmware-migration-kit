@@ -136,9 +136,8 @@ For community users who obtained this collection from Galaxy or GitHub, changelo
 
 ## Related Information
 
-For detailed guides, prerequisites, and troubleshooting, please see our docs https://os-migrate.github.io/documentation/.
-
+For detailed guides, prerequisites, and troubleshooting, please see the [OS Migrate Documentation](https://os-migrate.github.io/documentation/).
 
 ## License Information
 
-Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0.txt
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt)
