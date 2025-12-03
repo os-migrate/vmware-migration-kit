@@ -12,21 +12,21 @@ class VirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            (
-                f"vpx://{self.params['vcenter_username'].replace('@', '%40')}"
-                f"@{self.params['vcenter_hostname']}/Datacenter/"
-                f"{self.params['esxi_hostname']}?no_verify=1"
+            "vpx://{username}@{vcenter}/Datacenter/{esxi}?no_verify=1".format(
+                username=self.params['vcenter_username'].replace('@', '%40'),
+                vcenter=self.params['vcenter_hostname'],
+                esxi=self.params['esxi_hostname']
             ),
             "-it",
             "vddk",
             "-io",
-            f"vddk-libdir={self.params['vddk_libdir']}",
+            "vddk-libdir={}".format(self.params['vddk_libdir']),
             "-io",
-            f"vddk-thumbprint={self.params['vddk_thumbprint']}",
+            "vddk-thumbprint={}".format(self.params['vddk_thumbprint']),
             "-o",
             "openstack",
             "-oo",
-            f"server-id={self.params['conversion_host_id']}",
+            "server-id={}".format(self.params['conversion_host_id']),
             self.params["vm_name"],
         ]
 
@@ -37,7 +37,7 @@ class VirtV2V:
         except subprocess.CalledProcessError as e:
             return dict(
                 changed=False,
-                msg=f"Command failed: {e}",
+                msg="Command failed: {}".format(e),
                 stdout=e.stdout,
                 stderr=e.stderr,
             )
