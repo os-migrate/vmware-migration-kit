@@ -36,6 +36,14 @@ options:
     description: The name of the source VMware virtual machine to be migrated.
     type: str
     required: true
+  volumeaz:
+    description: The availability zone to use for creating cinder volumes
+    type: str
+    required: false
+  volumetype:
+    description: The volume type to use for creating cinder volumes
+    type: str
+    required: false
   osmdatadir:
     description: Path to the os-migrate data directory, used for storing migration-related data, logs, or state.
     type: str

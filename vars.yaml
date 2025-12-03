@@ -61,3 +61,12 @@ os_migrate_tear_down: true
 vms_list:
   - rhel-1
   - rhel-2
+
+# Cinder volume type to use for the converted volumes
+cinder_volume_type: __DEFAULT__
+
+# Availability zone settings for the converted volumes and instances
+# These can be set separately or via a single `availability_zone` var
+availability_zone: nova
+# cinder_availability_zone: nova-zone1
+# nova_availability_zone: cinder-zone1
