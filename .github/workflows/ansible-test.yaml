@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python2-minimal python2-dev
           python2 --version
-          sudo apt-get install -y python-pip
+          sudo apt-get install -y python-pip ansible
 
       - name: Set up Go
         uses: actions/setup-go@v5
