@@ -9,7 +9,32 @@ on:
       - main
 
 jobs:
-  sanity:
+  sanity27:
+    name: Ansible Sanity tests (Python 2.7)
+    runs-on: ubuntu-20.04   # last runner where python2.7 still exists
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python 2.7
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python2-minimal python2-dev
+          python2 --version
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.0'
+
+      - name: Prepare Go modules
+        run: go mod tidy
+
+      - name: Run ansible-test
+        run: |
+          export PATH="/usr/bin:$PATH"
+          make test-ansible-sanity
+
+  sanity3:
     name: Ansible Sanity tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
 
@@ -17,7 +42,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "2.7"
           - "3.6"
           - "3.7"
           - "3.8"
