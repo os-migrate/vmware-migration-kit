@@ -59,17 +59,19 @@ type VolOpts struct {
 	Name       string
 	Size       int
 	VolumeType string
+	AvailabilityZone string
 	BusType    string
 	Metadata   map[string]string
 }
 
 type ServerArgs struct {
-	Name           string
-	Nics           []interface{}
-	BootVolume     string
-	Volumes        []string
-	SecurityGroups []string
-	Flavor         string
+	Name             string
+	Nics             []interface{}
+	BootVolume       string
+	Volumes          []string
+	SecurityGroups   []string
+	Flavor           string
+	AvailabilityZone string
 }
 
 type CinderManageConfig struct {
@@ -118,10 +120,11 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 	}
 
 	createOpts := volumes.CreateOpts{
-		Name:       opts.Name,
-		Size:       opts.Size,
-		VolumeType: opts.VolumeType,
-		Metadata:   opts.Metadata,
+		Name:             opts.Name,
+		Size:             opts.Size,
+		VolumeType:       opts.VolumeType,
+		AvailabilityZone: opts.AvailabilityZone,
+		Metadata:         opts.Metadata,
 	}
 
 	volume, err := volumes.Create(context.TODO(), client, createOpts, nil).Extract()
@@ -488,6 +491,7 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 		FlavorRef:      args.Flavor,
 		Networks:       nics,
 		SecurityGroups: args.SecurityGroups,
+		AvailabilityZone: args.AvailabilityZone,
 		BlockDevice:    blockDevices,
 	}
 

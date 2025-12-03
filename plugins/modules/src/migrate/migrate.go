@@ -69,6 +69,8 @@ type MigrationConfig struct {
 	Server             string
 	Libdir             string
 	VmName             string
+	VolumeAz           string
+	VolumeType         string
 	OSMDataDir         string
 	VddkConfig         *vmware.VddkConfig
 	CBTSync            bool
@@ -93,6 +95,8 @@ type ModuleArgs struct {
 	Server         string
 	Libdir         string
 	VmName         string
+	VolumeAz       string
+	VolumeType     string
 	VddkPath       string
 	OSMDataDir     string
 	CBTSync        bool
@@ -206,11 +210,12 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		// 	volumeMetadata["hw_scsi_model"] = "virtio-scsi"
 		// }
 		volOpts := osm_os.VolOpts{
-			Name:       vmName + "-" + diskNameStr,
-			Size:       int(diskSize[diskNameStr] / 1024 / 1024),
-			VolumeType: "",
-			BusType:    "virtio",
-			Metadata:   volMetadata,
+			Name:             vmName + "-" + diskNameStr,
+			Size:             int(diskSize[diskNameStr] / 1024 / 1024),
+			VolumeType:       c.VolumeType,
+			AvailabilityZone: c.VolumeAz,
+			BusType:          "virtio",
+			Metadata:         volMetadata,
 		}
 		var fw mo.VirtualMachine
 		var uefi bool
@@ -406,6 +411,8 @@ func main() {
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "fastlz")
 	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
+	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
+	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
 	skipV2V := moduleArgs.SkipConversion
@@ -501,6 +508,8 @@ func main() {
 			Debug:         debug,
 			LocalDiskPath: localDisk,
 			CloudOpts:     moduleArgs.DstCloud,
+			VolumeType:    volType,
+			VolumeAz:      volAz,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
