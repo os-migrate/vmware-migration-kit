@@ -13,7 +13,7 @@ CONTAINER_ENGINE := podman
 # @TODO: move to 10 when the payload size will be increase in Galaxy
 CONTAINER_IMAGE := quay.io/centos/centos:stream9
 BUILD_SCRIPT := /code/scripts/build.sh
-PYTHON_VERSION := 3.12
+PYTHON_VERSION ?= 3.12
 MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
