@@ -18,6 +18,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 DOCUMENTATION = r'''
 ---
 module: warn
