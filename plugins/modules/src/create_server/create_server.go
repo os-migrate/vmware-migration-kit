@@ -176,7 +176,7 @@ func main() {
 		SecurityGroups:   moduleArgs.SecurityGroups,
 		Nics:             moduleArgs.Nics,
 		Volumes:          moduleArgs.Volumes,
-	        AvailabilityZone: moduleArgs.AvailabilityZone,
+                AvailabilityZone: moduleArgs.AvailabilityZone,
 	}
 	server, err := osm_os.CreateServer(provider, ServerAgrs)
 	if err != nil {
