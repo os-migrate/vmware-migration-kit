@@ -169,8 +169,15 @@ check-python-version:
 	fi
 
 create-venv: clean-venv check-python-version
-	@echo "*** Creating venv... ***"
+	@echo "*** Creating venv for Python $(PYTHON_VERSION)... ***"
+ifeq ($(PYTHON_VERSION),2.7)
+	@echo "*** Using virtualenv for Python 2.7 ***"
+	@python2.7 -m pip install --upgrade pip setuptools virtualenv
+	@python2.7 -m virtualenv $(VENV_DIR)
+else
+	@echo "*** Using built-in venv for Python $(PYTHON_VERSION) ***"
 	@python$(PYTHON_VERSION) -m venv $(VENV_DIR)
+endif
 
 clean-venv:
 	@if [ -d "$(VENV_DIR)" ]; then \
