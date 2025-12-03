@@ -220,7 +220,22 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --requirements --test compile \
+	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
+	  --exclude aee/ \
+		--exclude scripts/ \
+	  --exclude plugins/modules/best_match_flavor \
+	  --exclude plugins/modules/create_network_port \
+	  --exclude plugins/modules/create_server \
+	  --exclude plugins/modules/import_flavor \
+	  --exclude plugins/modules/delete_flavor \
+	  --exclude plugins/modules/delete_port \
+	  --exclude plugins/modules/delete_server \
+	  --exclude plugins/modules/delete_volume \
+	  --exclude plugins/modules/flavor_info \
+	  --exclude plugins/modules/migrate \
+	  --exclude plugins/modules/volume_info \
+	  --exclude plugins/modules/volume_metadata_info && \
+	ansible-test sanity --test compile \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/best_match_flavor \
