@@ -32,7 +32,7 @@ jobs:
 
       - name: Run ansible-test
         run: |
-          export PYTHON_VERSION=3.8
+          export ANSIBLE_TEST_PYTHON_VERSION=3.8
           export PATH="/usr/bin:$PATH"
           make test-ansible-sanity
 

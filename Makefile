@@ -14,6 +14,7 @@ CONTAINER_ENGINE := podman
 CONTAINER_IMAGE := quay.io/centos/centos:stream9
 BUILD_SCRIPT := /code/scripts/build.sh
 PYTHON_VERSION ?= 3.12
+ANSIBLE_TEST_PYTHON_VERSION ?= 3.12
 MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
@@ -227,7 +228,7 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
+	ansible-test sanity --python $(ANSIBLE_TEST_PYTHON_VERSION) --requirements \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/best_match_flavor \
