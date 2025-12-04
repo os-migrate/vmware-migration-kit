@@ -9,20 +9,60 @@ on:
       - main
 
 jobs:
-  build:
-    name: Ansible Sanity tests
-    runs-on: ubuntu-24.04
+  sanity27:
+    name: Ansible Sanity tests (Python 2.7)
+    runs-on: ubuntu-22.04   # last runner where python2.7 still exists
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+
+      - name: Install Python 2.7
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python2-minimal python2-dev
+          python2 --version
+          sudo apt-get install -y python-pip ansible
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.0'
+
       - name: Prepare Go modules
         run: go mod tidy
+
+      - name: Run ansible-test
+        run: |
+          export ANSIBLE_TEST_PYTHON_VERSION=default
+          export PYTHON_VERSION=3.10
+          export PATH="/usr/bin:$PATH"
+          make test-ansible-sanity
+
+  sanity3:
+    name: Ansible Sanity tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.0'
+
+      - name: Prepare Go modules
+        run: go mod tidy
+
       - name: Run ansible-test
         shell: bash
         run: make test-ansible-sanity
