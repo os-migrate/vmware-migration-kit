@@ -162,3 +162,7 @@ Minor release which removes unused import_image module and fix AEE push
 - Remove f-strings for python retrocompatibility
 - Add future import and metaclass boilerplate 
 - Update readme links
+
+## v2.1.6
+
+- Add ability to define server and volume AZ as well as volume types for cinder volumes
