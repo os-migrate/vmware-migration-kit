@@ -3,7 +3,7 @@ set -euo pipefail
 
 dnf -y update
 dnf config-manager --enable crb
-dnf install -y golang libnbd-devel gcc
+dnf install -y golang libnbd-devel gcc epel-release
 if ! dnf install -y upx >/dev/null 2>&1; then
   echo "UPX not available in dnf — skipping UPX installation."
 fi
