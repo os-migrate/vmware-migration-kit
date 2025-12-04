@@ -155,3 +155,10 @@ Minor release which removes unused import_image module and fix AEE push
 - Fix regression with mac address export
 - Fix legacy virt-v2v workflow
 - Improve virtio-win check
+
+## v2.1.5
+
+- Run sanity test on each required versions of python 
+- Remove f-strings for python retrocompatibility
+- Add future import and metaclass boilerplate 
+- Update readme links
