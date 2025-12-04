@@ -78,7 +78,7 @@
         flavor: "{{ flavor_info.flavor.id }}"
         key_name: "{{ ssh_key_name | default('') }}"
         boot_from_cinder: "{{ import_workloads_boot_from_cinder }}"
-        availability_zone: "{{ nova_availability_zone | default(omit) }}"
+        availability_zone: "{{ import_workloads_nova_az | default(omit) }}"
 
     - name: Set fact for instance_uuid
       ansible.builtin.set_fact:

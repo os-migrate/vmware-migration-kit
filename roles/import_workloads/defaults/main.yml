@@ -1,9 +1,10 @@
 # Default cinder and nova AZs to the value of availability_zone or omit
-cinder_availability_zone: "{{ availability_zone | default(omit) }}"
-nova_availability_zone: "{{ availability_zone | default(omit) }}"
+import_workloads_cinder_az: "{{ availability_zone | default(omit) }}"
+import_workloads_nova_az: "{{ availability_zone | default(omit) }}"
 
 import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
 import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
+import_workloads_cinder_volume_type: "{{ cinder_volume_type | default(omit) }}"
 import_workloads_cutover: "{{ cutover | default(false) | bool }}"
 import_workloads_converted: "{{ converted | default(false) | bool }}"
 import_workloads_skip_conversion: "{{ skip_conversion | default(false) | bool }}"

@@ -27,4 +27,6 @@
     vms: "{{ vms_list }}"
     os_migrate_virt_v2v: false
     os_migrate_nbkit: true
+    import_workloads_cinder_az: "{{ cinder_availability_zone | default(omit) }}"
+    import_workloads_nova_az: "{{ nova_availability_zone | default(omit) }}"
   when: run_full_migration | default(true) | bool
