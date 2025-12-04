@@ -74,5 +74,5 @@ cinder_volume_type: __DEFAULT__
 # conversion will quietly hang due to the failed attachment.
 #
 availability_zone: nova
-# cinder_availability_zone: nova-zone1
-# nova_availability_zone: cinder-zone1
+# import_workloads_cinder_availability_zone: nova-zone1
+# import_workloads_nova_availability_zone: cinder-zone1
