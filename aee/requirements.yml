@@ -5,4 +5,4 @@ collections:
     version: 4.9.0
   - name: os_migrate.vmware_migration_kit
     type: file
-    source: tmp/os_migrate-vmware_migration_kit-2.1.4.tar.gz
+    source: tmp/os_migrate-vmware_migration_kit-2.1.5.tar.gz
