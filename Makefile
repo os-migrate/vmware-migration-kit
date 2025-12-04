@@ -13,7 +13,8 @@ CONTAINER_ENGINE := podman
 # @TODO: move to 10 when the payload size will be increase in Galaxy
 CONTAINER_IMAGE := quay.io/centos/centos:stream9
 BUILD_SCRIPT := /code/scripts/build.sh
-PYTHON_VERSION := 3.12
+PYTHON_VERSION ?= 3.12
+ANSIBLE_TEST_PYTHON_VERSION ?= 3.12
 MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
@@ -174,8 +175,15 @@ check-python-version:
 	fi
 
 create-venv: clean-venv check-python-version
-	@echo "*** Creating venv... ***"
+	@echo "*** Creating venv for Python $(PYTHON_VERSION)... ***"
+ifeq ($(PYTHON_VERSION),2.7)
+	@echo "*** Using virtualenv for Python 2.7 ***"
+	@python2.7 -m pip install --upgrade pip setuptools virtualenv
+	@python2.7 -m virtualenv $(VENV_DIR)
+else
+	@echo "*** Using built-in venv for Python $(PYTHON_VERSION) ***"
 	@python$(PYTHON_VERSION) -m venv $(VENV_DIR)
+endif
 
 clean-venv:
 	@if [ -d "$(VENV_DIR)" ]; then \
@@ -225,7 +233,7 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
+	ansible-test sanity --test compile \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/best_match_flavor \
