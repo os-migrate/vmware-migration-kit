@@ -51,6 +51,24 @@
       run_once: true
       when: used_mapped_networks|default(true)|bool
 
+    - name: Validate that at least one network was mapped
+      ansible.builtin.fail:
+        msg: |
+          ERROR: No networks were mapped for VM '{{ vm_name }}'.
+
+          VMware networks found on this VM:
+          {% for eth in vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list %}
+          - {{ vm_info_file[eth].summary }}
+          {% endfor %}
+
+          Your current network_map:
+          {{ network_map | to_nice_json }}
+
+          None of the VM's networks match your network_map configuration.
+          Please update 'network_map' in vars.yaml to include mappings for the networks above.
+      when:
+        - guest_nic is not defined or guest_nic | length == 0
+
 - name: Extract macs addresses for non mapped networks
   when: not used_mapped_networks
   block:

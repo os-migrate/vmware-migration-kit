@@ -8,6 +8,19 @@
     name: "{{ vm_name }}"
   register: guest_info
 
+- name: Validate VM was found
+  ansible.builtin.fail:
+    msg: |
+      ERROR: VM '{{ vm_name }}' was not found in vCenter.
+
+      Please verify:
+      - The VM name is correct (case sensitive)
+      - The VM exists in vCenter: {{ vcenter_hostname }}
+      - The VM is in datacenter: {{ vcenter_datacenter }}
+
+      Check your 'vms_list' parameter in vars.yaml
+  when: guest_info.guests | length == 0
+
 - name: Dump guest_info file
   ansible.builtin.copy:
     content: "{{ guest_info.guests[0] | to_nice_json }}"
