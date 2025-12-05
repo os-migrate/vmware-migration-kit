@@ -48,10 +48,22 @@ options:
     description: Path to the os-migrate data directory, used for storing migration-related data, logs, or state.
     type: str
     required: true
-  firstboot:
+  runscript:
+    description:
+      - Path to a script file that will be executed during the conversion.
+      - This is typically used for guest OS customization (e.g., network interface configuration).
+    type: str
+    required: false
+  bootscript:
     description:
       - Path to a script file that will be configured to run on the first boot of the migrated virtual machine in OpenStack.
       - This is typically used for guest OS customization (e.g., network configuration via cloud-init).
+    type: str
+    required: false
+  extraopts:
+    description:
+      - Additional options to be passed to the conversion process.
+      - This can include flags or parameters that modify the behavior of the conversion tool. Example: "--key LUKS -x --color".
     type: str
     required: false
   vddkpath:
