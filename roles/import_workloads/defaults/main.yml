@@ -14,7 +14,7 @@ import_workloads_debug: "{{ debug | default(false) | bool }}"
 import_workloads_local_disk_path: "{{ local_disk_path | default(omit) }}"
 import_workloads_libdir: "{{ libdir | default('/usr/lib/vmware-vix-disklib') }}"
 import_workloads_extra_opts: "{{ extra_opts | default(omit) }}"
-os_migrate_boot_script_path: "{{ boot_script_path | default(omit) }}"
+import_workloads_script_path: "{{ boot_script_path | default(omit) }}"
 # Teardown for testing only or dry runs:
 import_workloads_os_migrate_tear_down: "{{ os_migrate_tear_down | default(false) | bool }}"
 
