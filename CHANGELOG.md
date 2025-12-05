@@ -167,3 +167,7 @@ Minor release which removes unused import_image module and fix AEE push
 
 - Add ability to define server and volume AZ as well as volume types for cinder volumes
 - Expose extra options and first boot script to virt-v2v conversion step
+
+## v2.1.7
+
+- Fix sanity checks for documentation
