@@ -416,7 +416,7 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 			logger.Log.Infof("Failed to find boot script: %v", err)
 			return err
 		}
-		opts = opts + " --boot-script " + bsPath
+		opts = opts + " --firstboot " + bsPath
 	}
 	// Append extra CLI options passed by the user
 	if extraOpts != "" {
