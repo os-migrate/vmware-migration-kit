@@ -28,9 +28,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/vmware"
-	moduleutils "vmware-migration-kit/plugins/module_utils"
 )
 
 type NbdkitConfig struct {
@@ -394,20 +394,34 @@ func versionIsLower(cVersion, rVersion string) bool {
 }
 */
 
-func V2VConversion(path, bsPath string, debug bool) error {
+func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 	opts := ""
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Log.Infof("Failed to find virt-v2v-in-place: %v", err)
 		return err
 	}
+	// Check for run script and boot script
+	if rsPath != "" {
+		_, err := os.Stat(rsPath)
+		if err != nil {
+			logger.Log.Infof("Failed to find run script: %v", err)
+			return err
+		}
+		opts = opts + " --run " + rsPath
+	}
 	if bsPath != "" {
 		_, err := os.Stat(bsPath)
 		if err != nil {
-			logger.Log.Infof("Failed to find firstboot script: %v", err)
+			logger.Log.Infof("Failed to find boot script: %v", err)
 			return err
 		}
-		opts = opts + " --run " + bsPath
+		opts = opts + " --firstboot " + bsPath
+	}
+	// Append extra CLI options passed by the user
+	if extraOpts != "" {
+		logger.Log.Infof("Adding extra virt-v2v options: %s", extraOpts)
+		opts += " " + extraOpts
 	}
 	if err := os.Setenv("LIBGUESTFS_BACKEND", "direct"); err != nil {
 		logger.Log.Infof("Failed to set LIBGUESTFS_BACKEND: %v", err)
