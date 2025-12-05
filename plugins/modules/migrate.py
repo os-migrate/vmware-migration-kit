@@ -63,7 +63,7 @@ options:
   extraopts:
     description:
       - Additional options to be passed to the conversion process.
-      - This can include flags or parameters that modify the behavior of the conversion tool. Example: "--key LUKS -x --color".
+      - This can include flags or parameters that modify the behavior of the conversion tool. Example --key LUKS -x --color.
     type: str
     required: false
   vddkpath:
