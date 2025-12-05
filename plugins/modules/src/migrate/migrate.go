@@ -78,12 +78,14 @@ type MigrationConfig struct {
 	OSClient           *gophercloud.ProviderClient
 	ConvHostName       string
 	Compression        string
-	FirstBoot          string
+	RunScript          string
 	InstanceUUID       string
 	Debug              bool
 	CloudOpts          osm_os.DstCloud
 	LocalDiskPath      string
 	ManageExtVol       bool
+	BootScript         string
+	ExtraOpts          string
 	CinderManageConfig *osm_os.CinderManageConfig
 }
 
@@ -104,7 +106,7 @@ type ModuleArgs struct {
 	SkipConversion bool
 	ConvHostName   string
 	Compression    string
-	FirstBoot      string
+	RunScript      string
 	UseSocks       bool
 	InstanceUUID   string
 	Debug          bool
@@ -112,6 +114,8 @@ type ModuleArgs struct {
 	ExternalVolume bool
 	VolumeName     string
 	HostPool       string
+	BootScript     string
+	ExtraOpts      string
 }
 
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
@@ -344,12 +348,12 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			if runV2V {
 				logger.Log.Infof("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
-				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
-					netConfScript = c.FirstBoot
+				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.RunScript != "" {
+					netConfScript = c.RunScript
 				} else {
 					netConfScript = ""
 				}
-				err = nbdkit.V2VConversion(devPath, netConfScript, c.Debug)
+				err = nbdkit.V2VConversion(devPath, netConfScript, c.BootScript, c.ExtraOpts, c.Debug)
 				if err != nil {
 					logger.Log.Infof("Failed to convert disk: %v", err)
 					return "V2VFail", err
@@ -410,7 +414,9 @@ func main() {
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "fastlz")
-	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
+	runScript := ansible.DefaultIfEmpty(moduleArgs.RunScript, "")
+	bootScript := ansible.DefaultIfEmpty(moduleArgs.BootScript, "")
+	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
 	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
 	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
 	cbtsync := moduleArgs.CBTSync
@@ -503,7 +509,9 @@ func main() {
 			CutOver:       cutover,
 			ConvHostName:  convHostName,
 			Compression:   compression,
-			FirstBoot:     firsBoot,
+			RunScript:     runScript,
+			BootScript:    bootScript,
+			ExtraOpts:     extraOpts,
 			InstanceUUID:  instanceUUid,
 			Debug:         debug,
 			LocalDiskPath: localDisk,
