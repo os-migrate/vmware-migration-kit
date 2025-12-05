@@ -69,7 +69,7 @@
     volumetype: "{{ import_workloads_cinder_volume_type | default(omit) }}"
     osmdatadir: "{{ os_migrate_vmw_data_dir }}"
     runscript: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
-    bootscript: "{{ os_migrate_boot_script_path | default(omit) }}"
+    bootscript: "{{ import_workloads_boot_script_path | default(omit) }}"
     extraopts: "{{ import_workloads_extra_opts | default(omit) }}"
     vddkpath: "{{ vddkpath }}"
     usesocks: "{{ import_workloads_use_socks | bool }}"
