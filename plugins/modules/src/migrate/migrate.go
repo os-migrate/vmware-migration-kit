@@ -71,6 +71,7 @@ type MigrationConfig struct {
 	VmName             string
 	VolumeAz           string
 	VolumeType         string
+	AssumeZero         bool
 	OSMDataDir         string
 	VddkConfig         *vmware.VddkConfig
 	CBTSync            bool
@@ -99,6 +100,7 @@ type ModuleArgs struct {
 	VmName         string
 	VolumeAz       string
 	VolumeType     string
+	AssumeZero     bool
 	VddkPath       string
 	OSMDataDir     string
 	CBTSync        bool
@@ -336,7 +338,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath)
+				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					if err := nbdSrv.Stop(); err != nil {
@@ -419,6 +421,7 @@ func main() {
 	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
 	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
 	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
+	assumeZero := moduleArgs.AssumeZero
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
 	skipV2V := moduleArgs.SkipConversion
@@ -518,6 +521,7 @@ func main() {
 			CloudOpts:     moduleArgs.DstCloud,
 			VolumeType:    volType,
 			VolumeAz:      volAz,
+			AssumeZero:    assumeZero,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {

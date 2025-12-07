@@ -271,12 +271,18 @@ func WaitForNbdkit(socket string, timeout time.Duration) error {
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-func NbdCopy(socket, device string) error {
+func NbdCopy(socket, device string, assumeZero bool) error {
 	var nbdcopy string
-	if socket == "" {
-		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s --destination-is-zero --progress", device)
+	var zeroArg string
+	if assumeZero == true {
+		zeroArg = " --destination-is-zero "
 	} else {
-		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy %s %s --destination-is-zero --progress", socket, device)
+		zeroArg = " "
+	}
+	if socket == "" {
+		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s%s--progress", device, zeroArg)
+	} else {
+		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy %s %s%s--progress", socket, device, zeroArg)
 	}
 	cmd := exec.Command("bash", "-c", nbdcopy)
 	logger.Log.Infof("Running nbdcopy: %v", cmd)

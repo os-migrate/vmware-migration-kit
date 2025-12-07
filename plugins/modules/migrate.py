@@ -44,6 +44,13 @@ options:
     description: The volume type to use for creating cinder volumes
     type: str
     required: false
+  assumezero:
+    description:
+      - Assume that the destination cinder volume will be zeroed.
+      - This allows for optmization of the data copy but may cause failures with encrypted volume types.
+    type: bool
+    default: false
+    required: false
   osmdatadir:
     description: Path to the os-migrate data directory, used for storing migration-related data, logs, or state.
     type: str
