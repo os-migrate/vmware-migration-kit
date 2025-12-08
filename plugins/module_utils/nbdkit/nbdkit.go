@@ -274,7 +274,7 @@ func WaitForNbdkit(socket string, timeout time.Duration) error {
 func NbdCopy(socket, device string, assumeZero bool) error {
 	var nbdcopy string
 	var zeroArg string
-	if assumeZero == true {
+	if assumeZero {
 		zeroArg = " --destination-is-zero "
 	} else {
 		zeroArg = " "
