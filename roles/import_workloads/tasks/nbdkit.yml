@@ -67,7 +67,7 @@
     vmname: "{{ vm_name }}"
     volumeaz: "{{ import_workloads_cinder_az | default(omit) }}"
     volumetype: "{{ import_workloads_cinder_volume_type | default(omit) }}"
-    assumezero: "{{ import_workloads_nbdkit_assume_zero | bool}}"
+    assumezero: "{{ import_workloads_nbdkit_assume_zero | bool }}"
     osmdatadir: "{{ os_migrate_vmw_data_dir }}"
     runscript: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/network_config.sh"
     bootscript: "{{ import_workloads_boot_script_path | default(omit) }}"
