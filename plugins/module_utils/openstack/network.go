@@ -100,8 +100,9 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 }
 
 // WaitForPortStatus waits for a port to reach a specific status
-func WaitForPortStatus(client *gophercloud.ServiceClient, portID, status string, timeout int) error {
-	for i := 0; i < timeout; i++ {
+func WaitForPortStatus(client *gophercloud.ServiceClient, portID, status string, timeoutSeconds int) error {
+	timeoutIterations := timeoutSeconds / 5
+	for i := 0; i < timeoutIterations; i++ {
 		port, err := ports.Get(context.TODO(), client, portID).Extract()
 		if err != nil {
 			// If port is not found, it might be deleted (which is what we want)
@@ -121,7 +122,7 @@ func WaitForPortStatus(client *gophercloud.ServiceClient, portID, status string,
 }
 
 // DeletePort deletes a network port by ID
-func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
+func DeletePort(provider *gophercloud.ProviderClient, portID string, timeoutSeconds int) error {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -139,7 +140,7 @@ func DeletePort(provider *gophercloud.ProviderClient, portID string) error {
 
 	// Wait for port to be fully deleted to avoid MAC address conflicts
 	logger.Log.Infof("Waiting for port %s to be fully deleted...", portID)
-	err = WaitForPortStatus(client, portID, "deleted", 12) // 60 seconds timeout
+	err = WaitForPortStatus(client, portID, "deleted", timeoutSeconds)
 	if err != nil {
 		logger.Log.Infof("Port %s did not reach deleted status within timeout: %v", portID, err)
 		// Don't return error here as the port deletion might have succeeded

@@ -110,7 +110,7 @@ func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.Provi
 	return provider, nil
 }
 
-func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bool) (*volumes.Volume, error) {
+func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bool, timeoutSeconds int) (*volumes.Volume, error) {
 	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -133,7 +133,7 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 		return nil, err
 	}
 
-	err = WaitForVolumeStatus(client, volume.ID, "available", 3000)
+	err = WaitForVolumeStatus(client, volume.ID, "available", timeoutSeconds)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
 		return nil, err
@@ -165,8 +165,9 @@ func CreateVolume(provider *gophercloud.ProviderClient, opts VolOpts, setUEFI bo
 	return volume, nil
 }
 
-func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status string, timeout int) error {
-	for i := 0; i < timeout; i++ {
+func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status string, timeoutSeconds int) error {
+	timeoutIterations := timeoutSeconds / 5
+	for i := 0; i < timeoutIterations; i++ {
 		volume, err := volumes.Get(context.TODO(), client, volumeID).Extract()
 		if err != nil {
 			logger.Log.Infof("Failed to get volume status: %v", err)
@@ -181,8 +182,9 @@ func WaitForVolumeStatus(client *gophercloud.ServiceClient, volumeID, status str
 	return fmt.Errorf("volume %s did not reach status %s within the timeout", volumeID, status)
 }
 
-func WaitForServerStatus(client *gophercloud.ServiceClient, serverID, status string, timeout int) error {
-	for i := 0; i < timeout; i++ {
+func WaitForServerStatus(client *gophercloud.ServiceClient, serverID, status string, timeoutSeconds int) error {
+	timeoutIterations := timeoutSeconds / 5
+	for i := 0; i < timeoutIterations; i++ {
 		server, err := servers.Get(context.TODO(), client, serverID).Extract()
 		if err != nil {
 			logger.Log.Infof("Failed to get server status: %v", err)
@@ -331,7 +333,7 @@ func GetInstanceUUID() (string, error) {
 	return metaData.UUID, nil
 }
 
-func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceName string, instanceUUID string) error {
+func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceName string, instanceUUID string, timeoutSeconds int) error {
 	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
 	logger.Log.Infof("Volume ID: %s", volumeID)
 	if err != nil {
@@ -373,7 +375,7 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return err
 	}
-	err = WaitForVolumeStatus(volumeClient, volumeID, "in-use", 3000)
+	err = WaitForVolumeStatus(volumeClient, volumeID, "in-use", timeoutSeconds)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for volume to become in-use: %v", err)
 		return err
@@ -381,7 +383,7 @@ func AttachVolume(client *gophercloud.ProviderClient, volumeID string, instanceN
 	return nil
 }
 
-func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, instanceUUID string, cloudOpts DstCloud) error {
+func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, instanceUUID string, cloudOpts DstCloud, timeoutSeconds int) error {
 	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
 	if err != nil {
 		logger.Log.Infof("Failed to create compute client: %v", err)
@@ -434,7 +436,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, in
 		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return err
 	}
-	err = WaitForVolumeStatus(volumeClient, volumeID, "available", 3000)
+	err = WaitForVolumeStatus(volumeClient, volumeID, "available", timeoutSeconds)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for volume to become available: %v", err)
 		return err
@@ -443,7 +445,7 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, in
 	return nil
 }
 
-func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string, error) {
+func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs, timeoutSeconds int) (string, error) {
 	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -499,7 +501,7 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 	if err != nil {
 		return "", fmt.Errorf("failed to create server: %v", err)
 	}
-	err = WaitForServerStatus(client, server.ID, "ACTIVE", 3000)
+	err = WaitForServerStatus(client, server.ID, "ACTIVE", timeoutSeconds)
 	if err != nil {
 		return "", err
 	}
@@ -566,7 +568,7 @@ func DeleteServer(provider *gophercloud.ProviderClient, serverID string) error {
 }
 
 // DeleteVolume deletes a volume by ID
-func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string) error {
+func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string, timeoutSeconds int) error {
 	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -594,12 +596,12 @@ func DeleteVolume(provider *gophercloud.ProviderClient, volumeID string) error {
 	} else {
 		logger.Log.Infof("Volume %s is in status '%s', waiting for it to become available or error...", volumeID, volume.Status)
 
-		// Wait for volume to become available (timeout: 60 seconds = 12 attempts * 5 seconds)
-		err = WaitForVolumeStatus(client, volumeID, "available", 12)
+		// Wait for volume to become available
+		err = WaitForVolumeStatus(client, volumeID, "available", timeoutSeconds)
 		if err != nil {
 			// If it doesn't become available, try to wait for error status
 			logger.Log.Infof("Volume did not become available, trying to wait for error status...")
-			err = WaitForVolumeStatus(client, volumeID, "error", 12)
+			err = WaitForVolumeStatus(client, volumeID, "error", timeoutSeconds)
 			if err != nil {
 				logger.Log.Infof("Volume did not reach a deletable state within timeout: %v", err)
 				return fmt.Errorf("volume %s did not reach a deletable state within timeout", volumeID)
