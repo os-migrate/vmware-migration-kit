@@ -171,3 +171,9 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.1.7
 
 - Fix sanity checks for documentation
+
+## v2.1.8
+
+- Reset guest_nic and guest_mac variable
+- Add support for destination volumes that are not zerored
+- map clear errors for mapped network errors
