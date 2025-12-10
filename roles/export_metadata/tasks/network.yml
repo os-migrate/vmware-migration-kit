@@ -1,4 +1,12 @@
 ---
+- name: Set guest_nic variable
+  ansible.builtin.set_fact:
+    guest_nic: []
+
+- name: Set guest_mac variable
+  ansible.builtin.set_fact:
+    guest_mac: []
+
 - name: Extract vm_info
   ansible.builtin.slurp:
     src: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/guest_info.json"
@@ -31,7 +39,7 @@
     - name: Extract nic info based on network_map
       ansible.builtin.set_fact:
         guest_nic: >-
-          {{ [{
+          {{ guest_nic | default([]) + [{
                 'vlan': mapped_vlan,
                 'mac': vm_info_file[item].macaddress
           }] }}
@@ -80,7 +88,7 @@
 
     - name: Loop through MAC addresses and build guest_mac list
       ansible.builtin.set_fact:
-        guest_mac: "{{ [{'mac': vm_info_file[item].macaddress}] }}"
+        guest_mac: "{{ guest_mac + [{'mac': vm_info_file[item].macaddress}] }}"
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       when: not used_mapped_networks|default(true)|bool
 
