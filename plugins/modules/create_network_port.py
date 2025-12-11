@@ -46,6 +46,12 @@ options:
       - Name of the network to which the ports should be attached.
     type: str
     required: false
+  use_fixed_ips:
+    description:
+      - Whether to assign fixed IPs to the created ports based on the IP addresses found in the nics file.
+    type: bool
+    default: false
+    required: false
 requirements:
   - openstacksdk
 """
