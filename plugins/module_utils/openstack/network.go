@@ -83,12 +83,22 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		return nil, err
 	}
 
+	var gopherFixedIPs []ports.IP
+	for _, ip := range fixedIPs {
+		gopherFixedIPs = append(gopherFixedIPs, ports.IP{
+			IPAddress: ip,
+		})
+	}
+
 	createOpts := ports.CreateOpts{
 		Name:           portName,
 		NetworkID:      networkID,
 		MACAddress:     macAddress,
 		SecurityGroups: &securityGroups,
-		FixedIPs:       &fixedIPs,
+	}
+
+	if len(gopherFixedIPs) > 0 {
+		createOpts.FixedIPs = gopherFixedIPs
 	}
 
 	port, err := ports.Create(context.TODO(), client, createOpts).Extract()
