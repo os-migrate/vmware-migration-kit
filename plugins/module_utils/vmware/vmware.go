@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 
 	"github.com/vmware/govmomi"
@@ -54,6 +55,29 @@ func VMWareAuth(ctx context.Context, server string, user string, password string
 		logger.Log.Infof("Failed to authenticate to VMware client %v", err)
 		return nil, err
 	}
+	// Start a goroutine to keep the session alive
+    go func() {
+            ticker := time.NewTicker(5 * time.Minute)
+            defer ticker.Stop()
+            for {
+                    select {
+                    case <-ctx.Done():
+                            // If the migration ends, stop the goroutine
+                            logger.Log.Infof("Keep-alive goroutine stopping.")
+                            return
+                    case <-ticker.C:
+                            // Create local context for keep-alive call. The API call is cancelled in 5 segundos so it doesn't hang indefinitely.
+                            kaCtx, kaCancel := context.WithTimeout(context.Background(), 5*time.Second)
+                            logger.Log.Infof("KEEP-ALIVE: Session refreshed via goroutine.")
+                            // With UserSession, we just need to call it to refresh the session
+                            _, err := c.SessionManager.UserSession(kaCtx)
+                            if err != nil {
+                                    logger.Log.Errorf("KEEP-ALIVE FAILED: %v", err)
+                            }
+                            kaCancel()
+                    }
+            }
+        }()
 	return c, nil
 }
 
