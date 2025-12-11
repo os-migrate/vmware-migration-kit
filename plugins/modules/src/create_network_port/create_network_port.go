@@ -37,8 +37,9 @@ type ModuleArgs struct {
 }
 
 type NicInfo struct {
-	Vlan string `json:"vlan"`
-	Mac  string `json:"mac"`
+	Vlan     string   `json:"vlan"`
+	Mac      string   `json:"mac"`
+	FixedIPs []string `json:"ipaddresses"`
 }
 
 type PortInfo struct {
@@ -160,7 +161,7 @@ func main() {
 		}
 
 		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleArgs.VmName, nicIndex, nic.Vlan)
-		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, moduleArgs.SecurityGroups)
+		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, moduleArgs.SecurityGroups, nic.FixedIPs)
 		if err != nil {
 			response.Msg = "Failed to create port: " + err.Error()
 			FailJson(response)
