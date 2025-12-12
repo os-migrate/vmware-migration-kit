@@ -9,6 +9,7 @@
         vm_name: "{{ vm_name }}"
         used_mapped_networks: true
         security_groups: ["{{ security_groups | default('default') }}"]
+        use_fixed_ips: "{{ import_workloads_use_fixed_ips | default(false) | bool }}"
       register: ports_uuid
       when: import_workloads_used_mapped_networks|default(true)|bool
 

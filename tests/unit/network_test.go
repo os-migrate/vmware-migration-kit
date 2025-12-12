@@ -56,8 +56,9 @@ func TestCreatePortSuccess(t *testing.T) {
 	}
 
 	securityGroups := []string{"sg-01"}
+	fixedIPs := []string{}
 
-	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups)
+	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups, fixedIPs)
 	if err != nil {
 		t.Fatalf("CreatePort returned error: %v", err)
 	}
@@ -73,6 +74,56 @@ func TestCreatePortSuccess(t *testing.T) {
 	}
 }
 
+func TestCreatePortSuccessWithFixedIP(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+	// Mock API response
+	th.Mux.HandleFunc("/v2.0/ports", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("Expected POST but got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{
+        "port": {
+            "id": "12345",
+            "name": "test-port",
+            "network_id": "net-001",
+            "mac_address": "fa:16:3e:aa:bb:cc",
+			"fixed_ips": [{"ip_address": "10.0.0.1"}]
+        }
+    }`))
+	})
+
+	// env needed by NewNetworkV2
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+
+	provider := &gophercloud.ProviderClient{TokenID: "dummy"}
+	provider.EndpointLocator = func(_ gophercloud.EndpointOpts) (string, error) {
+		return fake.ServiceClient().Endpoint, nil
+	}
+
+	securityGroups := []string{"sg-01"}
+	fixedIPs := []string{"10.0.0.1"}
+
+	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups, fixedIPs)
+	if err != nil {
+		t.Fatalf("CreatePort returned error: %v", err)
+	}
+
+	if port.ID != "12345" {
+		t.Errorf("expected port ID '12345', got %s", port.ID)
+	}
+	if port.Name != "test-port" {
+		t.Errorf("expected port name 'test-port', got %s", port.Name)
+	}
+	if port.NetworkID != "net-001" {
+		t.Errorf("expected network 'net-001', got %s", port.NetworkID)
+	}
+	if len(port.FixedIPs) != 1 || port.FixedIPs[0].IPAddress != "10.0.0.1" {
+		t.Errorf("unexpected fixed_ips in returned port: %+v", port.FixedIPs)
+	}
+}
+
 func TestCreatePortClientInitFailure(t *testing.T) {
 	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
 
@@ -81,7 +132,7 @@ func TestCreatePortClientInitFailure(t *testing.T) {
 		return "", gophercloud.ErrEndpointNotFound{}
 	}
 
-	_, err := osm_os.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", nil)
+	_, err := osm_os.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", nil, nil)
 	if err == nil {
 		t.Fatalf("expected error but got nil")
 	}
@@ -102,7 +153,7 @@ func TestCreatePortCreateError(t *testing.T) {
 
 	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
 
-	_, err := osm_os.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", nil)
+	_, err := osm_os.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", nil, nil)
 	if err == nil {
 		t.Fatalf("expected Create error but got none")
 	}
