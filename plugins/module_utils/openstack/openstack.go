@@ -56,12 +56,12 @@ type Auth struct {
 }
 
 type VolOpts struct {
-	Name       string
-	Size       int
-	VolumeType string
+	Name             string
+	Size             int
+	VolumeType       string
 	AvailabilityZone string
-	BusType    string
-	Metadata   map[string]string
+	BusType          string
+	Metadata         map[string]string
 }
 
 type ServerArgs struct {
@@ -72,6 +72,7 @@ type ServerArgs struct {
 	SecurityGroups   []string
 	Flavor           string
 	AvailabilityZone string
+	UserData         []byte
 }
 
 type CinderManageConfig struct {
@@ -487,12 +488,13 @@ func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string
 		index++
 	}
 	createOpts := servers.CreateOpts{
-		Name:           args.Name,
-		FlavorRef:      args.Flavor,
-		Networks:       nics,
-		SecurityGroups: args.SecurityGroups,
+		Name:             args.Name,
+		FlavorRef:        args.Flavor,
+		Networks:         nics,
+		SecurityGroups:   args.SecurityGroups,
 		AvailabilityZone: args.AvailabilityZone,
-		BlockDevice:    blockDevices,
+		BlockDevice:      blockDevices,
+		UserData:         args.UserData,
 	}
 
 	server, err := servers.Create(context.TODO(), client, createOpts, servers.SchedulerHintOpts{}).Extract()
