@@ -41,3 +41,4 @@ import_workloads_image_metadata:
   - cinder_img_volume_type='rhcs6-gp3'
 
 import_workloads_boot_from_cinder: "{{ boot_from_cinder | default(false) | bool }}"
+import_workloads_user_data: "{{ user_data | default(omit) }}"

@@ -70,6 +70,7 @@ type ModuleArgs struct {
 	KeyName          string          `json:"key_name"`
 	BootFromCinder   bool            `json:"boot_from_cinder"`
 	AvailabilityZone string          `json:"availability_zone"`
+	UserData         string          `json:"user_data"`
 }
 
 type ModuleResponse struct {
@@ -159,6 +160,7 @@ func main() {
 			Nics:             moduleArgs.Nics,
 			Volumes:          moduleArgs.Volumes,
 			AvailabilityZone: moduleArgs.AvailabilityZone,
+			UserData:         []byte(moduleArgs.UserData),
 		}
 		server, err := osm_os.CreateServer(provider, ServerAgrs)
 		if err != nil {
@@ -177,6 +179,7 @@ func main() {
 		Nics:             moduleArgs.Nics,
 		Volumes:          moduleArgs.Volumes,
 		AvailabilityZone: moduleArgs.AvailabilityZone,
+		UserData:         []byte(moduleArgs.UserData),
 	}
 	server, err := osm_os.CreateServer(provider, ServerAgrs)
 	if err != nil {
