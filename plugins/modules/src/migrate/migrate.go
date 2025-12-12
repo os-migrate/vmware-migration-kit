@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
@@ -87,20 +88,25 @@ type MigrationConfig struct {
 	ManageExtVol       bool
 	BootScript         string
 	ExtraOpts          string
+	TimeoutSeconds     int
 	CinderManageConfig *osm_os.CinderManageConfig
 }
 
 // Ansible
 type ModuleArgs struct {
-	DstCloud       osm_os.DstCloud `json:"dst_cloud"`
-	User           string
-	Password       string
-	Server         string
-	Libdir         string
-	VmName         string
-	VolumeAz       string
-	VolumeType     string
-	AssumeZero     bool
+	DstCloud            osm_os.DstCloud `json:"dst_cloud"`
+	User                string
+	Password            string
+	Server              string
+	Libdir              string
+	Port                string
+	TimeoutSeconds      int
+	NbdkitTimeout       int
+	NbdkitRetryDelay    int
+	VmName              string
+	VolumeAz            string
+	VolumeType          string
+	AssumeZero          bool
 	VddkPath       string
 	OSMDataDir     string
 	CBTSync        bool
@@ -245,7 +251,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		} else {
 			logger.Log.Infof("Creating new volume..")
 			// Create volume
-			volume, err = osm_os.CreateVolume(c.OSClient, volOpts, uefi)
+			volume, err = osm_os.CreateVolume(c.OSClient, volOpts, uefi, c.TimeoutSeconds)
 			if err != nil {
 				logger.Log.Infof("Failed to create volume: %v", err)
 				return "", err
@@ -266,14 +272,14 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			return "", err
 		}
 	}
-	err = osm_os.AttachVolume(c.OSClient, volume.ID, c.ConvHostName, instanceUUID)
+	err = osm_os.AttachVolume(c.OSClient, volume.ID, c.ConvHostName, instanceUUID, c.TimeoutSeconds)
 	if err != nil {
 		logger.Log.Infof("Failed to attach volume: %v", err)
 		return "", err
 	}
 	// TODO: remove instanceName or handle it properly
 	defer func() {
-		if err := osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloudOpts); err != nil {
+		if err := osm_os.DetachVolume(c.OSClient, volume.ID, "", instanceUUID, c.CloudOpts, c.TimeoutSeconds); err != nil {
 			logger.Log.Infof("Failed to detach volume: %v", err)
 		}
 	}()
@@ -338,7 +344,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero)
+				err = nbdkit.NbdCopy(sock, devPath, c.NbdkitConfig.Port, c.AssumeZero)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					if err := nbdSrv.Stop(); err != nil {
@@ -412,6 +418,19 @@ func main() {
 	server := ansible.RequireField(moduleArgs.Server, "Server is required")
 	vmname := ansible.RequireField(moduleArgs.VmName, "VM name is required")
 	libdir := ansible.DefaultIfEmpty(moduleArgs.Libdir, "/usr/lib/vmware-vix-disklib")
+	port := ansible.DefaultIfEmpty(moduleArgs.Port, "10809")
+	timeoutSeconds := moduleArgs.TimeoutSeconds
+	if timeoutSeconds == 0 {
+		timeoutSeconds = 15000
+	}
+	nbdkitTimeout := moduleArgs.NbdkitTimeout
+	if nbdkitTimeout == 0 {
+		nbdkitTimeout = 30
+	}
+	nbdkitRetryDelay := moduleArgs.NbdkitRetryDelay
+	if nbdkitRetryDelay == 0 {
+		nbdkitRetryDelay = 2
+	}
 	vddkpath := ansible.DefaultIfEmpty(moduleArgs.VddkPath, "/ha-datacenter/vm/")
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
@@ -441,7 +460,7 @@ func main() {
 		ansible.FailJson(response)
 	}
 	safeVmName := moduleutils.SafeVmName(vmname)
-	LogFile := "/tmp/osm-nbdkit-" + safeVmName + "-" + r + ".log"
+	LogFile := filepath.Join(osmdatadir, "osm-nbdkit-"+safeVmName+"-"+r+".log")
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -494,6 +513,9 @@ func main() {
 				VmName:      vmname,
 				Compression: compression,
 				UUID:        r,
+				Port:        port,
+				Timeout:     nbdkitTimeout,
+				RetryDelay:  nbdkitRetryDelay,
 				UseSocks:    socks,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
@@ -514,14 +536,15 @@ func main() {
 			Compression:   compression,
 			RunScript:     runScript,
 			BootScript:    bootScript,
-			ExtraOpts:     extraOpts,
-			InstanceUUID:  instanceUUid,
-			Debug:         debug,
-			LocalDiskPath: localDisk,
-			CloudOpts:     moduleArgs.DstCloud,
-			VolumeType:    volType,
-			VolumeAz:      volAz,
-			AssumeZero:    assumeZero,
+			ExtraOpts:      extraOpts,
+			InstanceUUID:   instanceUUid,
+			Debug:          debug,
+			LocalDiskPath:  localDisk,
+			CloudOpts:      moduleArgs.DstCloud,
+			VolumeType:     volType,
+			VolumeAz:       volAz,
+			AssumeZero:     assumeZero,
+			TimeoutSeconds: timeoutSeconds,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {

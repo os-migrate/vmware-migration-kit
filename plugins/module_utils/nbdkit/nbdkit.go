@@ -41,6 +41,9 @@ type NbdkitConfig struct {
 	VmName      string
 	Compression string
 	UUID        string
+	Port        string
+	Timeout     int
+	RetryDelay  int
 	UseSocks    bool
 	VddkConfig  *vmware.VddkConfig
 }
@@ -73,7 +76,7 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitSer
 	logger.Log.Infof("nbdkit started...")
 	logger.Log.Infof("Command: %v", cmd)
 	time.Sleep(100 * time.Millisecond)
-	err := WaitForNbdkit(socket, 30*time.Second)
+	err := WaitForNbdkit(socket, c.Timeout, c.RetryDelay)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
@@ -134,7 +137,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 	logger.Log.Infof("Command: %v", cmd)
 
 	time.Sleep(100 * time.Millisecond)
-	err = WaitForNbdkitURI("localhost", "10809", 30*time.Second)
+	err = WaitForNbdkitURI("localhost", c.Port, c.Timeout, c.RetryDelay)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
@@ -186,7 +189,7 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	logger.Log.Infof("Command: %v", cmd)
 
 	time.Sleep(100 * time.Millisecond)
-	err = WaitForNbdkit(socket, 30*time.Second)
+	err = WaitForNbdkit(socket, c.Timeout, c.RetryDelay)
 	if err != nil {
 		logger.Log.Infof("Failed to wait for nbdkit: %v", err)
 		if cmd.Process != nil {
@@ -238,9 +241,9 @@ func removeSocket(socketPath string) error {
 	return nil
 }
 
-func WaitForNbdkitURI(host string, port string, timeout time.Duration) error {
+func WaitForNbdkitURI(host string, port string, timeoutSeconds int, retryDelaySeconds int) error {
 	address := net.JoinHostPort(host, port)
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
 
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
@@ -252,13 +255,13 @@ func WaitForNbdkitURI(host string, port string, timeout time.Duration) error {
 			return nil
 		}
 		logger.Log.Infof("Waiting for nbdkit to be ready...")
-		time.Sleep(2 * time.Second)
+		time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
 	}
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-func WaitForNbdkit(socket string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+func WaitForNbdkit(socket string, timeoutSeconds int, retryDelaySeconds int) error {
+	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
 
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(socket); err == nil {
@@ -266,12 +269,12 @@ func WaitForNbdkit(socket string, timeout time.Duration) error {
 			return nil
 		}
 		logger.Log.Infof("Waiting for nbdkit to be ready...")
-		time.Sleep(2 * time.Second)
+		time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
 	}
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-func NbdCopy(socket, device string, assumeZero bool) error {
+func NbdCopy(socket, device, port string, assumeZero bool) error {
 	var nbdcopy string
 	var zeroArg string
 	if assumeZero {
@@ -280,7 +283,7 @@ func NbdCopy(socket, device string, assumeZero bool) error {
 		zeroArg = " "
 	}
 	if socket == "" {
-		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s%s--progress", device, zeroArg)
+		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost:%s %s%s--progress", port, device, zeroArg)
 	} else {
 		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy %s %s%s--progress", socket, device, zeroArg)
 	}
