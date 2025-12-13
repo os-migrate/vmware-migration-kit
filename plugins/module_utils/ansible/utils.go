@@ -42,20 +42,32 @@ type Disk struct {
 	Primary bool   `json:"primary"`
 }
 
+func ExitJsonWithDeps(responseBody Response, exitFunc func(int), printFunc func(string)) {
+    ReturnResponseWithDeps(responseBody, exitFunc, printFunc)
+}
+
 func ExitJson(responseBody Response) {
-	returnResponse(responseBody)
+    ExitJsonWithDeps(responseBody, os.Exit, func(s string) { fmt.Println(s) })
+}
+
+func FailJsonWithDeps(responseBody Response, exitFunc func(int), printFunc func(string)) {
+    responseBody.Failed = true
+    ReturnResponseWithDeps(responseBody, exitFunc, printFunc)
 }
 
 func FailJson(responseBody Response) {
-	responseBody.Failed = true
-	returnResponse(responseBody)
+    FailJsonWithDeps(responseBody, os.Exit, func(s string) { fmt.Println(s) })
+}
+
+func RequireFieldWithDeps(field, errorMessage string, failHandler func(string)) string {
+    if field == "" {
+        failHandler(errorMessage)
+    }
+    return field
 }
 
 func RequireField(field, errorMessage string) string {
-	if field == "" {
-		FailWithMessage(errorMessage)
-	}
-	return field
+    return RequireFieldWithDeps(field, errorMessage, FailWithMessage)
 }
 
 func DefaultIfEmpty(field, defaultValue string) string {
@@ -65,24 +77,32 @@ func DefaultIfEmpty(field, defaultValue string) string {
 	return field
 }
 
-func FailWithMessage(msg string) {
-	response := Response{Msg: msg}
-	FailJson(response)
+func FailWithMessageWithDeps(msg string, exitFunc func(int), printFunc func(string)) {
+    response := Response{Msg: msg}
+    FailJsonWithDeps(response, exitFunc, printFunc)
 }
 
-func returnResponse(responseBody Response) {
-	var response []byte
-	var err error
-	response, err = json.Marshal(responseBody)
-	if err != nil {
-		response, _ = json.Marshal(Response{Msg: "Invalid response object"})
-	}
-	fmt.Println(string(response))
-	if responseBody.Failed {
-		os.Exit(1)
-	} else {
-		os.Exit(0)
-	}
+func FailWithMessage(msg string) {
+    FailWithMessageWithDeps(msg, os.Exit, func(s string) { fmt.Println(s) })
+}
+
+func ReturnResponseWithDeps(
+    responseBody Response,
+    exitFunc func(int),
+    printFunc func(string),
+) {
+    var response []byte
+    var err error
+    response, err = json.Marshal(responseBody)
+    if err != nil {
+        response, _ = json.Marshal(Response{Msg: "Invalid response object"})
+    }
+    printFunc(string(response))
+    if responseBody.Failed {
+        exitFunc(1)
+    } else {
+        exitFunc(0)
+    }
 }
 
 // TODO: commented since it's not used
