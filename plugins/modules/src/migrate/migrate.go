@@ -69,6 +69,9 @@ type MigrationConfig struct {
 	Server             string
 	Libdir             string
 	VmName             string
+	VolumeAz           string
+	VolumeType         string
+	AssumeZero         bool
 	OSMDataDir         string
 	VddkConfig         *vmware.VddkConfig
 	CBTSync            bool
@@ -76,12 +79,14 @@ type MigrationConfig struct {
 	OSClient           *gophercloud.ProviderClient
 	ConvHostName       string
 	Compression        string
-	FirstBoot          string
+	RunScript          string
 	InstanceUUID       string
 	Debug              bool
 	CloudOpts          osm_os.DstCloud
 	LocalDiskPath      string
 	ManageExtVol       bool
+	BootScript         string
+	ExtraOpts          string
 	CinderManageConfig *osm_os.CinderManageConfig
 }
 
@@ -93,13 +98,17 @@ type ModuleArgs struct {
 	Server         string
 	Libdir         string
 	VmName         string
+	VolumeAz       string
+	VolumeType     string
+	AssumeZero     bool
 	VddkPath       string
 	OSMDataDir     string
 	CBTSync        bool
 	CutOver        bool
+	SkipConversion bool
 	ConvHostName   string
 	Compression    string
-	FirstBoot      string
+	RunScript      string
 	UseSocks       bool
 	InstanceUUID   string
 	Debug          bool
@@ -107,6 +116,8 @@ type ModuleArgs struct {
 	ExternalVolume bool
 	VolumeName     string
 	HostPool       string
+	BootScript     string
+	ExtraOpts      string
 }
 
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
@@ -153,10 +164,12 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	if err != nil {
 		return "", err
 	}
-	// If syncVol is true, it means that CBT is enable and the VM should be shutting down before
-	// running V2V conversion
-	// Also, shutdown if OS is Windows, (@TODO) otherwise make it optional
-	if (syncVol && c.CutOver) || isWin {
+	// If CBTSync is enabled and CutOver is false, skip V2V conversion
+	if c.CBTSync && !c.CutOver {
+		runV2V = false
+	}
+	// We need to shutdown the Windows VM before taking the snapshot when we have to run V2V
+	if runV2V && isWin {
 		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
 			logger.Log.Infof("Failed to power off vm %v", err)
@@ -178,10 +191,6 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	err = c.NbdkitConfig.VddkConfig.VirtualMachine.Properties(ctx, c.NbdkitConfig.VddkConfig.SnapshotReference, []string{"config.hardware"}, &snapshot)
 	if err != nil {
 		return "", err
-	}
-	// If CBTSync is enabled and CutOver is false, skip V2V conversion
-	if c.CBTSync && !c.CutOver {
-		runV2V = false
 	}
 
 	var volMetadata map[string]string
@@ -207,11 +216,12 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		// 	volumeMetadata["hw_scsi_model"] = "virtio-scsi"
 		// }
 		volOpts := osm_os.VolOpts{
-			Name:       vmName + "-" + diskNameStr,
-			Size:       int(diskSize[diskNameStr] / 1024 / 1024),
-			VolumeType: "",
-			BusType:    "virtio",
-			Metadata:   volMetadata,
+			Name:             vmName + "-" + diskNameStr,
+			Size:             int(diskSize[diskNameStr] / 1024 / 1024),
+			VolumeType:       c.VolumeType,
+			AvailabilityZone: c.VolumeAz,
+			BusType:          "virtio",
+			Metadata:         volMetadata,
 		}
 		var fw mo.VirtualMachine
 		var uefi bool
@@ -328,7 +338,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath)
+				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					if err := nbdSrv.Stop(); err != nil {
@@ -340,15 +350,15 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			if runV2V {
 				logger.Log.Infof("Running V2V conversion with %v", volume.ID)
 				var netConfScript string
-				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.FirstBoot != "" {
-					netConfScript = c.FirstBoot
+				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.RunScript != "" {
+					netConfScript = c.RunScript
 				} else {
 					netConfScript = ""
 				}
-				err = nbdkit.V2VConversion(devPath, netConfScript, c.Debug)
+				err = nbdkit.V2VConversion(devPath, netConfScript, c.BootScript, c.ExtraOpts, c.Debug)
 				if err != nil {
 					logger.Log.Infof("Failed to convert disk: %v", err)
-					return "", err
+					return "V2VFail", err
 				}
 				err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 				if err != nil {
@@ -406,9 +416,15 @@ func main() {
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
 	convHostName := ansible.DefaultIfEmpty(moduleArgs.ConvHostName, "")
 	compression := ansible.DefaultIfEmpty(moduleArgs.Compression, "fastlz")
-	firsBoot := ansible.DefaultIfEmpty(moduleArgs.FirstBoot, "")
+	runScript := ansible.DefaultIfEmpty(moduleArgs.RunScript, "")
+	bootScript := ansible.DefaultIfEmpty(moduleArgs.BootScript, "")
+	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
+	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
+	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
+	assumeZero := moduleArgs.AssumeZero
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
+	skipV2V := moduleArgs.SkipConversion
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
 	debug := moduleArgs.Debug
@@ -454,7 +470,8 @@ func main() {
 
 	var disks []int32
 	var volume []string
-	runV2V := true
+	var forceV2V = false
+	runV2V := !skipV2V
 	disks, err = vmware.GetDiskKeys(ctx, vm)
 	if err != nil {
 		logger.Log.Infof("Failed to get disks: %v", err)
@@ -462,9 +479,12 @@ func main() {
 		ansible.FailJson(response)
 	}
 	for k, d := range disks {
-		if k != 0 {
+		if k != 0 && !forceV2V {
 			runV2V = false
+		} else if forceV2V {
+			runV2V = true
 		}
+		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
 				User:        user,
@@ -492,17 +512,28 @@ func main() {
 			CutOver:       cutover,
 			ConvHostName:  convHostName,
 			Compression:   compression,
-			FirstBoot:     firsBoot,
+			RunScript:     runScript,
+			BootScript:    bootScript,
+			ExtraOpts:     extraOpts,
 			InstanceUUID:  instanceUUid,
 			Debug:         debug,
 			LocalDiskPath: localDisk,
 			CloudOpts:     moduleArgs.DstCloud,
+			VolumeType:    volType,
+			VolumeAz:      volAz,
+			AssumeZero:    assumeZero,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
-			logger.Log.Infof("Failed to migrate VM: %v", err)
-			response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + LogFile
-			ansible.FailJson(response)
+			if volUUID == "V2VFail" && len(disks) > 1 && k+1 < len(disks) {
+				logger.Log.Infof("V2V conversion failed for disk %d, skipping to next disk...", d)
+				forceV2V = true
+				continue
+			} else {
+				logger.Log.Infof("Failed to migrate VM: %v", err)
+				response.Msg = "Failed to migrate VM: " + err.Error() + ". Check logs: " + LogFile
+				ansible.FailJson(response)
+			}
 		}
 		volume = append(volume, volUUID)
 	}

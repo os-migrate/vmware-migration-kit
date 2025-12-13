@@ -140,3 +140,40 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.1.0
 
 - Cut dependencies with uncertified collections
+
+## v2.1.2
+
+- Documentation refactoring
+- Bug fix for neutron port creation
+
+## v2.1.3
+
+- Fix build script
+
+## v2.1.4
+
+- Fix regression with mac address export
+- Fix legacy virt-v2v workflow
+- Improve virtio-win check
+
+## v2.1.5
+
+- Run sanity test on each required versions of python 
+- Remove f-strings for python retrocompatibility
+- Add future import and metaclass boilerplate 
+- Update readme links
+
+## v2.1.6
+
+- Add ability to define server and volume AZ as well as volume types for cinder volumes
+- Expose extra options and first boot script to virt-v2v conversion step
+
+## v2.1.7
+
+- Fix sanity checks for documentation
+
+## v2.1.8
+
+- Reset guest_nic and guest_mac variable
+- Add support for destination volumes that are not zerored
+- map clear errors for mapped network errors

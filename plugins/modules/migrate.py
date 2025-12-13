@@ -36,14 +36,41 @@ options:
     description: The name of the source VMware virtual machine to be migrated.
     type: str
     required: true
+  volumeaz:
+    description: The availability zone to use for creating cinder volumes
+    type: str
+    required: false
+  volumetype:
+    description: The volume type to use for creating cinder volumes
+    type: str
+    required: false
+  assumezero:
+    description:
+      - Assume that the destination cinder volume will be zeroed.
+      - This allows for optmization of the data copy but may cause failures with encrypted volume types.
+    type: bool
+    default: false
+    required: false
   osmdatadir:
     description: Path to the os-migrate data directory, used for storing migration-related data, logs, or state.
     type: str
     required: true
-  firstboot:
+  runscript:
+    description:
+      - Path to a script file that will be executed during the conversion.
+      - This is typically used for guest OS customization (e.g., network interface configuration).
+    type: str
+    required: false
+  bootscript:
     description:
       - Path to a script file that will be configured to run on the first boot of the migrated virtual machine in OpenStack.
       - This is typically used for guest OS customization (e.g., network configuration via cloud-init).
+    type: str
+    required: false
+  extraopts:
+    description:
+      - Additional options to be passed to the conversion process.
+      - This can include flags or parameters that modify the behavior of the conversion tool. Example --key LUKS -x --color.
     type: str
     required: false
   vddkpath:
@@ -65,6 +92,13 @@ options:
       - Optional. If C(true), the module will perform a cutover operation, which typically means it will finalize the migration
         and switch the VM to the new OpenStack instance.
       - This might involve stopping the source VM or ensuring that no further changes are made to it during the migration.
+    type: bool
+    required: false
+    default: false
+  skipconversion:
+    description:
+      - Optional. If C(true), skips the conversion step, if the disk does not require conversion or is not a filesystem.
+      - Use this option with caution, as skipping conversion may lead to incompatibilities in the target environment.
     type: bool
     required: false
     default: false

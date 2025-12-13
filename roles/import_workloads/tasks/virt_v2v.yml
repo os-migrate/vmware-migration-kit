@@ -1,16 +1,22 @@
 ---
 - name: Find vddk-libdir
-  ansible.builtin.shell: >
-    set -o pipefail
-    find / -name vmware-vix-disklib 2>/dev/null | xargs dirname
-  args:
-    executable: /bin/bash
+  ansible.builtin.shell: |
+    for d in /usr/lib /usr/lib64 /opt; do
+      if [ -d "$d/vmware-vix-disklib" ]; then
+        echo "$d/vmware-vix-disklib"
+      fi
+    done
   changed_when: false
   register: vddk_libdir
 
+- name: Fail if vddk-libdir was not found
+  ansible.builtin.fail:
+    msg: "VDDK library directory not found. Please make sure vmware-vix-disklib is installed on this host."
+  when: vddk_libdir.stdout_lines | length == 0
+
 - name: Dump passwd file
   ansible.builtin.shell: |
-    echo "{{ vcenter_password }}" > /tmp/passwd
+    echo '{{ vcenter_password }}' > /tmp/passwd
   changed_when: false
 
 - name: Make sure virtqemud is started
@@ -24,8 +30,10 @@
   os_migrate.vmware_migration_kit.import_vmware_volume:
     vcenter_username: "{{ vcenter_username }}"
     vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_datacenter: "{{ vcenter_datacenter }}"
+    vcenter_cluster: "{{ vcenter_cluster }}"
     esxi_hostname: "{{ esxi_hostname }}"
-    vddk_libdir: "{{ vddk_libdir }}"
+    vddk_libdir: "{{ vddk_libdir.stdout_lines[0] }}"
     vddk_thumbprint: "{{ vddk_thumbprint }}"
     conversion_host_id: "{{ conversion_host_id }}"
     vm_name: "{{ vm_name }}"

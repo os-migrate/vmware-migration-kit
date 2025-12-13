@@ -9,9 +9,12 @@ VENV_DIR := $(COLLECTION_ROOT)/.venv/
 
 # Configuration variables
 CONTAINER_ENGINE := podman
-CONTAINER_IMAGE := quay.io/centos/centos:stream10
+# Use CentoS Stream 9 as base image because UPX is not available in CentOS 10
+# @TODO: move to 10 when the payload size will be increase in Galaxy
+CONTAINER_IMAGE := quay.io/centos/centos:stream9
 BUILD_SCRIPT := /code/scripts/build.sh
-PYTHON_VERSION := 3.12
+PYTHON_VERSION ?= 3.12
+ANSIBLE_TEST_PYTHON_VERSION ?= 3.12
 MOUNT_PATH := $(COLLECTION_ROOT):/code/
 
 # Check if SELinux is enabled by testing if getenforce exists and returns "Enforcing"
@@ -126,6 +129,26 @@ build: check-root clean-build clean-binaries binaries
 	@ansible-galaxy collection build
 	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
 
+# Target to build the collection for production (without teardown tasks)
+build-prod: check-root clean-build clean-binaries clean-build-prod binaries
+	@echo "*** Building Ansible collection for production...***"
+	@echo "*** Remove AEE and scripts from the build...***"
+	rm -rf $(COLLECTION_ROOT)/aee
+	rm -rf $(COLLECTION_ROOT)/scripts
+	@ANSIBLE_GALAXY_DISABLE_GIT_CHECKSUM=1 ansible-galaxy collection build
+	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
+
+# Target to clean teardown tasks from the collection for production build
+clean-build-prod:
+	@echo "*** Cleaning the teardown tasks as they are not needed in production ***"
+	sed -i '22,$$d' $(COLLECTION_ROOT)/roles/import_workloads/tasks/main.yml
+	truncate -s -1 $(COLLECTION_ROOT)/roles/import_workloads/tasks/main.yml
+	rm -f $(COLLECTION_ROOT)/roles/import_workloads/tasks/teardown.yml
+	sed -i '/plugins\/modules\/delete_/d' tests/sanity/ignore-2.*.txt
+	@echo "*** Remove teardown modules before building...***"
+	rm -f $(MODULES_DIR)/delete_*
+	rm -rf $(MODULES_DIR)/src/delete_*
+
 # Target to clean the built collection
 clean-build:
 	@echo "*** Cleaning built collection...***"
@@ -152,8 +175,15 @@ check-python-version:
 	fi
 
 create-venv: clean-venv check-python-version
-	@echo "*** Creating venv... ***"
+	@echo "*** Creating venv for Python $(PYTHON_VERSION)... ***"
+ifeq ($(PYTHON_VERSION),2.7)
+	@echo "*** Using virtualenv for Python 2.7 ***"
+	@python2.7 -m pip install --upgrade pip setuptools virtualenv
+	@python2.7 -m virtualenv $(VENV_DIR)
+else
+	@echo "*** Using built-in venv for Python $(PYTHON_VERSION) ***"
 	@python$(PYTHON_VERSION) -m venv $(VENV_DIR)
+endif
 
 clean-venv:
 	@if [ -d "$(VENV_DIR)" ]; then \
@@ -203,7 +233,7 @@ test-ansible-sanity:
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	cd "$$ANSIBLE_COLLECTIONS_PATH/$(COLLECTION_NAMESPACE)/$(COLLECTION_NAME)" && \
 	echo "*** Running Ansible sanity tests...***" && \
-	ansible-test sanity --python $(PYTHON_VERSION) --requirements \
+	ansible-test sanity --test compile \
 	  --exclude aee/ \
 		--exclude scripts/ \
 	  --exclude plugins/modules/best_match_flavor \
@@ -221,6 +251,24 @@ test-ansible-sanity:
 	cd $(COLLECTION_ROOT) && \
 	echo "*** Sanity tests completed successfully ***" && \
 	rm -fr $$TMPDIR && \
+	deactivate
+	@$(MAKE) clean-venv
+
+integration-test:
+	@$(MAKE) create-venv && \
+	source $(VENV_DIR)/bin/activate && \
+	pip install -q --upgrade pip && \
+	pip install -q -r requirements.txt && \
+	export TMPDIR="$$(mktemp -d)" && \
+	export ANSIBLE_COLLECTIONS_PATH="$$TMPDIR/ansible_collections/" && \
+	echo "*** Using temporary collections path: $$ANSIBLE_COLLECTIONS_PATH ***" && \
+	$(MAKE) build && \
+	echo "*** Installing collection dependencies... ***" && \
+	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
+	echo "*** Running integration tests... ***" && \
+	ansible-playbook -i $(COLLECTION_ROOT)/localhost_inventory.yml $(COLLECTION_ROOT)/tests/integration/test_flavor_info.yml && \
+	echo "*** Integration tests completed successfully ***" && \
+	rm -rf $$TMPDIR && \
 	deactivate
 	@$(MAKE) clean-venv
 

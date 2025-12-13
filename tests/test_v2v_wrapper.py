@@ -15,17 +15,21 @@ class TestVirtV2V:
             "-ip",
             "/tmp/passwd",
             "-ic",
-            f"esx://{vcenter_username}@{vcenter_hostname}/Datacenter/{esxi_hostname}?no_verify=1",
+            "vpx://{username}@{vcenter}/Datacenter/{esxi}?no_verify=1".format(
+                username=vcenter_username.replace('@', '%40'),
+                vcenter=vcenter_hostname,
+                esxi=esxi_hostname
+            ),
             "-it",
             "vddk",
             "-io",
-            f"vddk-libdir={vddk_libdir}",
+            "vddk-libdir={}".format(vddk_libdir),
             "-io",
-            f"vddk-thumbprint={vddk_thumbprint}",
+            "vddk-thumbprint={}".format(vddk_thumbprint),
             "-o",
             "openstack",
             "-oo",
-            f"server-id={conversion_host_id}",
+            "server-id={}".format(conversion_host_id),
             vm_name,
         ]
         assert virt_v2v_instance.build_command() == expected_cmd

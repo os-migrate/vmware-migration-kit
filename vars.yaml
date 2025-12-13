@@ -61,3 +61,18 @@ os_migrate_tear_down: true
 vms_list:
   - rhel-1
   - rhel-2
+
+# Cinder volume type to use for the converted volumes.
+# Migration to an encrypted volume type may result in a non-functional disk!
+cinder_volume_type: __DEFAULT__
+
+# Availability zone settings for the converted volumes and instances
+# These can be set separately or via a single `availability_zone` var
+#
+# If cross-az volume attachments are disabled, the conversion host instance
+# MUST be in the same availability zone as the converted volume. Otherwise
+# conversion will quietly hang due to the failed attachment.
+#
+availability_zone: nova
+# import_workloads_cinder_availability_zone: nova-zone1
+# import_workloads_nova_availability_zone: cinder-zone1

@@ -59,16 +59,18 @@ import (
 */
 
 type ModuleArgs struct {
-	Cloud          osm_os.DstCloud `json:"cloud"`
-	State          string          `json:"state"`
-	Name           string          `json:"name"`
-	Nics           []interface{}   `json:"nics"`
-	BootVolume     string          `json:"boot_volume"`
-	Volumes        []string        `json:"volumes"`
-	SecurityGroups []string        `json:"security_groups"`
-	Flavor         string          `json:"flavor"`
-	KeyName        string          `json:"key_name"`
-	BootFromCinder bool            `json:"boot_from_cinder"`
+	Cloud            osm_os.DstCloud `json:"cloud"`
+	State            string          `json:"state"`
+	Name             string          `json:"name"`
+	Nics             []interface{}   `json:"nics"`
+	BootVolume       string          `json:"boot_volume"`
+	Volumes          []string        `json:"volumes"`
+	SecurityGroups   []string        `json:"security_groups"`
+	Flavor           string          `json:"flavor"`
+	KeyName          string          `json:"key_name"`
+	BootFromCinder   bool            `json:"boot_from_cinder"`
+	AvailabilityZone string          `json:"availability_zone"`
+	UserData         string          `json:"user_data"`
 }
 
 type ModuleResponse struct {
@@ -151,12 +153,14 @@ func main() {
 		}
 
 		ServerAgrs := osm_os.ServerArgs{
-			Name:           moduleArgs.Name,
-			Flavor:         moduleArgs.Flavor,
-			BootVolume:     moduleArgs.BootVolume,
-			SecurityGroups: moduleArgs.SecurityGroups,
-			Nics:           moduleArgs.Nics,
-			Volumes:        moduleArgs.Volumes,
+			Name:             moduleArgs.Name,
+			Flavor:           moduleArgs.Flavor,
+			BootVolume:       moduleArgs.BootVolume,
+			SecurityGroups:   moduleArgs.SecurityGroups,
+			Nics:             moduleArgs.Nics,
+			Volumes:          moduleArgs.Volumes,
+			AvailabilityZone: moduleArgs.AvailabilityZone,
+			UserData:         []byte(moduleArgs.UserData),
 		}
 		server, err := osm_os.CreateServer(provider, ServerAgrs)
 		if err != nil {
@@ -168,12 +172,14 @@ func main() {
 	}
 
 	ServerAgrs := osm_os.ServerArgs{
-		Name:           moduleArgs.Name,
-		Flavor:         moduleArgs.Flavor,
-		BootVolume:     moduleArgs.BootVolume,
-		SecurityGroups: moduleArgs.SecurityGroups,
-		Nics:           moduleArgs.Nics,
-		Volumes:        moduleArgs.Volumes,
+		Name:             moduleArgs.Name,
+		Flavor:           moduleArgs.Flavor,
+		BootVolume:       moduleArgs.BootVolume,
+		SecurityGroups:   moduleArgs.SecurityGroups,
+		Nics:             moduleArgs.Nics,
+		Volumes:          moduleArgs.Volumes,
+		AvailabilityZone: moduleArgs.AvailabilityZone,
+		UserData:         []byte(moduleArgs.UserData),
 	}
 	server, err := osm_os.CreateServer(provider, ServerAgrs)
 	if err != nil {
