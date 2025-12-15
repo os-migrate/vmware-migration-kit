@@ -5,5 +5,7 @@ skip_list:
 
 exclude_paths:
   - ".ansible/"
+  - "plugins/modules/src/"
+  - "tests/sanity/ignore-*.txt"
 
 profile: 'production'
