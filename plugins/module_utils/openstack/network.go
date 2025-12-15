@@ -74,7 +74,7 @@ func GetNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*
 }
 
 // CreatePort creates a network port with the specified parameters
-func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups []string) (*ports.Port, error) {
+func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups, fixedIPs []string) (*ports.Port, error) {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -83,11 +83,22 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		return nil, err
 	}
 
+	var IPs []ports.IP
+	for _, ip := range fixedIPs {
+		IPs = append(IPs, ports.IP{
+			IPAddress: ip,
+		})
+	}
+
 	createOpts := ports.CreateOpts{
 		Name:           portName,
 		NetworkID:      networkID,
 		MACAddress:     macAddress,
 		SecurityGroups: &securityGroups,
+	}
+
+	if len(IPs) > 0 {
+		createOpts.FixedIPs = IPs
 	}
 
 	port, err := ports.Create(context.TODO(), client, createOpts).Extract()
