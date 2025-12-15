@@ -13,7 +13,7 @@
       ansible.builtin.find:
         paths: "{{ source_root }}"
         file_type: directory
-        recurse: no
+        recurse: false
       register: src_contents
       no_log: true
 
