@@ -16,6 +16,10 @@ import_workloads_local_disk_path: "{{ local_disk_path | default(omit) }}"
 import_workloads_libdir: "{{ libdir | default('/usr/lib/vmware-vix-disklib') }}"
 import_workloads_extra_opts: "{{ extra_opts | default(omit) }}"
 import_workloads_boot_script_path: "{{ boot_script_path | default(omit) }}"
+
+# Neutron port creation
+import_workloads_use_fixed_ips: "{{ use_fixed_ips | default(false) | bool }}"
+
 # Teardown for testing only or dry runs:
 import_workloads_os_migrate_tear_down: "{{ os_migrate_tear_down | default(false) | bool }}"
 

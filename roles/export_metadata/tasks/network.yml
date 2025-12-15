@@ -41,7 +41,8 @@
         guest_nic: >-
           {{ guest_nic | default([]) + [{
                 'vlan': mapped_vlan,
-                'mac': vm_info_file[item].macaddress
+                'mac': vm_info_file[item].macaddress,
+                'ipaddresses': vm_info_file[item].ipaddresses
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       vars:
@@ -88,7 +89,11 @@
 
     - name: Loop through MAC addresses and build guest_mac list
       ansible.builtin.set_fact:
-        guest_mac: "{{ guest_mac + [{'mac': vm_info_file[item].macaddress}] }}"
+        guest_mac: >-
+          {{ guest_mac | default([]) + [{
+                'mac': vm_info_file[item].macaddress,
+                'ipaddresses': vm_info_file[item].ipaddresses
+          }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       when: not used_mapped_networks|default(true)|bool
 
