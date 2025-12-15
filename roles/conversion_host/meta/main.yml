@@ -14,4 +14,5 @@ galaxy_info:
     - qemu
     - infrastructure
 
-dependencies: []
+dependencies:
+  - role: os_migrate.vmware_migration_kit.prelude
