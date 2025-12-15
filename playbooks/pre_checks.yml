@@ -26,7 +26,6 @@
         path: "{{ modules_root }}/{{ item }}"
       register: binary_status
       loop: "{{ go_modules }}"
-      no_log: true
 
     - name: Fail if any compiled Go binary is missing
       ansible.builtin.fail:
