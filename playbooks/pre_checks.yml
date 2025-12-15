@@ -1,0 +1,37 @@
+- name: Pre-Migration Checks
+  hosts: migrator
+  connection: local
+  gather_facts: false
+
+  vars:
+    repo_root: "{{ playbook_dir }}/.."
+    modules_root: "{{ repo_root }}/plugins/modules"
+    source_root: "{{ modules_root }}/src"
+
+  tasks:
+    - name: Get Go module source directories
+      ansible.builtin.set_fact:
+        go_modules: >-
+          {{ lookup('ansible.builtin.fileglob',
+                    source_root + '/*',
+                    wantlist=True)
+             | map('basename')
+             | list }}
+
+    - name: Verify compiled Go binaries exist
+      ansible.builtin.stat:
+        path: "{{ modules_root }}/{{ item }}"
+      register: binary_status
+      loop: "{{ go_modules }}"
+
+    - name: Fail if any compiled Go binary is missing
+      ansible.builtin.fail:
+        msg: >
+          ERROR: Missing compiled Go binary for module '{{ item.item }}'.
+          Expected binary at:
+          {{ modules_root }}/{{ item.item }}
+
+          Please compile:
+          {{ source_root }}/{{ item.item }}/{{ item.item }}.go
+      when: not item.stat.exists
+      loop: "{{ binary_status.results }}"

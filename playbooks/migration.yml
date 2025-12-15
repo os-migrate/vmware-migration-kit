@@ -1,3 +1,6 @@
+- name: Run pre checks
+  import_playbook: pre_checks.yml
+
 - name: Run setup requirements
   import_playbook: setup_requirements.yml
 
