@@ -106,20 +106,6 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 		return nil, err
 	}
 
-	// If subnet is not provided, get the first subnet from the network
-	if subnet == "" {
-		subnets, err := GetSubnetIDFromNetwork(provider, networkID)
-		if err != nil {
-			logger.Log.Infof("Failed to get subnet from network: %v", err)
-			return nil, err
-		}
-		if len(subnets) > 0 {
-			subnet = subnets[0]
-		} else {
-			logger.Log.Infof("No subnets found for network: %s", networkID)
-			return nil, fmt.Errorf("no subnets found for network: %s", networkID)
-		}
-	}
 	var IPs []ports.IP
 	for _, ip := range fixedIPs {
 		IPs = append(IPs, ports.IP{
