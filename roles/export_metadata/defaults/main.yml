@@ -1,6 +1,7 @@
 ---
 export_metadata_used_mapped_networks: "{{ used_mapped_networks | default(false) | bool }}"
 export_metadata_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
-export_metadata_network_map:
-  # Map network from vmware to current openstack networks
-  "VM Network": "public"
+export_metadata_network_map: "network_map | default({})"
+
+# Subnet UUID to use for unmapped networks when used_mapped_networks is false
+export_metadata_subnet_uuid: ""
