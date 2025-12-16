@@ -90,6 +90,25 @@ type MigrationConfig struct {
 	CinderManageConfig *osm_os.CinderManageConfig
 }
 
+// Datastore name to Volume type mapping
+// type DstoreVolumeMap struct {
+// 	datastoreName string `json:"vmware_datastore"`
+// 	volumeType string `json:"openstack_type"`
+// }
+// type VolumeTypeMapping struct {
+// 	Mappings []DstoreVolumeMap
+// }
+
+// type DstoreVolumeMap struct {
+// 	datastoreName string `json:"vmware_datastore"`
+// 	volumeType string `json:"openstack_type"`
+// }
+type VolumeTypeMapping struct {
+	datastoreName string `json:"vmware_datastore"`
+	volumeType string `json:"openstack_type"`
+}
+
+
 // Ansible
 type ModuleArgs struct {
 	DstCloud       osm_os.DstCloud `json:"dst_cloud"`
@@ -100,6 +119,7 @@ type ModuleArgs struct {
 	VmName         string
 	VolumeAz       string
 	VolumeType     string
+	VolumeTypeMapping []VolumeTypeMapping `json:"volume_type_mapping"`
 	AssumeZero     bool
 	VddkPath       string
 	OSMDataDir     string
@@ -434,6 +454,25 @@ func main() {
 	volumeName := moduleArgs.VolumeName
 	hostPool := moduleArgs.HostPool
 
+	// Handle Volume type mapping
+	var volTypeMapping []VolumeTypeMapping
+	if len(moduleArgs.VolumeTypeMapping) > 1 {
+		volTypeMapping = moduleArgs.VolumeTypeMapping
+	}
+	var getVolumeTypeForDatastore = func(dstoreName string) string {
+		volumeType := "__DEFAULT__"
+		if volType != "" {
+			volumeType = volType
+		}
+		for _, aMap := range volTypeMapping {
+			if aMap.datastoreName == dstoreName {
+				volumeType = aMap.volumeType
+				break
+			}
+		}
+		return volumeType
+	}
+	
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
 	if err != nil {
@@ -484,6 +523,12 @@ func main() {
 		} else if forceV2V {
 			runV2V = true
 		}
+		dstoreName, err := vmware.GetDatastoreNameForDiskKey(ctx, vm, d)
+		if err != nil {
+			logger.Log.Infof("Could not find the datastore name for disk with key %d, using default volume type...", d)
+		}
+		volType = getVolumeTypeForDatastore(dstoreName)
+		logger.Log.Infof("Selected volume type %s for disk with key %d as per volume mapping configured", volType, d)
 		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
