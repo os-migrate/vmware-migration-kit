@@ -38,8 +38,8 @@ network_map:
 
 # If you want to use fixed IPs from the VMware VMs with network mapping,
 # you can map the VMware networks to OpenStack subnets like this:
-#network_map:
-#  "VM Network": "public,73ef65b0-8e35-43ac-9fd4-1e191c66dc74"
+# network_map:
+#   "VM Network": "public,73ef65b0-8e35-43ac-9fd4-1e191c66dc74"
 
 # @TODO: set value as dict or detect the OS type directly with VMware
 # vms_list:

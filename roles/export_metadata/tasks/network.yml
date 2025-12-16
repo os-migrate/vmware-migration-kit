@@ -96,7 +96,7 @@
         guest_mac: >-
           {{ guest_mac | default([]) + [{
                 'mac': vm_info_file[item].macaddress,
-                'ipaddresses': vm_info_file[item].ipaddresses
+                'ipaddresses': vm_info_file[item].ipaddresses,
                 'subnet': export_metadata_subnet_uuid,
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
