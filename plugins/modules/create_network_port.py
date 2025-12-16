@@ -52,6 +52,11 @@ options:
     type: bool
     default: false
     required: false
+  subnet_uuid:
+    description:
+      - UUID of the subnet to which the fixed IPs should belong.
+    type: str
+    required: false
 requirements:
   - openstacksdk
 """

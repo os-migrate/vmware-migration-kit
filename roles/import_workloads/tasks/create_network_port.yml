@@ -10,6 +10,7 @@
         used_mapped_networks: true
         security_groups: ["{{ security_groups | default('default') }}"]
         use_fixed_ips: "{{ import_workloads_use_fixed_ips | default(false) | bool }}"
+        subnet_uuid: "{{ import_workloads_fixed_ip_subnet_uuid | default('') }}"
       register: ports_uuid
       when: import_workloads_used_mapped_networks|default(true)|bool
 
@@ -29,6 +30,8 @@
         used_mapped_networks: false
         security_groups: ["{{ security_groups | default('default') }}"]
         network_name: "{{ openstack_private_network }}"
+        use_fixed_ips: "{{ import_workloads_use_fixed_ips | default(false) | bool }}"
+        subnet_uuid: "{{ import_workloads_fixed_ip_subnet_uuid | default('') }}"
       register: ports_uuid
       when: not import_workloads_used_mapped_networks|default(true)|bool
 
