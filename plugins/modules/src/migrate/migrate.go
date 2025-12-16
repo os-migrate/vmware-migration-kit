@@ -91,23 +91,10 @@ type MigrationConfig struct {
 }
 
 // Datastore name to Volume type mapping
-// type DstoreVolumeMap struct {
-// 	datastoreName string `json:"vmware_datastore"`
-// 	volumeType string `json:"openstack_type"`
-// }
-// type VolumeTypeMapping struct {
-// 	Mappings []DstoreVolumeMap
-// }
-
-// type DstoreVolumeMap struct {
-// 	datastoreName string `json:"vmware_datastore"`
-// 	volumeType string `json:"openstack_type"`
-// }
 type VolumeTypeMapping struct {
 	datastoreName string `json:"vmware_datastore"`
 	volumeType string `json:"openstack_type"`
 }
-
 
 // Ansible
 type ModuleArgs struct {
@@ -528,7 +515,7 @@ func main() {
 			logger.Log.Infof("Could not find the datastore name for disk with key %d, using default volume type...", d)
 		}
 		volType = getVolumeTypeForDatastore(dstoreName)
-		logger.Log.Infof("Selected volume type %s for disk with key %d as per volume mapping configured", volType, d)
+		logger.Log.Infof("Selected volume type %s for disk with key %d as per volume mapping configured (datastore: %s)", volType, d, dstoreName)
 		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
