@@ -286,22 +286,9 @@ func GetDatastoreNameForDiskKey(ctx context.Context, v *object.VirtualMachine, d
 			if virtualDisk.Key == diskKey {
 				fileName := virtualDisk.Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
 				datastoreName = getDatastoreName(fileName)
-				// datastoreName = getDatastoreName(virtualDisk.Backing.filename)
 			}
 		}
 	}
-
-
-// vmdks := []string{}
-// for _, device := range vmMo.Config.Hardware.Device {
-//     switch disk := device.(type) {
-//     case *types.VirtualDisk:
-//         fileName := disk.GetVirtualDevice().Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
-//         vmdks = append(vmdks, fileName)
-//     }
-// }
-
-	
 	return datastoreName, nil
 }
 
