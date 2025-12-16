@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -261,6 +262,47 @@ func GetDiskKeys(ctx context.Context, v *object.VirtualMachine) ([]int32, error)
 		}
 	}
 	return diskKeys, nil
+}
+
+func GetDatastoreNameForDiskKey(ctx context.Context, v *object.VirtualMachine, diskKey int32) (string, error) {
+	var getDatastoreName = func(aFileName string) string {
+		result := ""
+		re := regexp.MustCompile(`\[(.*?)\]`)
+		match := re.FindStringSubmatch(aFileName)
+		if len(match) > 1 {
+			result = match[1]
+		}
+		return result
+	}
+	var datastoreName string
+	var vm mo.VirtualMachine
+	err := v.Properties(ctx, v.Reference(), []string{"config.hardware.device"}, &vm)
+	if err != nil {
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
+		return "", err
+	}
+	for _, device := range vm.Config.Hardware.Device {
+		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
+			if virtualDisk.Key == diskKey {
+				fileName := virtualDisk.Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
+				datastoreName = getDatastoreName(fileName)
+				// datastoreName = getDatastoreName(virtualDisk.Backing.filename)
+			}
+		}
+	}
+
+
+// vmdks := []string{}
+// for _, device := range vmMo.Config.Hardware.Device {
+//     switch disk := device.(type) {
+//     case *types.VirtualDisk:
+//         fileName := disk.GetVirtualDevice().Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
+//         vmdks = append(vmdks, fileName)
+//     }
+// }
+
+	
+	return datastoreName, nil
 }
 
 func (v *VddkConfig) GetDiskKey(ctx context.Context) (int32, error) {
