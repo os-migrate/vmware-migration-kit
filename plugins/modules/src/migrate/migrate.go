@@ -441,25 +441,6 @@ func main() {
 	volumeName := moduleArgs.VolumeName
 	hostPool := moduleArgs.HostPool
 
-	// Handle Volume type mapping
-	var volTypeMapping []VolumeTypeMapping
-	if len(moduleArgs.VolumeTypeMapping) > 1 {
-		volTypeMapping = moduleArgs.VolumeTypeMapping
-	}
-	var getVolumeTypeForDatastore = func(dstoreName string) string {
-		volumeType := "__DEFAULT__"
-		if volType != "" {
-			volumeType = volType
-		}
-		for _, aMap := range volTypeMapping {
-			if aMap.DatastoreName == dstoreName {
-				volumeType = aMap.VolumeType
-				break
-			}
-		}
-		return volumeType
-	}
-	
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
 	if err != nil {
@@ -494,6 +475,22 @@ func main() {
 		ansible.FailJson(response)
 	}
 
+	// Handle Volume type mapping
+	var getVolumeTypeForDatastore = func(dstoreName string) string {
+		volumeType := "__DEFAULT__"
+		if volType != "" {
+			volumeType = volType
+		}
+		for _, aMap := range moduleArgs.VolumeTypeMapping {
+			if aMap.DatastoreName == dstoreName {
+				volumeType = aMap.VolumeType
+				logger.Log.Infof("Found match for datastore name and volume type. %s ---> %s", dstoreName, volumeType)
+				break
+			}
+		}
+		return volumeType
+	}
+
 	var disks []int32
 	var volume []string
 	var forceV2V = false
@@ -516,6 +513,7 @@ func main() {
 		}
 		volType = getVolumeTypeForDatastore(dstoreName)
 		logger.Log.Infof("Selected volume type %s for disk with key %d as per volume mapping configured (datastore: %s)", volType, d, dstoreName)
+
 		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
