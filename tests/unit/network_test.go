@@ -58,7 +58,7 @@ func TestCreatePortSuccess(t *testing.T) {
 	securityGroups := []string{"sg-01"}
 	fixedIPs := []string{}
 
-	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups, fixedIPs)
+	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", "", securityGroups, fixedIPs)
 	if err != nil {
 		t.Fatalf("CreatePort returned error: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestCreatePortSuccessWithFixedIP(t *testing.T) {
 	securityGroups := []string{"sg-01"}
 	fixedIPs := []string{"10.0.0.1"}
 
-	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", securityGroups, fixedIPs)
+	port, err := osm_os.CreatePort(provider, "test-port", "net-001", "fa:16:3e:aa:bb:cc", "", securityGroups, fixedIPs)
 	if err != nil {
 		t.Fatalf("CreatePort returned error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestCreatePortClientInitFailure(t *testing.T) {
 		return "", gophercloud.ErrEndpointNotFound{}
 	}
 
-	_, err := osm_os.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", nil, nil)
+	_, err := osm_os.CreatePort(provider, "p1", "net-001", "fa:16:3e:00:00:00", "", nil, nil)
 	if err == nil {
 		t.Fatalf("expected error but got nil")
 	}
@@ -153,7 +153,7 @@ func TestCreatePortCreateError(t *testing.T) {
 
 	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
 
-	_, err := osm_os.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", nil, nil)
+	_, err := osm_os.CreatePort(provider, "bad", "net-001", "fa:16:3e:bb:cc:dd", "", nil, nil)
 	if err == nil {
 		t.Fatalf("expected Create error but got none")
 	}
