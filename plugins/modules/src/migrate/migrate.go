@@ -92,8 +92,8 @@ type MigrationConfig struct {
 
 // Datastore name to Volume type mapping
 type VolumeTypeMapping struct {
-	datastoreName string `json:"vmware_datastore"`
-	volumeType string `json:"openstack_type"`
+	DatastoreName string `json:"vmware_datastore"`
+	VolumeType string `json:"openstack_type"`
 }
 
 // Ansible
@@ -452,8 +452,8 @@ func main() {
 			volumeType = volType
 		}
 		for _, aMap := range volTypeMapping {
-			if aMap.datastoreName == dstoreName {
-				volumeType = aMap.volumeType
+			if aMap.DatastoreName == dstoreName {
+				volumeType = aMap.VolumeType
 				break
 			}
 		}
