@@ -145,6 +145,7 @@ clean-build-prod:
 	truncate -s -1 $(COLLECTION_ROOT)/roles/import_workloads/tasks/main.yml
 	rm -f $(COLLECTION_ROOT)/roles/import_workloads/tasks/teardown.yml
 	sed -i '/plugins\/modules\/delete_/d' tests/sanity/ignore-2.*.txt
+	sed -i '/plugins\/modules\/src/d' tests/sanity/ignore-2.*.txt
 	@echo "*** Remove teardown modules before building...***"
 	rm -f $(MODULES_DIR)/delete_*
 	rm -rf $(MODULES_DIR)/src/delete_*
