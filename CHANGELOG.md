@@ -189,3 +189,7 @@ Minor release which removes unused import_image module and fix AEE push
 - Check GO binaries before the migration
 - Add prelude role as dependency to the conversion_host role
 - Expose subnet on port creation
+
+## v2.2.0
+
+- Remove src from sanity check in build-prod cleanup
