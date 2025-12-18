@@ -90,6 +90,12 @@ type MigrationConfig struct {
 	CinderManageConfig *osm_os.CinderManageConfig
 }
 
+// Datastore name to Volume type mapping
+type VolumeTypeMapping struct {
+	DatastoreName string `json:"vmware_datastore"`
+	VolumeType string `json:"openstack_type"`
+}
+
 // Ansible
 type ModuleArgs struct {
 	DstCloud       osm_os.DstCloud `json:"dst_cloud"`
@@ -100,6 +106,7 @@ type ModuleArgs struct {
 	VmName         string
 	VolumeAz       string
 	VolumeType     string
+	VolumeTypeMapping []VolumeTypeMapping `json:"volume_type_mapping"`
 	AssumeZero     bool
 	VddkPath       string
 	OSMDataDir     string
@@ -468,6 +475,22 @@ func main() {
 		ansible.FailJson(response)
 	}
 
+	// Handle Volume type mapping
+	var getVolumeTypeForDatastore = func(dstoreName string) string {
+		volumeType := "__DEFAULT__"
+		if volType != "" {
+			volumeType = volType
+		}
+		for _, aMap := range moduleArgs.VolumeTypeMapping {
+			if aMap.DatastoreName == dstoreName {
+				volumeType = aMap.VolumeType
+				logger.Log.Infof("Found match for datastore name and volume type. %s ---> %s", dstoreName, volumeType)
+				break
+			}
+		}
+		return volumeType
+	}
+
 	var disks []int32
 	var volume []string
 	var forceV2V = false
@@ -484,6 +507,13 @@ func main() {
 		} else if forceV2V {
 			runV2V = true
 		}
+		dstoreName, err := vmware.GetDatastoreNameForDiskKey(ctx, vm, d)
+		if err != nil {
+			logger.Log.Infof("Could not find the datastore name for disk with key %d, using default volume type...", d)
+		}
+		volType = getVolumeTypeForDatastore(dstoreName)
+		logger.Log.Infof("Selected volume type %s for disk with key %d as per volume mapping configured (datastore: %s)", volType, d, dstoreName)
+
 		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{

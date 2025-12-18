@@ -81,6 +81,7 @@
     debug: "{{ import_workloads_debug | bool }}"
     localdiskpath: "{{ import_workloads_local_disk_path | default(omit) }}"
     libdir: "{{ import_workloads_libdir | default(omit) }}"
+    volume_type_mapping: "{{ import_workloads_volume_type_mapping | default([]) }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true
