@@ -48,12 +48,6 @@ options:
     description:
       - Optional. A mapping between VMware datastore name and OpenStack volume type.
       - It defaults to volumetype if a mapping cannoi be found.
-      - For example:
-        volume_type_mapping:
-          - vmware_datastore: datastore_1
-            openstack_type: type_1
-          - vmware_datastore: datastore_2
-            openstack_type: type_2
     type: dict
     required: false
   assumezero:

@@ -80,6 +80,17 @@ vms_list:
 # Migration to an encrypted volume type may result in a non-functional disk!
 cinder_volume_type: __DEFAULT__
 
+# # Mapping between VMware datastore names and OpenStack volume types.
+# # In this example:
+# # - disks in datastore1 will be created in volumes of type volume_type_1
+# # - disks in datastore2 will be created in volumes of type volume_type_2
+# # - disks in other datastores, will default to the value of cinder_volume_type.
+# volume_type_mapping:
+#    - vmware_datastore: datastore1
+#      openstack_type: volume_type_1
+#    - vmware_datastore: datastore2
+#      openstack_type: volume_type_2
+
 # Availability zone settings for the converted volumes and instances
 # These can be set separately or via a single `availability_zone` var
 #
