@@ -177,3 +177,15 @@ Minor release which removes unused import_image module and fix AEE push
 - Reset guest_nic and guest_mac variable
 - Add support for destination volumes that are not zerored
 - map clear errors for mapped network errors
+
+## v2.1.9
+
+- Implement concurrent keep-alive to prevent NotAuthenticated
+- Pass user_data and convert UserData from a string to byte array
+- Update certification to call reusable workflow
+- Allow to use Fixed IP address for neutron port creation
+- Add unit tests for ansible module_utils
+- Add bindep file to the root directory of the collection
+- Check GO binaries before the migration
+- Add prelude role as dependency to the conversion_host role
+- Expose subnet on port creation
