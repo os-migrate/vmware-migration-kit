@@ -40,13 +40,17 @@
       ansible.builtin.set_fact:
         guest_nic: >-
           {{ guest_nic | default([]) + [{
-                'vlan': mapped_vlan,
+                'vlan': vlan_name,
+                'subnet': subnet_uuid,
                 'mac': vm_info_file[item].macaddress,
                 'ipaddresses': vm_info_file[item].ipaddresses
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       vars:
         mapped_vlan: "{{ network_map.get(vm_info_file[item].summary, 'UNMAPPED') }}"
+        vlan_parts: "{{ mapped_vlan.split(',') }}"
+        vlan_name: "{{ vlan_parts[0] }}"
+        subnet_uuid: "{{ vlan_parts[1] if vlan_parts | length > 1 else omit }}"
       when:
         - mapped_vlan != 'UNMAPPED'
         - used_mapped_networks|default(true)|bool
@@ -92,7 +96,8 @@
         guest_mac: >-
           {{ guest_mac | default([]) + [{
                 'mac': vm_info_file[item].macaddress,
-                'ipaddresses': vm_info_file[item].ipaddresses
+                'ipaddresses': vm_info_file[item].ipaddresses,
+                'subnet': export_metadata_subnet_uuid,
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       when: not used_mapped_networks|default(true)|bool

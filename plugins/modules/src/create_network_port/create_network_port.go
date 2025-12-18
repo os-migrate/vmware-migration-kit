@@ -41,6 +41,7 @@ type NicInfo struct {
 	Vlan     string   `json:"vlan"`
 	Mac      string   `json:"mac"`
 	FixedIPs []string `json:"ipaddresses"`
+	Subnet   string   `json:"subnet"`
 }
 
 type PortInfo struct {
@@ -153,6 +154,7 @@ func main() {
 	}
 
 	var portUUIDs []PortInfo
+
 	for nicIndex, nic := range vmNics {
 		// Get network ID
 		network, err := osm_os.GetNetwork(provider, nic.Vlan)
@@ -163,8 +165,25 @@ func main() {
 		if !moduleArgs.UseFixedIPs {
 			nic.FixedIPs = nil
 		}
+		// If using fixed IPs, get subnet ID if not provided
+		if moduleArgs.UseFixedIPs {
+			if nic.Subnet == "" {
+				subnets, err := osm_os.GetSubnetIDFromNetwork(provider, network.ID)
+				if err != nil {
+					response.Msg = "Failed to get subnet from network: " + err.Error()
+					FailJson(response)
+				}
+				if len(subnets) > 0 {
+					nic.Subnet = subnets[0]
+				} else {
+					response.Msg = "No subnets found for network: " + network.ID
+					FailJson(response)
+				}
+			}
+		}
 		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleArgs.VmName, nicIndex, nic.Vlan)
-		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, moduleArgs.SecurityGroups, nic.FixedIPs)
+		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, nic.Subnet,
+			moduleArgs.SecurityGroups, nic.FixedIPs)
 		if err != nil {
 			response.Msg = "Failed to create port: " + err.Error()
 			FailJson(response)

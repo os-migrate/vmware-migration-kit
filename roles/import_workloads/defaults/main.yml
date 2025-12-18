@@ -20,6 +20,7 @@ import_workloads_volume_type_mapping: "{{ volume_type_mapping | default([]) }}"
 
 # Neutron port creation
 import_workloads_use_fixed_ips: "{{ use_fixed_ips | default(false) | bool }}"
+import_workloads_fixed_ip_subnet_uuid: "{{ fixed_ip_subnet_uuid | default('') }}"
 
 # Teardown for testing only or dry runs:
 import_workloads_os_migrate_tear_down: "{{ os_migrate_tear_down | default(false) | bool }}"

@@ -73,8 +73,31 @@ func GetNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*
 	return &networkList[0], nil
 }
 
+func GetSubnetIDFromNetwork(provider *gophercloud.ProviderClient, networkID string) ([]string, error) {
+	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		logger.Log.Infof("Failed to create network client: %v", err)
+		return nil, err
+	}
+
+	network, err := networks.Get(context.TODO(), client, networkID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get network: %v", err)
+		return nil, err
+	}
+
+	if len(network.Subnets) == 0 {
+		return nil, fmt.Errorf("no subnets found for network: %s", networkID)
+	}
+
+	// Return the first subnet ID
+	return network.Subnets, nil
+}
+
 // CreatePort creates a network port with the specified parameters
-func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAddress string, securityGroups, fixedIPs []string) (*ports.Port, error) {
+func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAddress, subnet string, securityGroups, fixedIPs []string) (*ports.Port, error) {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
@@ -86,6 +109,7 @@ func CreatePort(provider *gophercloud.ProviderClient, portName, networkID, macAd
 	var IPs []ports.IP
 	for _, ip := range fixedIPs {
 		IPs = append(IPs, ports.IP{
+			SubnetID:  subnet,
 			IPAddress: ip,
 		})
 	}
