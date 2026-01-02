@@ -15,7 +15,7 @@
  *
  */
 
-package vmware
+package moduleutils
 
 import (
 	"context"
