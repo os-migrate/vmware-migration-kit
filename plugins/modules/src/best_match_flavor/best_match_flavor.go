@@ -36,14 +36,14 @@ type ModuleArgs struct {
 	Cloud         osm_os.DstCloud `json:"cloud"`
 	GuestInfoPath string          `json:"guest_info_path"`
 	DiskInfoPath  string          `json:"disk_info_path"`
+	UseDiskInfo   bool            `json:"use_disk_info"`
 }
 
 type GuestInfo struct {
-	HwProcessorCount int `json:"hw_processor_count"`
-	HwMemtotalMb     int `json:"hw_memtotal_mb"`
+	HwProcessorCount int    `json:"hw_processor_count"`
+	HwMemtotalMb     int    `json:"hw_memtotal_mb"`
 	HwFolder         string `json:"hw_folder,omitempty"`
 }
-
 
 type Disk struct {
 	Capacity int `json:"capacity"`
@@ -199,10 +199,12 @@ func main() {
 
 	// Load disk info
 	var diskInfo DiskInfo
-	err = loadJSONFile(moduleArgs.DiskInfoPath, &diskInfo)
-	if err != nil {
-		response.Msg = "Failed to load disk info: " + err.Error()
-		FailJson(response)
+	if moduleArgs.UseDiskInfo {
+		err = loadJSONFile(moduleArgs.DiskInfoPath, &diskInfo)
+		if err != nil {
+			response.Msg = "Failed to load disk info: " + err.Error()
+			FailJson(response)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -213,9 +215,14 @@ func main() {
 		FailJson(response)
 	}
 
-	// Calculate total disk capacity
-	diskCapacityMb := getTotalDiskCapacity(&diskInfo)
-
+	var diskCapacityMb int
+	if !moduleArgs.UseDiskInfo {
+		// If not using disk info, set disk capacity to 0
+		diskCapacityMb = 0
+	} else {
+		// Calculate total disk capacity
+		diskCapacityMb = getTotalDiskCapacity(&diskInfo)
+	}
 	// Find best matching flavor
 	bestFlavor, err := findBestMatchingFlavor(provider, &guestInfo, diskCapacityMb)
 	if err != nil {
