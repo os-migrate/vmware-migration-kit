@@ -700,7 +700,7 @@ func CinderManage(provider *gophercloud.ProviderClient, volumeName string, hostP
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
 	if err != nil {
-		logger.Log.Fatalf("Failed to create block storage client: %v", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return nil, err
 	}
 	body := map[string]interface{}{
@@ -721,16 +721,16 @@ func CinderManage(provider *gophercloud.ProviderClient, volumeName string, hostP
 	manageURL := bsClient.ServiceURL("manageable_volumes")
 	_, err = bsClient.Post(context.TODO(), manageURL, body, &resp, nil)
 	if err != nil {
-		logger.Log.Fatalf("Error while managing existing volume: %v", err)
+		logger.Log.Infof("Error while managing existing volume: %v", err)
 		return nil, err
 	}
 	volume, err := GetVolume(provider, resp.Volume.ID)
 	if err != nil {
-		logger.Log.Fatalf("Failed to get managed volume: %v", err)
+		logger.Log.Infof("Failed to get managed volume: %v", err)
 		return nil, err
 	}
 	if volume.Status == "error" {
-		logger.Log.Fatalf("Managed volume is in error state, status: %s", volume.Status)
+		logger.Log.Infof("Managed volume is in error state, status: %s", volume.Status)
 		return nil, fmt.Errorf("managed volume is in error state, status: %s", volume.Status)
 	}
 	logger.Log.Infof("Successfully managed existing volume: %s, ID: %s", resp.Volume.Name, resp.Volume.ID)
@@ -742,7 +742,7 @@ func GetVolume(provider *gophercloud.ProviderClient, volumeID string) (*volumes.
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
 	if err != nil {
-		logger.Log.Fatalf("Failed to create block storage client: %v", err)
+		logger.Log.Infof("Failed to create block storage client: %v", err)
 		return nil, err
 	}
 	volume, err := volumes.Get(context.TODO(), bsClient, volumeID).Extract()
