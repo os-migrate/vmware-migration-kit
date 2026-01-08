@@ -26,19 +26,19 @@ import (
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/types"
-	
+
 	vmware_utils "vmware-migration-kit/plugins/module_utils/vmware"
 )
 
 func TestGetDatastoreNameForDiskKey(t *testing.T) {
-	var fail_if_error = func (msg string, err error) {
+	var failIfError = func(msg string, err error) {
 		if err != nil {
 			t.Errorf("Error: %s", msg)
 			t.Errorf("%v", err)
 			t.Fatal("Tests could not be run due an error creating the mock.")
 		}
 	}
-	
+
 	simulator.Run(func(ctx context.Context, c *vim25.Client) error {
 		vmName := "testing_vm_01"
 		dStoreName := "LocalDS_0"
@@ -46,38 +46,38 @@ func TestGetDatastoreNameForDiskKey(t *testing.T) {
 
 		// Datacenter
 		dc, err := finder.Datacenter(ctx, "DC0")
-		fail_if_error("Could not find Datacenter", err)
+		failIfError("Could not find Datacenter", err)
 		finder.SetDatacenter(dc)
 
 		// Folder
 		folders, err := dc.Folders(ctx)
-		fail_if_error("Could not find Folder", err)
+		failIfError("Could not find Folder", err)
 
 		// ResourcePool
 		pool, err := finder.ResourcePool(ctx, "DC0_C0/Resources")
-		fail_if_error("Could not find Pool", err)
+		failIfError("Could not find Pool", err)
 
 		// VM's spec
 		spec := types.VirtualMachineConfigSpec{
 			Name:    vmName,
 			GuestId: string(types.VirtualMachineGuestOsIdentifierOtherGuest),
 			Files: &types.VirtualMachineFileInfo{
-				VmPathName: "["+dStoreName+"]",
+				VmPathName: "[" + dStoreName + "]",
 			},
 		}
 
 		// SCSI controller and Disk spec
 		var devices object.VirtualDeviceList
 		var controllerName string
-		
+
 		scsi, err := devices.CreateSCSIController("scsi")
-		fail_if_error("Could not create SCSI controller", err)
+		failIfError("Could not create SCSI controller", err)
 		devices = append(devices, scsi)
 		controllerName = devices.Name(scsi)
-		
+
 		controller, err := devices.FindDiskController(controllerName)
-		fail_if_error("Could not find SCSI controller", err)
-		
+		failIfError("Could not find SCSI controller", err)
+
 		disk := &types.VirtualDisk{
 			VirtualDevice: types.VirtualDevice{
 				Key: devices.NewKey(),
@@ -94,17 +94,17 @@ func TestGetDatastoreNameForDiskKey(t *testing.T) {
 
 		// Adds device spec to VM spec
 		deviceChange, err := devices.ConfigSpec(types.VirtualDeviceConfigSpecOperationAdd)
-		fail_if_error("Could not ADD spec change", err)
+		failIfError("Could not ADD spec change", err)
 		spec.DeviceChange = deviceChange
 
 		// Create VM
 		task, err := folders.VmFolder.CreateVM(ctx, spec, pool, nil)
-		fail_if_error("Could not create VM", err)
+		failIfError("Could not create VM", err)
 		info, err := task.WaitForResult(ctx)
-		fail_if_error("Unknown", err)
+		failIfError("Unknown", err)
 		vm := object.NewVirtualMachine(c, info.Result.(types.ManagedObjectReference))
 		name, err := vm.ObjectName(ctx)
-		fail_if_error("Unknown", err)
+		failIfError("Unknown", err)
 
 		// Tests
 		if name != vmName {
@@ -112,19 +112,19 @@ func TestGetDatastoreNameForDiskKey(t *testing.T) {
 		}
 
 		diskKeys, err := vmware_utils.GetDiskKeys(ctx, vm)
-		fail_if_error("Could not get disk keys", err)
+		failIfError("Could not get disk keys", err)
 
 		if len(diskKeys) == 0 {
 			t.Errorf("Test Error: 0 disk keys retrieved for VM %s", vmName)
 		}
-		
+
 		dsName, err := vmware_utils.GetDatastoreNameForDiskKey(ctx, vm, diskKeys[0])
-		fail_if_error("Could not get datastore name", err)
+		failIfError("Could not get datastore name", err)
 
 		if dsName != dStoreName {
 			t.Errorf("Test Error: datastore names mismatch. Wanted '%s'. Found '%s'", dStoreName, dsName)
 		}
-		
+
 		return nil
 	})
 }
