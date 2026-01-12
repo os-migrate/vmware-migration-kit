@@ -1,7 +1,0 @@
-openssh-clients
-python3
-python3-pip
-rsync
-gcc
-python3-devel
-git
