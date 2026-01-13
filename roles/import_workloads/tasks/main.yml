@@ -19,6 +19,12 @@
     - os_migrate_create_os_instance|default(true)|bool
     - import_workloads_converted
 
+- name: Adopt resources into Heat stack
+  ansible.builtin.include_tasks: adopt_heat_stack.yml
+  when:
+    - import_workloads_adopt_heat_stack|default(false)|bool
+    - import_workloads_converted
+
 - name: Teardown
   ansible.builtin.include_tasks: teardown.yml
   when: import_workloads_os_migrate_tear_down|default(false)|bool

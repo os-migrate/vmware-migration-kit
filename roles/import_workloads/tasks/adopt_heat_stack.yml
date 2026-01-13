@@ -1,0 +1,50 @@
+---
+- name: Adopt migrated resources into Heat stack
+  os_migrate.vmware_migration_kit.adopt_heat_stack:
+    cloud: "{{ dst_cloud }}"
+    stack_name: "{{ vm_name }}-stack"
+    volume_ids: "{{ [boot_volume_uuid] + (volumes_list | default([])) }}"
+    instance_id: "{{ instance_id }}"
+  register: adopted_stack_result
+
+- name: Display Heat stack adoption success
+  ansible.builtin.debug:
+    msg: |
+      ✓ Resources adopted into Heat stack
+      Stack Name: {{ adopted_stack_result.stack.name }}
+      Stack ID: {{ adopted_stack_result.stack.id }}
+      Status: {{ adopted_stack_result.stack.status }}
+  when: adopted_stack_result is defined and not adopted_stack_result.failed
+
+- name: Save Heat stack information
+  ansible.builtin.copy:
+    content: |
+      # Heat Stack Information for {{ vm_name }}
+      Stack Name: {{ adopted_stack_result.stack.name }}
+      Stack ID: {{ adopted_stack_result.stack.id }}
+      Status: {{ adopted_stack_result.stack.status }}
+
+      ## Adopted Resources
+      - Boot Volume: {{ boot_volume_uuid }}
+      {% if volumes_list is defined and volumes_list | length > 0 %}
+      - Data Volumes: {{ volumes_list | join(', ') }}
+      {% endif %}
+      - Instance: {{ instance_id }}
+
+      ## Heat Management Commands
+      # View stack details
+      openstack stack show {{ adopted_stack_result.stack.id }}
+
+      # List stack resources
+      openstack stack resource list {{ adopted_stack_result.stack.id }}
+
+      # View stack events
+      openstack stack event list {{ adopted_stack_result.stack.id }}
+
+      # Update stack (with template changes)
+      openstack stack update {{ adopted_stack_result.stack.id }} -t template.yaml
+
+      # Delete stack (WARNING: This will delete all resources)
+      openstack stack delete {{ adopted_stack_result.stack.id }}
+    dest: "/tmp/{{ vm_name }}-heat-stack-info.txt"
+  when: adopted_stack_result is defined and not adopted_stack_result.failed
