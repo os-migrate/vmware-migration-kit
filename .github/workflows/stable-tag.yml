@@ -1,0 +1,24 @@
+name: Update stable tag
+
+on:
+  push:
+    tags:
+      - 'v*'   # triggers on v* tags
+
+jobs:
+  move-stable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag name
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Move stable tag
+        run: |
+          git tag -f stable "$TAG"
+          git push -f origin stable
