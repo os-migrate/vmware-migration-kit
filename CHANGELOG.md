@@ -193,3 +193,8 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.2.0
 
 - Remove src from sanity check in build-prod cleanup
+
+## v2.2.1
+
+- Add AGENTS.md file for AI agent guidelines
+- remove parseable which is now not allowed
