@@ -42,3 +42,6 @@ import_workloads_image_metadata:
 
 import_workloads_boot_from_cinder: "{{ boot_from_cinder | default(false) | bool }}"
 import_workloads_user_data: "{{ user_data | default(omit) }}"
+
+import_workloads_use_heat: "{{ use_heat | default(false) | bool }}"
+import_workloads_heat_auto_deploy: "{{ heat_auto_deploy | default(true) | bool }}"

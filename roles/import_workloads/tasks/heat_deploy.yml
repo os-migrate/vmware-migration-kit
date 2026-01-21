@@ -1,0 +1,128 @@
+---
+- name: Set fact for Heat stack name with timestamp
+  ansible.builtin.set_fact:
+    heat_stack_name: "os-migrate-{{ ansible_date_time.epoch }}"
+
+- name: Initialize empty list for VM data
+  ansible.builtin.set_fact:
+    heat_vms_data: []
+
+- name: Read guest info for each VM
+  ansible.builtin.slurp:
+    src: "{{ os_migrate_vmw_data_dir }}/{{ item }}/guest_info.json"
+  loop: "{{ vms_list }}"
+  register: guest_info_files
+
+- name: Get flavor UUID if flavor name is provided
+  os_migrate.vmware_migration_kit.flavor_info:
+    cloud: "{{ dst_cloud }}"
+    flavor_name: "{{ flavor_name_or_uuid }}"
+  register: flavor_info
+
+- name: Gather Cinder volume info for all migrated VMs
+  os_migrate.vmware_migration_kit.volume_info:
+    cloud: "{{ dst_cloud }}"
+    name: "{{ item }}"
+  loop: "{{ vms_list }}"
+  register: migrated_volumes_info
+
+- name: Build VM data structure for Heat template
+  ansible.builtin.set_fact:
+    heat_vms_data: "{{ heat_vms_data + [vm_entry] }}"
+  vars:
+    vm_entry:
+      name: "{{ item.item }}"
+      boot_volume_id: "{{ item.volumes[0].id }}"
+      flavor: "{{ flavor_info.flavor.id }}"
+      network: "{{ openstack_private_network }}"
+      security_groups: ["{{ security_groups | default('default') }}"]
+      data_volume_ids: []
+  loop: "{{ migrated_volumes_info.results }}"
+
+- name: Display VM data for Heat template
+  ansible.builtin.debug:
+    msg: "Preparing Heat template for {{ heat_vms_data | length }} VMs"
+
+- name: Generate Heat template for migrated workloads
+  os_migrate.vmware_migration_kit.generate_heat_template:
+    vms_data: "{{ heat_vms_data }}"
+    stack_name: "{{ heat_stack_name }}"
+    output_dir: "{{ os_migrate_vmw_data_dir }}"
+  register: heat_template_generated
+
+- name: Display generated Heat template location
+  ansible.builtin.debug:
+    msg: |
+      ✓ Heat template generated: {{ heat_template_generated.template_path }}
+
+      To manually deploy:
+      openstack stack create -t {{ heat_template_generated.template_path }} \
+        {% for key, value in heat_template_generated.parameters.items() %}
+        --parameter {{ key }}={{ value }} \
+        {% endfor %}
+        {{ heat_stack_name }}
+
+- name: Create Heat stack from generated template
+  os_migrate.vmware_migration_kit.create_heat_stack:
+    cloud: "{{ dst_cloud }}"
+    template_path: "{{ heat_template_generated.template_path }}"
+    stack_name: "{{ heat_stack_name }}"
+    parameters: "{{ heat_template_generated.parameters }}"
+    wait: true
+    timeout: 600
+  register: heat_stack_created
+  when: import_workloads_heat_auto_deploy | default(true) | bool
+
+- name: Display Heat stack deployment result
+  ansible.builtin.debug:
+    msg: |
+      ✓ Heat stack deployed successfully
+      Stack Name: {{ heat_stack_created.stack.name }}
+      Stack ID: {{ heat_stack_created.stack.id }}
+      Status: {{ heat_stack_created.stack.status }}
+
+      View resources: openstack stack resource list {{ heat_stack_created.stack.id }}
+      View events: openstack stack event list {{ heat_stack_created.stack.id }}
+  when: heat_stack_created is defined and not heat_stack_created.failed
+
+- name: Save Heat stack information to file
+  ansible.builtin.copy:
+    content: |
+      # Heat Stack Information
+      Stack Name: {{ heat_stack_created.stack.name }}
+      Stack ID: {{ heat_stack_created.stack.id }}
+      Status: {{ heat_stack_created.stack.status }}
+      Template: {{ heat_template_generated.template_path }}
+
+      ## Migrated VMs
+      {% for vm in heat_vms_data %}
+      - {{ vm.name }}:
+        Boot Volume: {{ vm.boot_volume_id }}
+        Flavor: {{ vm.flavor }}
+        Network: {{ vm.network }}
+      {% endfor %}
+
+      ## Heat Management Commands
+      # View stack details
+      openstack stack show {{ heat_stack_created.stack.id }}
+
+      # List stack resources
+      openstack stack resource list {{ heat_stack_created.stack.id }}
+
+      # View stack events
+      openstack stack event list {{ heat_stack_created.stack.id }}
+
+      # Update stack (with template changes)
+      openstack stack update {{ heat_stack_created.stack.id }} -t {{ heat_template_generated.template_path }}
+
+      # Delete stack (WARNING: This will delete managed resources - instances and ports)
+      # Note: Cinder volumes are external and will NOT be deleted
+      openstack stack delete {{ heat_stack_created.stack.id }}
+    dest: "{{ os_migrate_vmw_data_dir }}/heat-stack-info.txt"
+  when: heat_stack_created is defined and not heat_stack_created.failed
+  delegate_to: localhost
+
+- name: Display saved stack info location
+  ansible.builtin.debug:
+    msg: "Stack information saved to {{ os_migrate_vmw_data_dir }}/heat-stack-info.txt"
+  when: heat_stack_created is defined and not heat_stack_created.failed
