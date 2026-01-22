@@ -84,7 +84,7 @@ func generateHeatTemplate(vmsData []VMData, stackName string) (string, map[strin
 
 	// Header
 	template.WriteString("heat_template_version: wallaby\n")
-	template.WriteString(fmt.Sprintf("description: Migrated VMware workloads managed by os-migrate (Stack: %s)\n\n", stackName))
+	template.WriteString(fmt.Sprintf("description: 'Migrated VMware workloads managed by os-migrate (Stack - %s)'\n\n", stackName))
 
 	// Parameters section
 	template.WriteString("parameters:\n")

@@ -162,16 +162,16 @@ func main() {
 		FailJson(response)
 	}
 
-	// Parse template YAML
+	// Parse template as map[string]interface{} for Gophercloud
 	var templateMap map[string]interface{}
 	err = yaml.Unmarshal(templateContent, &templateMap)
 	if err != nil {
-		response.Msg = "Failed to parse template YAML: " + err.Error()
+		response.Msg = "Template YAML parsing failed: " + err.Error()
 		FailJson(response)
 	}
 
-	// Create template options
-	templateOpts := &stacks.Template{
+	// Create template using both Bin and Parsed
+	template := &stacks.Template{
 		TE: stacks.TE{
 			Bin:    templateContent,
 			Parsed: templateMap,
@@ -181,7 +181,7 @@ func main() {
 	// Create stack
 	createOpts := stacks.CreateOpts{
 		Name:         moduleArgs.StackName,
-		TemplateOpts: templateOpts,
+		TemplateOpts: template,
 		Parameters:   moduleArgs.Parameters,
 		Timeout:      moduleArgs.Timeout / 60, // Convert seconds to minutes
 	}
