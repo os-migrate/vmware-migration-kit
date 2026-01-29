@@ -34,6 +34,7 @@ type mockDirEntry struct {
 
 func (m *mockDirEntry) Name() string { return m.name }
 
+// Test 1: GenRandom generates string of correct length
 func TestGenRandom(t *testing.T) {
 	length := 10
 	str, err := moduleutils.GenRandom(length)
@@ -45,7 +46,7 @@ func TestGenRandom(t *testing.T) {
 	}
 }
 
-// unexpected inputs werent handled
+// Test 2: FindDevName returns error for short volumeID
 func TestFindDevName_ShortVolumeID(t *testing.T) {
 	_, err := moduleutils.FDevName(nil, nil, "shortID")
 	if err == nil {
@@ -53,6 +54,7 @@ func TestFindDevName_ShortVolumeID(t *testing.T) {
 	}
 }
 
+// Test 3: FindDevName returns error for empty volumeID
 func TestFindDevName_EmptyVolumeID(t *testing.T) {
 	_, err := moduleutils.FDevName(nil, nil, "")
 	if err == nil {
@@ -60,7 +62,7 @@ func TestFindDevName_EmptyVolumeID(t *testing.T) {
 	}
 }
 
-// succesful scenario - correct device, one match
+// Test 4: FindDevName finds correct device with one match
 func TestFindDevName_Success(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -84,7 +86,7 @@ func TestFindDevName_Success(t *testing.T) {
 	}
 }
 
-// multiple devices, one match - correct device when more dirs
+// Test 5: FindDevName finds correct device when multiple directories exist
 func TestFindDevName_MultipleDevicesOneMatch(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -108,7 +110,7 @@ func TestFindDevName_MultipleDevicesOneMatch(t *testing.T) {
 	}
 }
 
-// multiple matches - confirm it returned first correct match
+// Test 6: FindDevName returns first match when multiple matches exist
 func TestFindDevName_MultipleMatches(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -131,7 +133,7 @@ func TestFindDevName_MultipleMatches(t *testing.T) {
 	}
 }
 
-// no matches - "not found" but fails gracefully
+// Test 7: FindDevName returns empty string when no matches found
 func TestFindDevName_NoMatches(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -153,7 +155,7 @@ func TestFindDevName_NoMatches(t *testing.T) {
 	}
 }
 
-// dir doesnt exist or unreadable
+// Test 8: FindDevName returns error when directory is unreadable
 func TestFindDevName_ReadDirError(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return nil, fmt.Errorf("simulated ReadDir error")
@@ -172,7 +174,7 @@ func TestFindDevName_ReadDirError(t *testing.T) {
 	}
 }
 
-// empty directory
+// Test 9: FindDevName returns empty string for empty directory
 func TestFindDevName_EmptyDirectory(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{}, nil
@@ -191,7 +193,7 @@ func TestFindDevName_EmptyDirectory(t *testing.T) {
 	}
 }
 
-// broken symlink
+// Test 10: FindDevName returns error for broken symlink
 func TestFindDevName_BrokenSymlink(t *testing.T) {
 	mockReadDir := func(path string) ([]fs.DirEntry, error) {
 		return []fs.DirEntry{
@@ -212,6 +214,7 @@ func TestFindDevName_BrokenSymlink(t *testing.T) {
 	}
 }
 
+// Test 11: SafeVmName sanitizes VM names for shell safety
 func TestSafeVmName(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -245,5 +248,83 @@ func TestSafeVmName(t *testing.T) {
 				t.Errorf("exec output = %q; want %q", output, result)
 			}
 		})
+	}
+}
+
+// Test 12: GenRandom produces different outputs on multiple calls (randomness)
+func TestGenRandom_Randomness(t *testing.T) {
+	length := 20
+	str1, err := moduleutils.GenRandom(length)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+	str2, err := moduleutils.GenRandom(length)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+	if str1 == str2 {
+		t.Errorf("Expected different random strings, but got identical: %s", str1)
+	}
+}
+
+// Test 13: GenRandom output contains only valid charset characters
+func TestGenRandom_CharsetValidation(t *testing.T) {
+	const validCharset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	length := 100
+	str, err := moduleutils.GenRandom(length)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+
+	for _, char := range str {
+		if !strings.ContainsRune(validCharset, char) {
+			t.Errorf("Generated string contains invalid character: %c", char)
+		}
+	}
+}
+
+// Test 14: GenRandom handles zero length input
+func TestGenRandom_ZeroLength(t *testing.T) {
+	str, err := moduleutils.GenRandom(0)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+	if len(str) != 0 {
+		t.Errorf("Expected empty string for length 0, got %s", str)
+	}
+}
+
+// Test 15: GenRandom handles length of 1
+func TestGenRandom_LengthOne(t *testing.T) {
+	str, err := moduleutils.GenRandom(1)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+	if len(str) != 1 {
+		t.Errorf("Expected string length 1, got %d", len(str))
+	}
+}
+
+// Test 16: GenRandom panics on negative length
+func TestGenRandom_NegativeLength(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Expected panic for negative length, but got none")
+		}
+	}()
+
+	// This should panic
+	_, _ = moduleutils.GenRandom(-5)
+}
+
+// Test 17: GenRandom handles large length values
+func TestGenRandom_LargeLength(t *testing.T) {
+	length := 10000
+	str, err := moduleutils.GenRandom(length)
+	if err != nil {
+		t.Fatalf("GenRandom returned an error: %v", err)
+	}
+	if len(str) != length {
+		t.Errorf("Expected string length %d, got %d", length, len(str))
 	}
 }
