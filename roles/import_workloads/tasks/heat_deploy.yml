@@ -119,6 +119,7 @@
       # Note: Cinder volumes are external and will NOT be deleted
       openstack stack delete {{ heat_stack_created.stack.id }}
     dest: "{{ os_migrate_vmw_data_dir }}/heat-stack-info.txt"
+    mode: '0644'
   when: heat_stack_created is defined and not heat_stack_created.failed
   delegate_to: localhost
 
