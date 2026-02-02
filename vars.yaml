@@ -26,6 +26,20 @@ dst_cloud:
 # OpenStack migration parameters:
 # Use mapped networks or not:
 used_mapped_networks: false
+# Subnet UUID to use for unmapped networks when used_mapped_networks is false
+# and use_fixed_ips is set to true:
+use_fixed_ips: true
+export_metadata_subnet_uuid: "73ef65b0-8e35-43ac-9fd4-1e191c66dc74"
+
+# Network mapping from VMware to OpenStack when used_mapped_networks is true
+network_map:
+  # Map network from vmware to current openstack networks
+  "VM Network": "public"
+
+# If you want to use fixed IPs from the VMware VMs with network mapping,
+# you can map the VMware networks to OpenStack subnets like this:
+# network_map:
+#   "VM Network": "public,73ef65b0-8e35-43ac-9fd4-1e191c66dc74"
 
 # @TODO: set value as dict or detect the OS type directly with VMware
 # vms_list:
@@ -65,6 +79,17 @@ vms_list:
 # Cinder volume type to use for the converted volumes.
 # Migration to an encrypted volume type may result in a non-functional disk!
 cinder_volume_type: __DEFAULT__
+
+# # Mapping between VMware datastore names and OpenStack volume types.
+# # In this example:
+# # - disks in datastore1 will be created in volumes of type volume_type_1
+# # - disks in datastore2 will be created in volumes of type volume_type_2
+# # - disks in other datastores, will default to the value of cinder_volume_type.
+# volume_type_mapping:
+#    - vmware_datastore: datastore1
+#      openstack_type: volume_type_1
+#    - vmware_datastore: datastore2
+#      openstack_type: volume_type_2
 
 # Availability zone settings for the converted volumes and instances
 # These can be set separately or via a single `availability_zone` var

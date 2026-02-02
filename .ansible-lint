@@ -1,9 +1,9 @@
-parseable: true
-
 skip_list:
   - var-naming[no-role-prefix]
 
 exclude_paths:
   - ".ansible/"
+  - "plugins/modules/src/"
+  - "tests/sanity/ignore-*.txt"
 
 profile: 'production'

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -121,6 +122,46 @@ func GetThumbprint(host string, port string) (string, error) {
 	return strings.Join(thumbprint, ":"), nil
 }
 
+// DetectWindowsFromStrings checks if the guest OS is Windows based on VMware guest info strings
+func DetectWindowsFromStrings(guestFullName, guestId string) bool {
+	fullName := strings.ToLower(guestFullName)
+	id := strings.ToLower(guestId)
+
+	return strings.Contains(fullName, "windows") ||
+		strings.Contains(fullName, "microsoft") ||
+		strings.Contains(id, "windows") ||
+		strings.Contains(id, "microsoft")
+}
+
+// DetectRhelCentosFromStrings checks if the guest OS is RHEL/CentOS 8+ based on VMware guest info strings
+func DetectRhelCentosFromStrings(guestFullName, guestId string) bool {
+	fullName := strings.ToLower(guestFullName)
+	id := strings.ToLower(guestId)
+
+	isRhelCentos := strings.Contains(fullName, "red hat") ||
+		strings.Contains(fullName, "centos") ||
+		strings.Contains(fullName, "rhel") ||
+		strings.Contains(id, "rhel") ||
+		strings.Contains(id, "centos")
+
+	if !isRhelCentos {
+		return false
+	}
+
+	return strings.Contains(fullName, "8") ||
+		strings.Contains(fullName, "9") ||
+		strings.Contains(id, "8") ||
+		strings.Contains(id, "9")
+}
+
+// DetectLinuxFromStrings checks if the guest OS is Linux based on VMware guest info strings
+func DetectLinuxFromStrings(guestFullName, guestId string) bool {
+	fullName := strings.ToLower(guestFullName)
+	id := strings.ToLower(guestId)
+
+	return strings.Contains(fullName, "linux") || strings.Contains(id, "linux")
+}
+
 func (v *VddkConfig) IsWindowsFamily(ctx context.Context) (bool, error) {
 	var vmConfig mo.VirtualMachine
 	err := v.VirtualMachine.Properties(ctx, v.VirtualMachine.Reference(), []string{"config.guestFullName", "config.guestId"}, &vmConfig)
@@ -128,18 +169,13 @@ func (v *VddkConfig) IsWindowsFamily(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
-	if strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "windows") ||
-		strings.Contains(strings.ToLower(vmConfig.Config.GuestFullName), "microsoft") {
-		return true, nil
-	}
 	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
-	if strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "windows") ||
-		strings.Contains(strings.ToLower(vmConfig.Config.GuestId), "microsoft") {
-		return true, nil
-	}
 
-	logger.Log.Infof("No Windows OS found in Guest Full name or ID strings...")
-	return false, nil
+	result := DetectWindowsFromStrings(vmConfig.Config.GuestFullName, vmConfig.Config.GuestId)
+	if !result {
+		logger.Log.Infof("No Windows OS found in Guest Full name or ID strings...")
+	}
+	return result, nil
 }
 
 func (v *VddkConfig) IsRhelCentosFamily(ctx context.Context) (bool, error) {
@@ -149,25 +185,16 @@ func (v *VddkConfig) IsRhelCentosFamily(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 
-	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
-	guestId := strings.ToLower(vmConfig.Config.GuestId)
-
 	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
 	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
 
-	if strings.Contains(guestFullName, "red hat") || strings.Contains(guestFullName, "centos") || strings.Contains(guestFullName, "rhel") ||
-		strings.Contains(guestId, "rhel") || strings.Contains(guestId, "centos") {
-		if strings.Contains(guestFullName, "8") || strings.Contains(guestFullName, "9") ||
-			strings.Contains(guestId, "8") || strings.Contains(guestId, "9") {
-			logger.Log.Infof("Detected RHEL/CentOS family (8 or newer).")
-			return true, nil
-		}
-		logger.Log.Infof("Detected RHEL/CentOS family but version is not 8 or newer.")
-		return false, nil
+	result := DetectRhelCentosFromStrings(vmConfig.Config.GuestFullName, vmConfig.Config.GuestId)
+	if result {
+		logger.Log.Infof("Detected RHEL/CentOS family (8 or newer).")
+	} else {
+		logger.Log.Infof("No RHEL/CentOS 8+ family detected.")
 	}
-
-	logger.Log.Infof("No RHEL/CentOS family detected in Guest Full name or ID.")
-	return false, nil
+	return result, nil
 }
 
 func (v *VddkConfig) IsLinuxFamily(ctx context.Context) (bool, error) {
@@ -177,19 +204,16 @@ func (v *VddkConfig) IsLinuxFamily(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to retrieve VM properties: %w", err)
 	}
 
-	guestFullName := strings.ToLower(vmConfig.Config.GuestFullName)
-	guestId := strings.ToLower(vmConfig.Config.GuestId)
-
 	logger.Log.Infof("Guest Full name: %v", vmConfig.Config.GuestFullName)
 	logger.Log.Infof("Guest ID: %v", vmConfig.Config.GuestId)
 
-	if strings.Contains(guestFullName, "linux") || strings.Contains(guestId, "linux") {
+	result := DetectLinuxFromStrings(vmConfig.Config.GuestFullName, vmConfig.Config.GuestId)
+	if result {
 		logger.Log.Infof("Detected Linux family.")
-		return true, nil
+	} else {
+		logger.Log.Infof("No Linux OS detected in Guest Full name or ID.")
 	}
-
-	logger.Log.Infof("No Linux OS detected in Guest Full name or ID.")
-	return false, nil
+	return result, nil
 }
 
 func (v *VddkConfig) PowerOffVM(ctx context.Context) error {
@@ -261,6 +285,34 @@ func GetDiskKeys(ctx context.Context, v *object.VirtualMachine) ([]int32, error)
 		}
 	}
 	return diskKeys, nil
+}
+
+func GetDatastoreNameForDiskKey(ctx context.Context, v *object.VirtualMachine, diskKey int32) (string, error) {
+	var getDatastoreName = func(aFileName string) string {
+		result := ""
+		re := regexp.MustCompile(`\[(.*?)\]`)
+		match := re.FindStringSubmatch(aFileName)
+		if len(match) > 1 {
+			result = match[1]
+		}
+		return result
+	}
+	var datastoreName string
+	var vm mo.VirtualMachine
+	err := v.Properties(ctx, v.Reference(), []string{"config.hardware.device"}, &vm)
+	if err != nil {
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
+		return "", err
+	}
+	for _, device := range vm.Config.Hardware.Device {
+		if virtualDisk, ok := device.(*types.VirtualDisk); ok {
+			if virtualDisk.Key == diskKey {
+				fileName := virtualDisk.Backing.(types.BaseVirtualDeviceFileBackingInfo).GetVirtualDeviceFileBackingInfo().FileName
+				datastoreName = getDatastoreName(fileName)
+			}
+		}
+	}
+	return datastoreName, nil
 }
 
 func (v *VddkConfig) GetDiskKey(ctx context.Context) (int32, error) {
