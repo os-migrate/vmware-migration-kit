@@ -947,19 +947,54 @@ func main() {
 
 		case "flavors":
 			if len(p) == 3 {
-				err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
+				if r.Method != http.MethodGet {
+					list := []interface{}{}
+					for _, f := range flavors {
+						list = append(list, f)
+					}
+					w.Header().Set("Content-Type", "application/json")
+					err := json.NewEncoder(w).Encode(map[string]interface{}{
+						"flavors": list,
+					})
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
+					return
+				}
+				return
+			}
+			if len(p) == 4 && p[3] == "detail" {
+				list := []interface{}{}
+				for _, f := range flavors {
+					list = append(list, f)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
+					"flavors": list,
+				})
 				if err != nil {
 					log.Printf("Error encoding JSON response: %v", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 				return
 			}
-			if len(p) == 4 && p[3] == "detail" {
-				err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
-				if err != nil {
-					log.Printf("Error encoding JSON response: %v", err)
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			if len(p) == 4 {
+				flavorID := p[3]
+				fmt.Println(flavorID)
+				for _, f := range flavors {
+					if f["id"] == flavorID {
+						err := json.NewEncoder(w).Encode(map[string]interface{}{
+							"flavor": f,
+						})
+						if err != nil {
+							log.Printf("Error encoding JSON response: %v", err)
+							http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+						}
+						return
+					}
 				}
+				http.NotFound(w, r)
 				return
 			}
 			if len(p) == 5 && p[4] == "os-extra_specs" {
