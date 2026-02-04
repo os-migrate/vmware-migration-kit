@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"strings"
@@ -100,6 +101,7 @@ var (
 	flavors = []map[string]interface{}{
 		{"id": "1", "name": "small", "ram": 2048, "vcpus": 1, "disk": 20},
 		{"id": "2", "name": "medium", "ram": 4096, "vcpus": 2, "disk": 40},
+		{"id": "3", "name": "large", "ram": 8192, "vcpus": 4, "disk": 80},
 	}
 
 	flavorExtraSpecs = map[string]map[string]string{
@@ -203,8 +205,27 @@ func parts(p string) []string {
 	return strings.Split(strings.Trim(p, "/"), "/")
 }
 
-func main() {
+type FakeServer struct {
+	URL    string
+	server *httptest.Server
+}
+
+func (f *FakeServer) Close() {
+	f.server.Close()
+	if err := os.Remove(path.Join("/tmp", "fake_os_server.pid")); err != nil {
+		log.Printf("Failed to remove PID file: %v", err)
+	}
+}
+
+func NewFakeServer() *FakeServer {
+	fs := &FakeServer{}
 	mux := http.NewServeMux()
+
+	// Write PID file
+	pid := os.Getpid()
+	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
+		log.Fatalf("Failed to write PID file: %v", err)
+	}
 
 	// Default handler.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -469,7 +490,7 @@ func main() {
 	// GET roles assigned to a user in a project
 	mux.HandleFunc("/v3/projects/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.URL.String())
-		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		pathParts := parts(r.URL.Path)
 
 		// Match: /v3/projects/{project_id}/users/{user_id}/roles
 		if len(pathParts) == 6 && pathParts[2] == "users" && pathParts[4] == "roles" && r.Method == http.MethodGet {
@@ -685,8 +706,8 @@ func main() {
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodDelete {
-			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-			userID := parts[len(parts)-1]
+			part := parts(r.URL.Path)
+			userID := part[len(part)-1]
 			delete(users, userID)
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -1577,8 +1598,13 @@ func main() {
 
 	log.Println("Fake OpenStack API listening on :5000")
 	log.Fatal(http.ListenAndServe(":5000", mux))
-	pid := os.Getpid()
-	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
-		log.Fatalf("Failed to write PID file: %v", err)
-	}
+	return fs
+}
+
+func main() {
+	fakeServer := NewFakeServer()
+	defer fakeServer.Close()
+
+	// Keep the server running
+	select {}
 }

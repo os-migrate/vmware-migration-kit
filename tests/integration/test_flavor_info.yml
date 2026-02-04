@@ -77,6 +77,11 @@
               ram: 4096
               vcpus: 2
               disk: 40
+            - id: '3'
+              name: 'large'
+              ram: 8192
+              vcpus: 4
+              disk: 80
           register: result_by_name
         - name: "ASSERT: All flavors found by name have correct properties"
           ansible.builtin.assert:
