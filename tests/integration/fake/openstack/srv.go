@@ -403,7 +403,14 @@ func main() {
 					DomainID string `json:"domain_id"`
 				} `json:"project"`
 			}
-			json.NewDecoder(r.Body).Decode(&req)
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
+			if req.Project.Name == "" || req.Project.DomainID == "" {
+				http.Error(w, "Missing project name or domain_id", http.StatusBadRequest)
+				return
+			}
 
 			id := randomID("project")
 			seq++
@@ -420,6 +427,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"project": p,
 			})
+			return
 		}
 
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -582,7 +590,10 @@ func main() {
 		case http.MethodPatch, http.MethodPut:
 			// Ansible just check success status.
 			var req map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&req)
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
 
 			// TODO Update fields as needed.
 			if rReq, ok := req["role"].(map[string]interface{}); ok {
@@ -645,7 +656,7 @@ func main() {
 			}
 			// Workarround filtering name_or_id in the sdk:
 			// If user ID is send instead of name, the filter does not work.
-			if found == false {
+			if !found {
 				// Then try to find by ID
 				for _, u := range users {
 					if name != "" && u.ID != name {
@@ -677,7 +688,10 @@ func main() {
 					DomainID string `json:"domain_id"`
 				} `json:"user"`
 			}
-			json.NewDecoder(r.Body).Decode(&req)
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
 
 			id := randomID("user")
 			seq++

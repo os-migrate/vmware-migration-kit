@@ -24,6 +24,7 @@
           async: 30
           poll: 0
           register: fake_server_job
+          changed_when: false
 
         - name: Check command
           ansible.builtin.async_status:
