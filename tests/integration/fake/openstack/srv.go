@@ -76,9 +76,7 @@ var (
 		"member": {ID: "member", Name: "member"},
 		"admin":  {ID: "admin", Name: "admin"},
 	}
-
-	idSeq = 1
-	seq   = 1
+	seq = 1
 )
 
 /* ============================
@@ -219,7 +217,7 @@ func main() {
 	mux.HandleFunc("/v3", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.URL.String())
 		log.Printf("%s %s", r.URL.Path, r.URL.RawQuery)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"version": map[string]interface{}{
 				"id":     "v3.14",
 				"status": "stable",
@@ -228,6 +226,11 @@ func main() {
 				},
 			},
 		})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	})
 	// Token and catalog def
 	mux.HandleFunc("/v3/auth/tokens", func(w http.ResponseWriter, r *http.Request) {
@@ -302,7 +305,7 @@ func main() {
 		}
 
 		// Fake token response
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"token": map[string]interface{}{
 				"expires_at": "2099-01-01T00:00:00.000000Z",
 				"issued_at":  "2026-01-01T00:00:00.000000Z",
@@ -317,6 +320,10 @@ func main() {
 				"catalog": catalog,
 			},
 		})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	})
 
 	/* ---- domains ---- */
@@ -329,16 +336,24 @@ func main() {
 			for _, d := range domains {
 				list = append(list, d)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"domains": list})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"domains": list})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
 		if r.Method == http.MethodPost {
-			id := fmt.Sprintf("domain-%d", idSeq)
-			idSeq++
+			id := fmt.Sprintf("domain-%d", seq)
+			seq++
 			domains[id] = &Domain{ID: id, Name: id}
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{"domain": domains[id]})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"domain": domains[id]})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -354,16 +369,24 @@ func main() {
 			for _, d := range domains {
 				list = append(list, d)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"domains": list})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"domains": list})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
 		if r.Method == http.MethodPost {
-			id := fmt.Sprintf("domain-%d", idSeq)
-			idSeq++
+			id := fmt.Sprintf("domain-%d", seq)
+			seq++
 			domains[id] = &Domain{ID: id, Name: id}
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{"domain": domains[id]})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"domain": domains[id]})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -389,7 +412,11 @@ func main() {
 				})
 			}
 
-			json.NewEncoder(w).Encode(map[string]interface{}{"projects": list})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"projects": list})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -421,9 +448,13 @@ func main() {
 			projects[id] = p
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"project": p,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -461,9 +492,13 @@ func main() {
 				}
 			}
 
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"roles": userRoles,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -497,9 +532,14 @@ func main() {
 			}
 
 			if r.Method == http.MethodGet {
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"project": p,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				return
 			}
 		}
@@ -522,7 +562,13 @@ func main() {
 					"name": role.Name,
 				})
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"roles": list})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"roles": list})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			return
 
 		case http.MethodPost:
 			var req struct {
@@ -554,7 +600,13 @@ func main() {
 			roles[req.Role.ID] = rl
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{"role": rl})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"role": rl})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			return
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -576,12 +628,17 @@ func main() {
 		switch r.Method {
 
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"role": map[string]interface{}{
 					"id":   rl.ID,
 					"name": rl.Name,
 				},
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			return
 		// Ansible sends PUT or PATCH instead of POST.
 		case http.MethodPatch, http.MethodPut:
@@ -599,12 +656,17 @@ func main() {
 				}
 			}
 
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
 					"id":   rl.ID,
 					"name": rl.Name,
 				},
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			return
 
 		case http.MethodDelete:
@@ -673,9 +735,15 @@ func main() {
 					})
 				}
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"users": list,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			return
 		}
 
 		if r.Method == http.MethodPost {
@@ -702,7 +770,7 @@ func main() {
 			users[id] = u
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
 					"id":        u.ID,
 					"name":      u.Name,
@@ -713,6 +781,12 @@ func main() {
 					},
 				},
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			return
 		}
 	})
 	// /v3/users/<id>
@@ -733,7 +807,7 @@ func main() {
 		switch r.Method {
 
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
 					"id":        u.ID,
 					"name":      u.Name,
@@ -746,6 +820,11 @@ func main() {
 					"federated":           []interface{}{},
 				},
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			return
 		// Ansible sends PUT or PATCH instead of POST.
 		case http.MethodPatch, http.MethodPut:
@@ -763,7 +842,7 @@ func main() {
 				}
 			}
 
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
 					"id":        u.ID,
 					"name":      u.Name,
@@ -771,6 +850,11 @@ func main() {
 					"enabled":   true,
 				},
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			return
 
 		case http.MethodDelete:
@@ -807,7 +891,12 @@ func main() {
 			"role_assignments": []interface{}{},
 		}
 
-		json.NewEncoder(w).Encode(resp)
+		err := json.NewEncoder(w).Encode(resp)
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	/* ============================
@@ -815,7 +904,7 @@ func main() {
 	============================ */
 	mux.HandleFunc("/v2.1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"version": map[string]interface{}{
 				"id":          "v2.1",
 				"status":      "CURRENT",
@@ -830,12 +919,22 @@ func main() {
 				},
 			},
 		})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	})
 	mux.HandleFunc("/v2.1/flavors/detail", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"flavors": flavors,
 		})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	})
 	mux.HandleFunc("/v2.1/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.URL.String())
@@ -848,11 +947,19 @@ func main() {
 
 		case "flavors":
 			if len(p) == 3 {
-				json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 			if len(p) == 4 && p[3] == "detail" {
-				json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"flavors": flavors})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 			if len(p) == 5 && p[4] == "os-extra_specs" {
@@ -865,9 +972,13 @@ func main() {
 				switch r.Method {
 
 				case http.MethodGet:
-					json.NewEncoder(w).Encode(map[string]interface{}{
+					err := json.NewEncoder(w).Encode(map[string]interface{}{
 						"extra_specs": flavorExtraSpecs[flavorID],
 					})
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
 					return
 
 				case http.MethodPost:
@@ -883,26 +994,22 @@ func main() {
 						flavorExtraSpecs[flavorID][k] = v
 					}
 
-					json.NewEncoder(w).Encode(map[string]interface{}{
+					err := json.NewEncoder(w).Encode(map[string]interface{}{
 						"extra_specs": flavorExtraSpecs[flavorID],
 					})
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
 					return
 				}
-
-				// json.NewEncoder(w).Encode(map[string]interface{}{
-				// 	"extra_specs": flavorExtraSpecs[p[4]],
-				// })
-				// return
 			}
 
 		case "servers":
 			// Match: /v2.1/demo/servers/{id}/os-volume_attachments
 			log.Printf("%s %s", r.Method, r.URL.String())
 			if strings.HasSuffix(r.URL.Path, "/os-volume_attachments") {
-				// parts := strings.Split(p, "/")
-				//serverID := parts[len(parts)-2]
 				serverID := p[len(p)-2]
-
 				// POST attach volume
 				if r.Method == http.MethodPost {
 					var req struct {
@@ -934,7 +1041,11 @@ func main() {
 					}
 
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(resp)
+					err := json.NewEncoder(w).Encode(resp)
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
 					return
 				}
 
@@ -953,9 +1064,13 @@ func main() {
 							}
 						}
 					}
-					json.NewEncoder(w).Encode(map[string]interface{}{
+					err := json.NewEncoder(w).Encode(map[string]interface{}{
 						"volumeAttachments": list,
 					})
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
 					return
 				}
 			}
@@ -965,9 +1080,13 @@ func main() {
 					list = append(list, s)
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"servers": list,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 
@@ -985,7 +1104,11 @@ func main() {
 						"addresses": buildAddresses(s.Networks),
 					})
 				}
-				json.NewEncoder(w).Encode(map[string]interface{}{"servers": list})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"servers": list})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 
@@ -1017,7 +1140,11 @@ func main() {
 				servers[id] = s
 
 				w.WriteHeader(http.StatusAccepted)
-				json.NewEncoder(w).Encode(map[string]interface{}{"server": s})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"server": s})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 		case "images":
@@ -1028,9 +1155,13 @@ func main() {
 					list = append(list, img)
 				}
 
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"images": list,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 			} else {
 				list := []interface{}{}
 
@@ -1041,16 +1172,24 @@ func main() {
 					})
 				}
 
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"images": list,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 			}
 			return
 		case "os-keypairs":
 			if r.Method == http.MethodGet {
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"keypairs": keypairs,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 
@@ -1072,12 +1211,15 @@ func main() {
 				})
 
 				w.WriteHeader(http.StatusCreated)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"keypair": kp,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+				return
 			}
-			// json.NewEncoder(w).Encode(map[string]interface{}{"keypairs": keypairs})
-			// return
 		}
 	})
 
@@ -1090,9 +1232,13 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"extra_specs": map[string]string{},
 		})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	})
 	/* ============================
 	   Neutron
@@ -1104,9 +1250,13 @@ func main() {
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"networks": networks,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 		if r.Method == http.MethodPost {
@@ -1137,9 +1287,13 @@ func main() {
 			networks = append(networks, network)
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"network": network,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -1153,9 +1307,13 @@ func main() {
 
 		for _, n := range networks {
 			if n["id"] == id {
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"network": n,
 				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 		}
@@ -1171,9 +1329,13 @@ func main() {
 
 		// GET /v2.0/subnets
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"subnets": subnets,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -1195,9 +1357,13 @@ func main() {
 			subnets = append(subnets, subnet)
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"subnet": subnet,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -1210,9 +1376,13 @@ func main() {
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"ports": ports,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 		if r.Method == http.MethodPost {
@@ -1240,9 +1410,13 @@ func main() {
 			ports = append(ports, port)
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"port": port,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -1250,7 +1424,11 @@ func main() {
 	})
 
 	mux.HandleFunc("/v2.0/security-groups", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{"security_groups": neutronSecGroups})
+		err := json.NewEncoder(w).Encode(map[string]interface{}{"security_groups": neutronSecGroups})
+		if err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	})
 
 	/* ============================
@@ -1268,9 +1446,13 @@ func main() {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"volumes": list,
 			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 		if len(p) == 3 && p[2] == "volumes" {
@@ -1279,7 +1461,11 @@ func main() {
 				for _, v := range volumes {
 					list = append(list, v)
 				}
-				json.NewEncoder(w).Encode(map[string]interface{}{"volumes": list})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"volumes": list})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 
@@ -1308,7 +1494,11 @@ func main() {
 				volumes[id] = v
 
 				w.WriteHeader(http.StatusAccepted)
-				json.NewEncoder(w).Encode(map[string]interface{}{"volume": v})
+				err := json.NewEncoder(w).Encode(map[string]interface{}{"volume": v})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 			http.Error(w, "Method not Implemented", http.StatusNotImplemented)
@@ -1322,7 +1512,11 @@ func main() {
 
 	mux.HandleFunc("/v2/images", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]interface{}{"images": images})
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"images": images})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -1336,7 +1530,12 @@ func main() {
 			img["status"] = "active"
 			images = append(images, img)
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(img)
+			err := json.NewEncoder(w).Encode(img)
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
 		}
 	})
 
