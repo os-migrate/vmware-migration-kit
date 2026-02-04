@@ -4,6 +4,7 @@
   gather_facts: false
   vars:
     go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
+    server_pid_file: /tmp/fake_os_server.pid
     cloud_config:
       auth:
         auth_url: "http://127.0.0.1:5000/v3"
@@ -22,6 +23,8 @@
         - name: Start fake OpenStack server asynchronously
           ansible.builtin.command: go run "{{ go_server_path }}"
           async: 30
+          args:
+            creates: "{{ server_pid_file }}"
           poll: 0
           register: fake_server_job
           changed_when: false
@@ -34,6 +37,15 @@
         - name: Debug command
           ansible.builtin.debug:
             var: result.stdout
+
+        - name: Read the server PID from the file
+          ansible.builtin.slurp:
+            src: "{{ server_pid_file }}"
+          register: fake_os_pid_b64
+
+        - name: Set the server PID fact
+          ansible.builtin.set_fact:
+            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
 
     # TESTS SCENARIOS WIP
     - name: Run test scenarios
@@ -59,11 +71,6 @@
               ram: 4096
               vcpus: 2
               disk: 40
-            - id: '3'
-              name: 'large'
-              ram: 8192
-              vcpus: 4
-              disk: 80
           register: result_by_name
         - name: "ASSERT: All flavors found by name have correct properties"
           ansible.builtin.assert:
