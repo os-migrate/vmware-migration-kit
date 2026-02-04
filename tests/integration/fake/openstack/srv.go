@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -1576,4 +1577,8 @@ func main() {
 
 	log.Println("Fake OpenStack API listening on :5000")
 	log.Fatal(http.ListenAndServe(":5000", mux))
+	pid := os.Getpid()
+	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
+		log.Fatalf("Failed to write PID file: %v", err)
+	}
 }
