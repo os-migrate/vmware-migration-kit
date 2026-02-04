@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2026 Red Hat, Inc.
+ * Copyright 2025 Red Hat, Inc.
  *
  */
 package main
