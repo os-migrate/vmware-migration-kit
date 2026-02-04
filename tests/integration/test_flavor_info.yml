@@ -38,6 +38,12 @@
           ansible.builtin.debug:
             var: result.stdout
 
+        - name: Wait for the server URL file to be created
+          ansible.builtin.wait_for:
+            path: "{{ server_pid_file }}"
+            state: present
+            timeout: 10
+
         - name: Read the server PID from the file
           ansible.builtin.slurp:
             src: "{{ server_pid_file }}"
