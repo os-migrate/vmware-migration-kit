@@ -22,9 +22,9 @@
       block:
         - name: Start fake OpenStack server asynchronously
           ansible.builtin.command: go run "{{ go_server_path }}"
-          async: 30
           args:
             creates: "{{ server_pid_file }}"
+          async: 30
           poll: 0
           register: fake_server_job
           changed_when: false
@@ -246,3 +246,9 @@
           ansible.builtin.command: "kill {{ fake_os_pid }}"
           changed_when: false
           failed_when: false
+        - name: Clean URL and PID files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ server_pid_file }}"
