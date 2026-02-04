@@ -4,11 +4,9 @@
   gather_facts: false
   vars:
     go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
-    server_url_file: /tmp/fake_os_url.txt
-    server_pid_file: /tmp/fake_os_server.pid
     cloud_config:
       auth:
-        auth_url: "{{ fake_os_url }}/v3"
+        auth_url: "http://127.0.0.1:5000/v3"
         username: "demo-user"
         password: "password"
         project_name: "demo"
@@ -23,8 +21,6 @@
       block:
         - name: Start fake OpenStack server asynchronously
           ansible.builtin.command: go run "{{ go_server_path }}"
-          args:
-            creates: "{{ server_pid_file }}"
           async: 30
           poll: 0
           register: fake_server_job
@@ -38,29 +34,6 @@
           ansible.builtin.debug:
             var: result.stdout
 
-        - name: Wait for the server URL file to be created
-          ansible.builtin.wait_for:
-            path: "{{ server_url_file }}"
-            state: present
-            timeout: 10
-
-        - name: Read the server URL from the file
-          ansible.builtin.slurp:
-            src: "{{ server_url_file }}"
-          register: fake_os_url_b64
-
-        - name: Set the server URL fact
-          ansible.builtin.set_fact:
-            fake_os_url: "{{ fake_os_url_b64['content'] | b64decode }}"
-
-        - name: Read the server PID from the file
-          ansible.builtin.slurp:
-            src: "{{ server_pid_file }}"
-          register: fake_os_pid_b64
-
-        - name: Set the server PID fact
-          ansible.builtin.set_fact:
-            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
     # TESTS SCENARIOS WIP
     - name: Run test scenarios
       tags: tests
@@ -265,11 +238,3 @@
           ansible.builtin.command: "kill {{ fake_os_pid }}"
           changed_when: false
           failed_when: false
-
-        - name: Clean URL and PID files
-          ansible.builtin.file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - "{{ server_url_file }}"
-            - "{{ server_pid_file }}"
