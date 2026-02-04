@@ -109,9 +109,6 @@ var (
 
 	// servers  = map[string]interface{}{}
 	keypairs = []map[string]interface{}{}
-	imagesV2 = []map[string]interface{}{
-		{"id": "img-1", "name": "cirros", "status": "active"},
-	}
 )
 
 /*
@@ -754,7 +751,10 @@ func main() {
 		case http.MethodPatch, http.MethodPut:
 			// Ansible just check success status.
 			var req map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&req)
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
 
 			// TODO Update fields as needed.
 			if userReq, ok := req["user"].(map[string]interface{}); ok {
@@ -874,7 +874,10 @@ func main() {
 					var body struct {
 						ExtraSpecs map[string]string `json:"extra_specs"`
 					}
-					json.NewDecoder(r.Body).Decode(&body)
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						http.Error(w, "invalid JSON body", http.StatusBadRequest)
+						return
+					}
 
 					for k, v := range body.ExtraSpecs {
 						flavorExtraSpecs[flavorID][k] = v
@@ -907,7 +910,10 @@ func main() {
 							VolumeID string `json:"volumeId"`
 						} `json:"volumeAttachment"`
 					}
-					json.NewDecoder(r.Body).Decode(&req)
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						http.Error(w, "invalid JSON body", http.StatusBadRequest)
+						return
+					}
 
 					// Update volume state
 					if v, ok := volumes[req.VolumeAttachment.VolumeID]; ok {
@@ -992,7 +998,10 @@ func main() {
 						Networks  []map[string]string `json:"networks"`
 					} `json:"server"`
 				}
-				json.NewDecoder(r.Body).Decode(&req)
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					http.Error(w, "invalid JSON body", http.StatusBadRequest)
+					return
+				}
 
 				id := fmt.Sprintf("%d", serverID)
 				serverID++
@@ -1049,7 +1058,10 @@ func main() {
 				var req struct {
 					Keypair map[string]interface{} `json:"keypair"`
 				}
-				json.NewDecoder(r.Body).Decode(&req)
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					http.Error(w, "invalid JSON body", http.StatusBadRequest)
+					return
+				}
 
 				kp := req.Keypair
 				kp["fingerprint"] = "fake:fingerprint"
@@ -1278,7 +1290,10 @@ func main() {
 						Size int    `json:"size"`
 					} `json:"volume"`
 				}
-				json.NewDecoder(r.Body).Decode(&req)
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					http.Error(w, "invalid JSON body", http.StatusBadRequest)
+					return
+				}
 
 				id := fmt.Sprintf("%d", volumeID)
 				volumeID++
@@ -1313,7 +1328,10 @@ func main() {
 
 		if r.Method == http.MethodPost {
 			var img map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&img)
+			if err := json.NewDecoder(r.Body).Decode(&img); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
 			img["id"] = fmt.Sprintf("img-%d", len(images)+1)
 			img["status"] = "active"
 			images = append(images, img)
