@@ -1675,7 +1675,10 @@ func NewFakeServer() *FakeServer {
 	})
 
 	log.Println("Fake OpenStack API listening on :5000")
-	http.ListenAndServe(":5000", normalizeV2Path(mux))
+	err := http.ListenAndServe(":5000", normalizeV2Path(mux))
+	if err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 	return fs
 }
 
