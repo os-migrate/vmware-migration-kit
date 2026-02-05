@@ -271,19 +271,23 @@ func WaitForNbdkit(socket string, timeout time.Duration) error {
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-func NbdCopy(socket, device string, assumeZero bool) error {
-	var nbdcopy string
+// buildNbdCopyCommand constructs the nbdcopy command string.
+func buildNbdCopyCommand(socket, device string, assumeZero bool) string {
 	var zeroArg string
 	if assumeZero {
 		zeroArg = " --destination-is-zero "
 	} else {
 		zeroArg = " "
 	}
+
 	if socket == "" {
-		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s%s--progress", device, zeroArg)
-	} else {
-		nbdcopy = fmt.Sprintf("/usr/bin/nbdcopy %s %s%s--progress", socket, device, zeroArg)
+		return fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s%s--progress", device, zeroArg)
 	}
+	return fmt.Sprintf("/usr/bin/nbdcopy %s %s%s--progress", socket, device, zeroArg)
+}
+
+func NbdCopy(socket, device string, assumeZero bool) error {
+	nbdcopy := buildNbdCopyCommand(socket, device, assumeZero)
 	cmd := exec.Command("bash", "-c", nbdcopy)
 	logger.Log.Infof("Running nbdcopy: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
@@ -400,13 +404,28 @@ func versionIsLower(cVersion, rVersion string) bool {
 }
 */
 
-func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
+// buildV2VCommand constructs the virt-v2v-in-place command string.
+func buildV2VCommand(path, rsPath, bsPath, extraOpts string) string {
 	opts := ""
+	if rsPath != "" {
+		opts = opts + " --run " + rsPath
+	}
+	if bsPath != "" {
+		opts = opts + " --firstboot " + bsPath
+	}
+	if extraOpts != "" {
+		opts += " " + extraOpts
+	}
+	return "virt-v2v-in-place" + opts + " -i disk " + path
+}
+
+func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Log.Infof("Failed to find virt-v2v-in-place: %v", err)
 		return err
 	}
+
 	// Check for run script and boot script
 	if rsPath != "" {
 		_, err := os.Stat(rsPath)
@@ -414,7 +433,6 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 			logger.Log.Infof("Failed to find run script: %v", err)
 			return err
 		}
-		opts = opts + " --run " + rsPath
 	}
 	if bsPath != "" {
 		_, err := os.Stat(bsPath)
@@ -422,13 +440,8 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 			logger.Log.Infof("Failed to find boot script: %v", err)
 			return err
 		}
-		opts = opts + " --firstboot " + bsPath
 	}
-	// Append extra CLI options passed by the user
-	if extraOpts != "" {
-		logger.Log.Infof("Adding extra virt-v2v options: %s", extraOpts)
-		opts += " " + extraOpts
-	}
+
 	if err := os.Setenv("LIBGUESTFS_BACKEND", "direct"); err != nil {
 		logger.Log.Infof("Failed to set LIBGUESTFS_BACKEND: %v", err)
 		// Continue even if setenv fails
@@ -438,10 +451,11 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 			logger.Log.Infof("Failed to set LIBGUESTFS_DEBUG: %v", err)
 		}
 		if err := os.Setenv("LIBGUESTFS_TRACE", "1"); err != nil {
-			logger.Log.Infof("Failed to set LIBGUESTFS_TRACE: %v", err)
+			logger.Log.Infof("LIBGUESTFS_TRACE: %v", err)
 		}
 	}
-	v2vcmd := "virt-v2v-in-place " + opts + " -i disk " + path
+
+	v2vcmd := buildV2VCommand(path, rsPath, bsPath, extraOpts)
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Log.Infof("Running virt-v2v: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
@@ -456,7 +470,7 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 		for {
 			line, err := reader.ReadString('\n')
 			if line != "" {
-				logger.Log.Infof("[nbdcopy stdout] %s", line)
+				logger.Log.Infof("[virt-v2v stdout] %s", line)
 			}
 			if err != nil {
 				if err != io.EOF {
@@ -472,7 +486,7 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 		for {
 			line, err := reader.ReadString('\n')
 			if line != "" {
-				logger.Log.Infof("[nbdcopy stderr] %s", line)
+				logger.Log.Infof("[virt-v2v stderr] %s", line)
 			}
 			if err != nil {
 				if err != io.EOF {
