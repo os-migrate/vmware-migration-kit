@@ -27,6 +27,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 /* ============================
@@ -1415,9 +1416,78 @@ func NewFakeServer() *FakeServer {
 			}
 
 			subnet := req.Subnet
-			subnet["id"] = fmt.Sprintf("subnet-%d", len(subnets)+1)
-			subnet["ip_version"] = 4
+
+			// ID
+			if _, ok := subnet["id"]; !ok {
+				subnet["id"] = fmt.Sprintf("subnet-%d", len(subnets)+1)
+			}
+
+			// Status (Neutron returns ACTIVE on create)
 			subnet["status"] = "ACTIVE"
+
+			// Defaults expected by Neutron / CLI
+			if _, ok := subnet["ip_version"]; !ok {
+				subnet["ip_version"] = 4
+			}
+			if _, ok := subnet["enable_dhcp"]; !ok {
+				subnet["enable_dhcp"] = true
+			}
+			if _, ok := subnet["dns_publish_fixed_ip"]; !ok {
+				subnet["dns_publish_fixed_ip"] = false
+			}
+
+			// Arrays MUST exist (never nil)
+			if _, ok := subnet["allocation_pools"]; !ok {
+				subnet["allocation_pools"] = []map[string]interface{}{}
+			}
+			if _, ok := subnet["dns_nameservers"]; !ok {
+				subnet["dns_nameservers"] = []string{}
+			}
+			if _, ok := subnet["host_routes"]; !ok {
+				subnet["host_routes"] = []map[string]interface{}{}
+			}
+			if _, ok := subnet["service_types"]; !ok {
+				subnet["service_types"] = []string{}
+			}
+			if _, ok := subnet["tags"]; !ok {
+				subnet["tags"] = []string{}
+			}
+
+			// Nullable fields Neutron always returns
+			if _, ok := subnet["ipv6_address_mode"]; !ok {
+				subnet["ipv6_address_mode"] = nil
+			}
+			if _, ok := subnet["ipv6_ra_mode"]; !ok {
+				subnet["ipv6_ra_mode"] = nil
+			}
+			if _, ok := subnet["segment_id"]; !ok {
+				subnet["segment_id"] = nil
+			}
+			if _, ok := subnet["subnetpool_id"]; !ok {
+				subnet["subnetpool_id"] = nil
+			}
+
+			// Metadata
+			if _, ok := subnet["revision_number"]; !ok {
+				subnet["revision_number"] = 1
+			}
+			if _, ok := subnet["description"]; !ok {
+				subnet["description"] = ""
+			}
+
+			// Timestamps (CLI expects strings, not time.Time)
+			now := time.Now().UTC().Format(time.RFC3339)
+			if _, ok := subnet["created_at"]; !ok {
+				subnet["created_at"] = now
+			}
+			if _, ok := subnet["updated_at"]; !ok {
+				subnet["updated_at"] = now
+			}
+
+			// router:external default (extension)
+			if _, ok := subnet["router:external"]; !ok {
+				subnet["router:external"] = false
+			}
 
 			subnets = append(subnets, subnet)
 
