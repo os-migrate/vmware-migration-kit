@@ -27,6 +27,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 /* ============================
@@ -127,7 +128,9 @@ type Volume struct {
 	Attachments []map[string]interface{} `json:"attachments"`
 }
 
-var volumes = map[string]*Volume{}
+var volumes = map[string]*Volume{
+	"vol-1": {ID: "vol-1", Name: "volume-1", Size: 10, Status: "available", Attachments: []map[string]interface{}{}},
+}
 var volumeID = 1
 
 /*
@@ -162,7 +165,14 @@ var neutronSecGroups = []map[string]interface{}{
 }
 
 // Utils functions
-
+func normalizeV2Path(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for strings.HasPrefix(r.URL.Path, "/v2.0/v2.0/") {
+			r.URL.Path = strings.Replace(r.URL.Path, "/v2.0/v2.0/", "/v2.0/", 1)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 func randomID(prefix string) string {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
@@ -220,7 +230,6 @@ func (f *FakeServer) Close() {
 func NewFakeServer() *FakeServer {
 	fs := &FakeServer{}
 	mux := http.NewServeMux()
-
 	// Write PID file
 	pid := os.Getpid()
 	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
@@ -1407,9 +1416,78 @@ func NewFakeServer() *FakeServer {
 			}
 
 			subnet := req.Subnet
-			subnet["id"] = fmt.Sprintf("subnet-%d", len(subnets)+1)
-			subnet["ip_version"] = 4
+
+			// ID
+			if _, ok := subnet["id"]; !ok {
+				subnet["id"] = fmt.Sprintf("subnet-%d", len(subnets)+1)
+			}
+
+			// Status (Neutron returns ACTIVE on create)
 			subnet["status"] = "ACTIVE"
+
+			// Defaults expected by Neutron / CLI
+			if _, ok := subnet["ip_version"]; !ok {
+				subnet["ip_version"] = 4
+			}
+			if _, ok := subnet["enable_dhcp"]; !ok {
+				subnet["enable_dhcp"] = true
+			}
+			if _, ok := subnet["dns_publish_fixed_ip"]; !ok {
+				subnet["dns_publish_fixed_ip"] = false
+			}
+
+			// Arrays MUST exist (never nil)
+			if _, ok := subnet["allocation_pools"]; !ok {
+				subnet["allocation_pools"] = []map[string]interface{}{}
+			}
+			if _, ok := subnet["dns_nameservers"]; !ok {
+				subnet["dns_nameservers"] = []string{}
+			}
+			if _, ok := subnet["host_routes"]; !ok {
+				subnet["host_routes"] = []map[string]interface{}{}
+			}
+			if _, ok := subnet["service_types"]; !ok {
+				subnet["service_types"] = []string{}
+			}
+			if _, ok := subnet["tags"]; !ok {
+				subnet["tags"] = []string{}
+			}
+
+			// Nullable fields Neutron always returns
+			if _, ok := subnet["ipv6_address_mode"]; !ok {
+				subnet["ipv6_address_mode"] = nil
+			}
+			if _, ok := subnet["ipv6_ra_mode"]; !ok {
+				subnet["ipv6_ra_mode"] = nil
+			}
+			if _, ok := subnet["segment_id"]; !ok {
+				subnet["segment_id"] = nil
+			}
+			if _, ok := subnet["subnetpool_id"]; !ok {
+				subnet["subnetpool_id"] = nil
+			}
+
+			// Metadata
+			if _, ok := subnet["revision_number"]; !ok {
+				subnet["revision_number"] = 1
+			}
+			if _, ok := subnet["description"]; !ok {
+				subnet["description"] = ""
+			}
+
+			// Timestamps (CLI expects strings, not time.Time)
+			now := time.Now().UTC().Format(time.RFC3339)
+			if _, ok := subnet["created_at"]; !ok {
+				subnet["created_at"] = now
+			}
+			if _, ok := subnet["updated_at"]; !ok {
+				subnet["updated_at"] = now
+			}
+
+			// router:external default (extension)
+			if _, ok := subnet["router:external"]; !ok {
+				subnet["router:external"] = false
+			}
 
 			subnets = append(subnets, subnet)
 
@@ -1597,7 +1675,10 @@ func NewFakeServer() *FakeServer {
 	})
 
 	log.Println("Fake OpenStack API listening on :5000")
-	log.Fatal(http.ListenAndServe(":5000", mux))
+	err := http.ListenAndServe(":5000", normalizeV2Path(mux))
+	if err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 	return fs
 }
 
