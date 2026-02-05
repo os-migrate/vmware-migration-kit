@@ -127,7 +127,9 @@ type Volume struct {
 	Attachments []map[string]interface{} `json:"attachments"`
 }
 
-var volumes = map[string]*Volume{}
+var volumes = map[string]*Volume{
+	"vol-1": {ID: "vol-1", Name: "volume-1", Size: 10, Status: "available", Attachments: []map[string]interface{}{}},
+}
 var volumeID = 1
 
 /*
@@ -162,7 +164,14 @@ var neutronSecGroups = []map[string]interface{}{
 }
 
 // Utils functions
-
+func normalizeV2Path(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for strings.HasPrefix(r.URL.Path, "/v2.0/v2.0/") {
+			r.URL.Path = strings.Replace(r.URL.Path, "/v2.0/v2.0/", "/v2.0/", 1)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 func randomID(prefix string) string {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
@@ -220,7 +229,6 @@ func (f *FakeServer) Close() {
 func NewFakeServer() *FakeServer {
 	fs := &FakeServer{}
 	mux := http.NewServeMux()
-
 	// Write PID file
 	pid := os.Getpid()
 	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
@@ -1707,7 +1715,7 @@ func NewFakeServer() *FakeServer {
 	})
 
 	log.Println("Fake OpenStack API listening on :5000")
-	log.Fatal(http.ListenAndServe(":5000", mux))
+	http.ListenAndServe(":5000", normalizeV2Path(mux))
 	return fs
 }
 
