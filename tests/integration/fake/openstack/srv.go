@@ -1065,6 +1065,75 @@ func NewFakeServer() *FakeServer {
 		case "servers":
 			// Match: /v2.1/demo/servers/{id}/os-volume_attachments
 			log.Printf("%s %s", r.Method, r.URL.String())
+			// Match: /v2.1/{tenant}/servers/{id}/os-interface
+			if len(p) >= 5 && p[4] == "os-interface" {
+				serverID := p[3]
+				if _, ok := servers[serverID]; !ok {
+					http.NotFound(w, r)
+					return
+				}
+
+				switch r.Method {
+				case http.MethodPost:
+					var req struct {
+						InterfaceAttachment struct {
+							PortID string `json:"port_id"`
+						} `json:"interfaceAttachment"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						http.Error(w, "invalid JSON body", http.StatusBadRequest)
+						return
+					}
+					if req.InterfaceAttachment.PortID == "" {
+						http.Error(w, "missing port_id", http.StatusBadRequest)
+						return
+					}
+
+					for _, p := range ports {
+						if p["id"] == req.InterfaceAttachment.PortID {
+							p["device_id"] = serverID
+							p["device_owner"] = "compute:nova"
+							p["status"] = "ACTIVE"
+							if _, ok := p["admin_state_up"]; !ok {
+								p["admin_state_up"] = true
+							}
+							resp := map[string]interface{}{
+								"interfaceAttachment": map[string]interface{}{
+									"port_id": req.InterfaceAttachment.PortID,
+									"server_id": serverID,
+							},
+							}
+							w.WriteHeader(http.StatusOK)
+							err := json.NewEncoder(w).Encode(resp)
+							if err != nil {
+								log.Printf("Error encoding JSON response: %v", err)
+								http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+							}
+							return
+						}
+					}
+					http.NotFound(w, r)
+					return
+
+				case http.MethodDelete:
+					if len(p) < 6 {
+						http.Error(w, "missing port id", http.StatusBadRequest)
+						return
+					}
+					portID := p[5]
+					for _, p := range ports {
+						if p["id"] == portID {
+							p["device_id"] = nil
+							p["device_owner"] = nil
+							p["status"] = "DOWN"
+							w.WriteHeader(http.StatusNoContent)
+							return
+						}
+					}
+					http.NotFound(w, r)
+					return
+				}
+			}
 			if strings.HasSuffix(r.URL.Path, "/os-volume_attachments") {
 				serverID := p[len(p)-2]
 				// POST attach volume
@@ -1196,12 +1265,53 @@ func NewFakeServer() *FakeServer {
 				}
 				servers[id] = s
 
+				// Attach ports referenced in networks
+				for _, net := range req.Server.Networks {
+					portID := ""
+					if v, ok := net["port"]; ok {
+						portID = v
+					} else if v, ok := net["port_id"]; ok {
+						portID = v
+					}
+					if portID == "" {
+						continue
+					}
+					for _, p := range ports {
+						if p["id"] == portID {
+							p["device_id"] = id
+							p["device_owner"] = "compute:nova"
+							p["status"] = "ACTIVE"
+							if _, ok := p["admin_state_up"]; !ok {
+								p["admin_state_up"] = true
+							}
+						}
+					}
+				}
+
 				w.WriteHeader(http.StatusAccepted)
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"server": s})
 				if err != nil {
 					log.Printf("Error encoding JSON response: %v", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
+				return
+			}
+
+			if r.Method == http.MethodDelete && len(p) == 4 {
+				serverID := p[3]
+				if _, ok := servers[serverID]; !ok {
+					http.NotFound(w, r)
+					return
+				}
+				delete(servers, serverID)
+				for _, p := range ports {
+					if p["device_id"] == serverID {
+						p["device_id"] = nil
+						p["device_owner"] = nil
+						p["status"] = "DOWN"
+					}
+				}
+				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 		case "images":
