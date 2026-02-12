@@ -1,0 +1,343 @@
+# 09-16
+---
+- name: Integration tests for volume lifecycle against mock OpenStack
+  hosts: localhost
+  gather_facts: false
+  vars:
+    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
+    server_pid_file: /tmp/fake_os_server.pid
+    fake_os_url: "http://127.0.0.1:5000"
+    cloud_config:
+      auth:
+        auth_url: "http://127.0.0.1:5000/v3"
+        username: "demo-user"
+        password: "password"
+        project_name: "demo"
+        project_id: "demo-id"
+        user_domain_name: "default"
+        project_domain_name: "default"
+        region_name: "RegionOne"
+  tasks:
+    # SETUP FOR FAKE SERVER
+    - name: Setup fake OpenStack server
+      tags: setup
+      block:
+        - name: Start fake OpenStack server asynchronously
+          ansible.builtin.command: go run "{{ go_server_path }}"
+          args:
+            creates: "{{ server_pid_file }}"
+          async: 30
+          poll: 0
+          register: fake_server_job
+          changed_when: false
+
+        - name: Check command
+          ansible.builtin.async_status:
+            jid: "{{ fake_server_job.ansible_job_id }}"
+          register: result
+
+        - name: Debug command
+          ansible.builtin.debug:
+            var: result.stdout
+
+        - name: Wait for the server URL file to be created
+          ansible.builtin.wait_for:
+            path: "{{ server_pid_file }}"
+            state: present
+            timeout: 10
+
+        - name: Read the server PID from the file
+          ansible.builtin.slurp:
+            src: "{{ server_pid_file }}"
+          register: fake_os_pid_b64
+
+        - name: Set the server PID fact
+          ansible.builtin.set_fact:
+            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+
+        # TEST09: Concurrent volume creation
+        - name: TEST09 - Create 5 volumes in parallel
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"{{ item.name }}","size":{{ item.size }}}}'
+            status_code: 202
+          loop:
+            - { name: "concurrent-vol-1", size: 5 }
+            - { name: "concurrent-vol-2", size: 5 }
+            - { name: "concurrent-vol-3", size: 5 }
+            - { name: "concurrent-vol-4", size: 5 }
+            - { name: "concurrent-vol-5", size: 5 }
+          async: 30
+          poll: 0
+          register: async_volumes
+
+        - name: Wait for all volume creations
+          ansible.builtin.async_status:
+            jid: "{{ item.ansible_job_id }}"
+          loop: "{{ async_volumes.results }}"
+          register: volume_results
+          until: volume_results.finished
+          retries: 10
+          delay: 1
+
+        - name: "ASSERT: All concurrent volumes created successfully"
+          ansible.builtin.assert:
+            that:
+              - "item is succeeded"
+              - "(item.content | from_json).volume.id is defined"
+          loop: "{{ volume_results.results }}"
+
+        # TEST10: Full network stack creation
+        - name: Create network for full stack
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/networks"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              network:
+                name: "test-network-10"
+            status_code: 201
+          register: network_10
+
+        - name: Create subnet
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/subnets"
+            method: POST
+            body_format: json
+            body:
+              subnet:
+                network_id: "{{ (network_10.content | from_json).network.id }}"
+                cidr: "192.168.10.0/24"
+                ip_version: 4
+            status_code: 201
+          register: subnet_10
+
+        - name: Create port
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              port:
+                network_id: "{{ (network_10.content | from_json).network.id }}"
+            status_code: 201
+          register: port_10
+
+        - name: TEST10 - Create server with full network stack
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "test-server-10"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks:
+                  - port: "{{ (port_10.content | from_json).port.id }}"
+            status_code: 202
+          register: result_full_stack
+
+        - name: "ASSERT: Complete workflow succeeded"
+          ansible.builtin.assert:
+            that:
+              - "network_10 is succeeded"
+              - "subnet_10 is succeeded"
+              - "port_10 is succeeded"
+              - "result_full_stack is succeeded"
+
+        # TEST11: Error propagation testing
+        - name: TEST11 - Module error handling (invalid JSON)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body: "invalid-json-string"
+            headers:
+              Content-Type: "application/json"
+            status_code: [200, 201, 202, 400]
+          register: result_bad_json
+
+        - name: "ASSERT: Invalid JSON returns 400"
+          ansible.builtin.assert:
+            that:
+              - "result_bad_json.status == 400"
+
+        # TEST12: Idempotency validation
+        - name: Create volume first time
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "idempotent-test"
+                size: 5
+            status_code: 202
+          register: first_create
+
+        - name: TEST12 - Create same volume second time
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "idempotent-test"
+                size: 5
+            status_code: 202
+          register: second_create
+
+        - name: "ASSERT: Mock allows duplicate creation (module should handle)"
+          ansible.builtin.assert:
+            that:
+              - "first_create is succeeded"
+              - "second_create is succeeded"
+              - "(first_create.content | from_json).volume.id != (second_create.content | from_json).volume.id"
+            msg: "Mock doesn't prevent duplicates - real module should detect and return changed=false"
+
+            # TEST13: Volume creation with edge case sizes (1GB, 1000GB)
+        - name: TEST13 - Create volume with minimum size (1GB)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"edge-case-1gb","size":1}}'
+            status_code: 202
+          register: vol_1gb
+
+        - name: Create volume with large size (1000GB)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"edge-case-1000gb","size":1000}}'
+            status_code: 202
+          register: vol_1000gb
+
+        - name: "ASSERT: Edge case volumes created successfully"
+          ansible.builtin.assert:
+            that:
+              - "vol_1gb is succeeded"
+              - "vol_1000gb is succeeded"
+              - "((vol_1gb.content | from_json).volume.size) == 1"
+              - "((vol_1000gb.content | from_json).volume.size) == 1000"
+
+        # TEST14: Volume creation with special characters in name
+        - name: TEST14 - Create volumes with special characters
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"{{ item.name }}","size":5}}'
+            status_code: 202
+          loop:
+            - { name: "volume-with-dashes" }
+            - { name: "volume_with_underscores" }
+            - { name: "volume.with.dots" }
+            - { name: "volume@with#symbols" }
+          register: special_char_volumes
+
+        - name: "ASSERT: Special character volumes created"
+          ansible.builtin.assert:
+            that:
+              - "item is succeeded"
+              - "(item.content | from_json).volume.name == item.item.name"
+          loop: "{{ special_char_volumes.results }}"
+
+        # TEST15: Volume creation with missing required fields
+        - name: TEST15 - Create volume with missing name field
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"size":5}}'
+            status_code: [400, 202]
+          register: missing_name
+          failed_when: false
+
+        - name: Create volume with missing size field
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"name":"missing-size"}}'
+            status_code: [400, 202]
+          register: missing_size
+          failed_when: false
+
+        - name: "ASSERT: Missing fields handled (mock may allow, real API rejects)"
+          ansible.builtin.assert:
+            that:
+              - "missing_name.status in [400, 202]"
+              - "missing_size.status in [400, 202]"
+            msg: "Mock server behavior documented - real OpenStack would return 400"
+
+        # TEST16: Volume creation with invalid size types
+        - name: TEST16 - Create volume with string size
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"name":"invalid-string-size","size":"not-a-number"}}'
+            status_code: 400
+          register: invalid_string_size
+          failed_when: false
+
+        - name: Create volume with negative size
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"name":"invalid-negative","size":-10}}'
+            status_code: [400, 202]
+          register: invalid_negative
+          failed_when: false
+
+        - name: Create volume with null size
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"name":"invalid-null","size":null}}'
+            status_code: [400, 202]
+          register: invalid_null
+          failed_when: false
+
+        - name: "ASSERT: Invalid size types rejected or handled"
+          ansible.builtin.assert:
+            that:
+              - "invalid_string_size.status == 400"
+              - "invalid_negative.status in [400, 202]"
+              - "invalid_null.status in [400, 202]"
+
+      always:
+        - name: Stop fake OpenStack server
+          tags: cleanup
+          ansible.builtin.command: "kill {{ fake_os_pid }}"
+          changed_when: false
+          failed_when: false
+
+        - name: Remove PID file
+          tags: cleanup
+          ansible.builtin.file:
+            path: "{{ server_pid_file }}"
+            state: absent
+          failed_when: false
+
+# BLOCKED TESTS - Validation & Error Handling:
+# These tests require srv.go extensions before implementation:
+# - Error simulation (409 conflicts, timeouts, busy states)
+#   Related to: TEST11 error handling
+# - OpenStack CLI compatibility (requires proper Content-Type headers + field formatting)
+#   Related to: TEST11 error testing

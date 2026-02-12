@@ -1,0 +1,275 @@
+# 31-32
+---
+- name: Integration tests for volume lifecycle against mock OpenStack
+  hosts: localhost
+  gather_facts: false
+  vars:
+    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
+    server_pid_file: /tmp/fake_os_server.pid
+    fake_os_url: "http://127.0.0.1:5000"
+    cloud_config:
+      auth:
+        auth_url: "http://127.0.0.1:5000/v3"
+        username: "demo-user"
+        password: "password"
+        project_name: "demo"
+        project_id: "demo-id"
+        user_domain_name: "default"
+        project_domain_name: "default"
+        region_name: "RegionOne"
+  tasks:
+    # SETUP FOR FAKE SERVER
+    - name: Setup fake OpenStack server
+      tags: setup
+      block:
+        - name: Start fake OpenStack server asynchronously
+          ansible.builtin.command: go run "{{ go_server_path }}"
+          args:
+            creates: "{{ server_pid_file }}"
+          async: 30
+          poll: 0
+          register: fake_server_job
+          changed_when: false
+
+        - name: Check command
+          ansible.builtin.async_status:
+            jid: "{{ fake_server_job.ansible_job_id }}"
+          register: result
+
+        - name: Debug command
+          ansible.builtin.debug:
+            var: result.stdout
+
+        - name: Wait for the server URL file to be created
+          ansible.builtin.wait_for:
+            path: "{{ server_pid_file }}"
+            state: present
+            timeout: 10
+
+        - name: Read the server PID from the file
+          ansible.builtin.slurp:
+            src: "{{ server_pid_file }}"
+          register: fake_os_pid_b64
+
+        - name: Set the server PID fact
+          ansible.builtin.set_fact:
+            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+
+        # TEST31: Attach network interface dynamically
+        - name: Create server for interface attachment test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "interface-test-server"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks: []
+            status_code: 202
+          register: interface_server
+
+        - name: Create port for dynamic attachment
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              port:
+                network_id: "net-1"
+            status_code: 201
+          register: interface_port
+
+        - name: TEST31 - Attach interface to server dynamically
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (interface_server.content | from_json).server.id }}/os-interface"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              interfaceAttachment:
+                port_id: "{{ (interface_port.content | from_json).port.id }}"
+            status_code: 200
+          register: interface_attach
+
+        - name: "ASSERT: Interface attached successfully"
+          ansible.builtin.assert:
+            that:
+              - "interface_attach is succeeded"
+              - "(interface_attach.content | from_json).interfaceAttachment is defined"
+              - "(interface_attach.content | from_json).interfaceAttachment.port_id == (interface_port.content | from_json).port.id"
+              - "(interface_attach.content | from_json).interfaceAttachment.server_id == (interface_server.content | from_json).server.id"
+
+        - name: Detach interface from server
+          ansible.builtin.uri:
+            url: >-
+              {{ fake_os_url }}/v2.1/demo/servers/{{
+              (interface_server.content | from_json).server.id
+              }}/os-interface/{{
+              (interface_port.content | from_json).port.id
+              }}
+            method: DELETE
+            status_code: 204
+
+        - name: Get port details after detachment
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: GET
+            return_content: true
+          register: ports_after_detach
+
+        - name: "ASSERT: Port detached and status changed to DOWN"
+          ansible.builtin.assert:
+            that:
+              - >-
+                ((ports_after_detach.content | from_json).ports |
+                selectattr('id', 'equalto', (interface_port.content | from_json).port.id) |
+                first).status == 'DOWN'
+              - >-
+                ((ports_after_detach.content | from_json).ports |
+                selectattr('id', 'equalto', (interface_port.content | from_json).port.id) |
+                first).device_id == None
+            msg: "Port should be DOWN and device_id should be null after detachment"
+
+        # TEST32: Server deletion cascade cleanup
+        - name: Create server for deletion test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "deletion-test-server"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks: []
+            status_code: 202
+          register: deletion_server
+
+        - name: Create volume for deletion test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"deletion-test-volume","size":5}}'
+            status_code: 202
+          register: deletion_volume
+
+        - name: Attach volume to server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (deletion_server.content | from_json).server.id }}/os-volume_attachments"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volumeAttachment:
+                volumeId: "{{ (deletion_volume.content | from_json).volume.id }}"
+            status_code: 200
+
+        - name: Create port for deletion test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              port:
+                network_id: "net-1"
+            status_code: 201
+          register: deletion_port
+
+        - name: Attach port to server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (deletion_server.content | from_json).server.id }}/os-interface"
+            method: POST
+            body_format: json
+            body:
+              interfaceAttachment:
+                port_id: "{{ (deletion_port.content | from_json).port.id }}"
+            status_code: 200
+
+        - name: TEST32 - Delete server with attached resources
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (deletion_server.content | from_json).server.id }}"
+            method: DELETE
+            status_code: 204
+
+        - name: Verify server deleted from list
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: GET
+            return_content: true
+          register: servers_after_delete
+
+        - name: "ASSERT: Server removed from server list"
+          ansible.builtin.assert:
+            that:
+              - "(deletion_server.content | from_json).server.id not in ((servers_after_delete.content | from_json).servers | map(attribute='id'))"
+
+        # TODO: Add volume deletion tests in srv.go !!!
+        # - name: Verify volume detached (status back to available)
+        #   ansible.builtin.uri:
+        #     url: "{{ fake_os_url }}/v3/demo/volumes"
+        #     method: GET
+        #     return_content: true
+        #   register: volumes_after_delete
+
+        # - name: "ASSERT: Volume status returned to available"
+        #   ansible.builtin.assert:
+        #     that:
+        #       -#       - >-
+        #         ((volumes_after_delete.content | from_json).volumes |
+        #         selectattr('id', 'equalto', (deletion_volume.content | from_json).volume.id) |
+        #         first).status == 'available'
+        #       #       - >-
+        #         ((volumes_after_delete.content | from_json).volumes |
+        #         selectattr('id', 'equalto', (deletion_volume.content | from_json).volume.id) |
+        #         first).attachments | length == 0
+        #     msg: "Volume should be available with no attachments after server deletion"
+
+        - name: Verify port released (device_id cleared)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: GET
+            return_content: true
+          register: ports_after_delete
+
+        - name: "ASSERT: Port released from server"
+          ansible.builtin.assert:
+            that:
+              - >-
+                ((ports_after_delete.content | from_json).ports |
+                selectattr('id', 'equalto', (deletion_port.content | from_json).port.id) |
+                first).device_id == None
+              - >-
+                ((ports_after_delete.content | from_json).ports |
+                selectattr('id', 'equalto', (deletion_port.content | from_json).port.id) |
+                first).status == 'DOWN'
+            msg: "Port should have null device_id and DOWN status after server deletion"
+
+      # CLEANUP
+      always:
+        - name: Stop fake OpenStack server
+          tags: cleanup
+          ansible.builtin.command: "kill {{ fake_os_pid }}"
+          changed_when: false
+          failed_when: false
+
+        - name: Remove PID file
+          tags: cleanup
+          ansible.builtin.file:
+            path: "{{ server_pid_file }}"
+            state: absent
+          failed_when: false
+
+# BLOCKED TESTS - Server Lifecycle:
+# These tests require srv.go extensions before implementation:
+# - Volume attachment DELETE endpoint (DELETE /os-volume_attachments/{id})
+#   Related to: TEST32 - currently only detaches ports, not volumes
+# - Stateful transitions (creating → available, attaching → in-use)
+#   Related to: TEST32 cascade cleanup validation

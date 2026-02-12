@@ -1,0 +1,391 @@
+# 01-08
+---
+- name: Integration tests for volume lifecycle against mock OpenStack
+  hosts: localhost
+  gather_facts: false
+  vars:
+    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
+    server_pid_file: /tmp/fake_os_server.pid
+    fake_os_url: "http://127.0.0.1:5000"
+    cloud_config:
+      auth:
+        auth_url: "http://127.0.0.1:5000/v3"
+        username: "demo-user"
+        password: "password"
+        project_name: "demo"
+        project_id: "demo-id"
+        user_domain_name: "default"
+        project_domain_name: "default"
+        region_name: "RegionOne"
+  tasks:
+    # SETUP FOR FAKE SERVER
+    - name: Setup fake OpenStack server
+      tags: setup
+      block:
+        - name: Start fake OpenStack server asynchronously
+          ansible.builtin.command: go run "{{ go_server_path }}"
+          args:
+            creates: "{{ server_pid_file }}"
+          async: 30
+          poll: 0
+          register: fake_server_job
+          changed_when: false
+
+        - name: Check command
+          ansible.builtin.async_status:
+            jid: "{{ fake_server_job.ansible_job_id }}"
+          register: result
+
+        - name: Debug command
+          ansible.builtin.debug:
+            var: result.stdout
+
+        - name: Wait for the server URL file to be created
+          ansible.builtin.wait_for:
+            path: "{{ server_pid_file }}"
+            state: present
+            timeout: 10
+
+        - name: Read the server PID from the file
+          ansible.builtin.slurp:
+            src: "{{ server_pid_file }}"
+          register: fake_os_pid_b64
+
+        - name: Set the server PID fact
+          ansible.builtin.set_fact:
+            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+
+        # TEST02: Attach volume to server and verify status change
+        - name: Create test server for attachment
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "test-server-02"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks: []
+            status_code: 202
+          register: test_server_02
+
+        - name: Create volume for attachment test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "test-volume-02"
+                size: 5
+            status_code: 202
+          register: test_volume_02
+
+        - name: TEST02 - Attach volume to server (status in-use)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_02.content | from_json).server.id }}/os-volume_attachments"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volumeAttachment:
+                volumeId: "{{ (test_volume_02.content | from_json).volume.id }}"
+            status_code: 200
+          register: result_attach
+
+        - name: Get volumes list to verify status change
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: GET
+            return_content: true
+          register: volumes_after_attach
+
+        - name: "ASSERT: Volume status changed to in-use"
+          ansible.builtin.assert:
+            that:
+              - "(result_attach.content | from_json).volumeAttachment is defined"
+              - >-
+                (result_attach.content | from_json).volumeAttachment.volumeId ==
+                (test_volume_02.content | from_json).volume.id
+              - >-
+                ((volumes_after_attach.content | from_json).volumes |
+                selectattr('id', 'equalto', (test_volume_02.content | from_json).volume.id) |
+                first).status == 'in-use'
+        - name: Create multiple test volumes
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            body: '{"volume":{"name":"{{ item.name }}","size":{{ item.size }}}}'
+            status_code: 202
+          loop:
+            - { name: "test-vol-list-1", size: 5 }
+            - { name: "test-vol-list-2", size: 10 }
+            - { name: "test-vol-list-3", size: 15 }
+          register: created_volumes
+
+        - name: TEST03 - List volumes (multiple volumes)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: GET
+            return_content: true
+          register: result_list_volumes
+
+        - name: "ASSERT: All volumes are in the list"
+          ansible.builtin.assert:
+            that:
+              - "(result_list_volumes.content | from_json).volumes is defined"
+              - "((result_list_volumes.content | from_json).volumes | length) >= 3"
+              - "'test-vol-list-1' in ((result_list_volumes.content | from_json).volumes | map(attribute='name') | list)"
+              - "'test-vol-list-2' in ((result_list_volumes.content | from_json).volumes | map(attribute='name') | list)"
+              - "'test-vol-list-3' in ((result_list_volumes.content | from_json).volumes | map(attribute='name') | list)"
+
+        # TEST04: List volume attachments per server
+        - name: Create server for attachment list test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "test-server-04"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks: []
+            status_code: 202
+          register: test_server_04
+
+        - name: Create and attach volume
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "test-volume-04"
+                size: 5
+            status_code: 202
+          register: test_volume_04
+
+        - name: Attach volume to server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_04.content | from_json).server.id }}/os-volume_attachments"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volumeAttachment:
+                volumeId: "{{ (test_volume_04.content | from_json).volume.id }}"
+            status_code: 200
+          register: attached_04
+
+        - name: TEST04 - List volume attachments for server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_04.content | from_json).server.id }}/os-volume_attachments"
+            method: GET
+            return_content: true
+          register: result_list_attachments
+
+        - name: "ASSERT: Attachment appears in list"
+          ansible.builtin.assert:
+            that:
+              - "(result_list_attachments.content | from_json).volumeAttachments is defined"
+              - "((result_list_attachments.content | from_json).volumeAttachments | length) > 0"
+              - >-
+                ((result_list_attachments.content | from_json).volumeAttachments |
+                selectattr('volumeId', 'equalto', (test_volume_04.content | from_json).volume.id) |
+                list) | length == 1
+
+        # TEST05: Attach volume using instance name lookup
+        - name: Create named server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "conversion-host-test"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks: []
+            status_code: 202
+          register: named_server
+
+        - name: Create volume for name lookup test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "test-volume-05"
+                size: 5
+            status_code: 202
+          register: volume_05
+
+        - name: Lookup server by name
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: GET
+            return_content: true
+          register: servers_list
+
+        - name: Find server ID by name
+          ansible.builtin.set_fact:
+            found_server_id: "{{ ((servers_list.content | from_json).servers | selectattr('name', 'equalto', 'conversion-host-test') | first).id }}"
+
+        - name: TEST05 - Attach volume using looked-up server ID
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ found_server_id }}/os-volume_attachments"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volumeAttachment:
+                volumeId: "{{ (volume_05.content | from_json).volume.id }}"
+            status_code: 200
+          register: result_attach_by_name
+
+        - name: "ASSERT: Volume attached using name lookup"
+          ansible.builtin.assert:
+            that:
+              - "result_attach_by_name is succeeded"
+              - "(result_attach_by_name.content | from_json).volumeAttachment is defined"
+              - "(result_attach_by_name.content | from_json).volumeAttachment.serverId == found_server_id"
+
+        - name: TEST06 - Validate service catalog completeness
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/auth/tokens"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              auth:
+                identity:
+                  methods: ["password"]
+                  password:
+                    user:
+                      name: "{{ cloud_config.auth.username }}"
+                      domain: { name: "default" }
+                      password: "{{ cloud_config.auth.password }}"
+                scope:
+                  project:
+                    name: "{{ cloud_config.auth.project_name }}"
+                    domain: { name: "default" }
+            status_code: 201
+          register: auth_response
+
+        - name: Extract catalog from response
+          ansible.builtin.set_fact:
+            service_catalog: "{{ (auth_response.content | from_json).token.catalog }}"
+
+        - name: "ASSERT: All required services in catalog"
+          ansible.builtin.assert:
+            that:
+              - "service_catalog | selectattr('type', 'equalto', 'identity') | list | length > 0"
+              - "service_catalog | selectattr('type', 'equalto', 'compute') | list | length > 0"
+              - "service_catalog | selectattr('type', 'equalto', 'volumev3') | list | length > 0"
+              - "service_catalog | selectattr('type', 'equalto', 'network') | list | length > 0"
+              - "service_catalog | selectattr('type', 'equalto', 'image') | list | length > 0"
+            msg: "Service catalog missing required services (Keystone, Nova, Cinder, Neutron, Glance)"
+
+        # TEST07: Network + Server workflow
+        - name: Create network
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/networks"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              network:
+                name: "test-network-07"
+            status_code: 201
+          register: created_network
+
+        - name: TEST07 - Create server with network (cross-service)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "test-server-07"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks:
+                  - uuid: "{{ (created_network.content | from_json).network.id }}"
+            status_code: 202
+          register: result_server_with_network
+
+        - name: "ASSERT: Server has correct network assignment"
+          ansible.builtin.assert:
+            that:
+              - "result_server_with_network is succeeded"
+              - "((result_server_with_network.content | from_json).server.addresses | length) > 0"
+
+        # TEST08: Port + Server with custom network config
+        - name: Create SRIOV port
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/ports"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              port:
+                network_id: "net-1"
+                binding:vnic_type: "direct"
+            status_code: 201
+          register: created_port
+
+        - name: TEST08 - Create server with SRIOV port
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              server:
+                name: "test-server-08"
+                flavorRef: "1"
+                imageRef: "img-1"
+                networks:
+                  - port: "{{ (created_port.content | from_json).port.id }}"
+            status_code: 202
+          register: result_sriov_server
+
+        - name: "ASSERT: Server created with SRIOV port"
+          ansible.builtin.assert:
+            that:
+              - "result_sriov_server is succeeded"
+              - "((created_port.content | from_json).port['binding:vnic_type']) == 'direct'"
+              - "((created_port.content | from_json).port['binding:vif_details']) is defined"
+      always:
+        - name: Stop fake OpenStack server
+          tags: cleanup
+          ansible.builtin.command: "kill {{ fake_os_pid }}"
+          changed_when: false
+          failed_when: false
+
+        - name: Remove PID file
+          tags: cleanup
+          ansible.builtin.file:
+            path: "{{ server_pid_file }}"
+            state: absent
+          failed_when: false
+
+# BLOCKED TESTS - Basic Operations:
+# These tests require srv.go extensions before implementation:
+# - Get network by ID (requires GET /v2.0/networks/{id} endpoint)
+#   Related to: TEST07, TEST08 network operations
+# - Attach volume to non-existent server (requires validation logic)
+#   Related to: TEST02, TEST04 attachment operations
+# - Attach non-existent volume (requires validation logic)
+#   Related to: TEST02, TEST04 attachment operations
