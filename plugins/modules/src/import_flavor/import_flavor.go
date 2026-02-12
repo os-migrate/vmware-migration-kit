@@ -167,7 +167,7 @@ func main() {
 		} `yaml:"resources"`
 	}
 	if err := yaml.Unmarshal(yamlText, &raw); err != nil {
-		logger.Log.Infof("Failed to parse flavors YAML: " + err.Error())
+		logger.Log.Infof("Failed to parse flavors YAML: %v", err)
 		fail("Failed to parse flavors YAML: " + err.Error())
 	}
 	//Verify that at least one flavor is present
@@ -181,7 +181,7 @@ func main() {
 	// List existing flavors
 	allPages, err := flavors.ListDetail(computeClient, nil).AllPages(ctx)
 	if err != nil {
-		logger.Log.Infof("Failed to list flavors: " + err.Error())
+		logger.Log.Infof("Failed to list flavors: %v", err)
 		fail("Failed to list flavors: " + err.Error())
 	}
 	//Extract existing flavors into a map for easy lookup
