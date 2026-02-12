@@ -2,7 +2,7 @@ module vmware-migration-kit
 
 go 1.25.0
 
-toolchain go1.25.2
+toolchain go1.25.0
 
 require (
 	github.com/gophercloud/gophercloud/v2 v2.7.0
