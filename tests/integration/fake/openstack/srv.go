@@ -17,9 +17,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -93,6 +95,7 @@ type Server struct {
 	Flavor   map[string]string   `json:"flavor"`
 	Image    map[string]string   `json:"image"`
 	Networks []map[string]string `json:"addresses"`
+	Project  string              `json:"project_id"`
 }
 
 var servers = map[string]*Server{}
@@ -141,7 +144,7 @@ var volumeID = 1
 ============================
 */
 var images = []map[string]interface{}{
-	{"id": "img-1", "name": "cirros", "status": "active"},
+	{"id": "img-1", "name": "cirros", "status": "active", "owner": "demo"},
 }
 
 /* ============================
@@ -1210,9 +1213,21 @@ func NewFakeServer() *FakeServer {
 				}
 			}
 			if strings.HasSuffix(r.URL.Path, "/detail") {
+				projectFilter := r.URL.Query().Get("project_id")
 				list := []interface{}{}
 				for _, s := range servers {
-					list = append(list, s)
+					if projectFilter != "" && s.Project != projectFilter {
+						continue
+					}
+					list = append(list, map[string]interface{}{
+						"id":        s.ID,
+						"name":      s.Name,
+						"status":    s.Status,
+						"flavor":    s.Flavor,
+						"image":     s.Image,
+						"addresses": buildAddresses(s.Networks),
+						"project_id": s.Project,
+					})
 				}
 				w.Header().Set("Content-Type", "application/json")
 				err := json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1225,11 +1240,43 @@ func NewFakeServer() *FakeServer {
 				return
 			}
 
-			// Match /v2.1/{id}/servers
+			// Match /v2.1/{id}/servers or /v2.1/{id}/servers/{server_id}
 			log.Printf("%s %s", r.Method, r.URL.String())
 			if r.Method == http.MethodGet {
+				projectFilter := r.URL.Query().Get("project_id")
+				if len(p) == 4 {
+					serverID := p[3]
+					if s, ok := servers[serverID]; ok {
+						if projectFilter != "" && s.Project != projectFilter {
+							http.NotFound(w, r)
+							return
+						}
+						w.Header().Set("Content-Type", "application/json")
+						err := json.NewEncoder(w).Encode(map[string]interface{}{
+							"server": map[string]interface{}{
+								"id":        s.ID,
+								"name":      s.Name,
+								"status":    s.Status,
+								"flavor":    s.Flavor,
+								"image":     s.Image,
+								"addresses": buildAddresses(s.Networks),
+								"project_id": s.Project,
+							},
+						})
+						if err != nil {
+							log.Printf("Error encoding JSON response: %v", err)
+							http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+						}
+						return
+					}
+					http.NotFound(w, r)
+					return
+				}
 				list := []interface{}{}
 				for _, s := range servers {
+					if projectFilter != "" && s.Project != projectFilter {
+						continue
+					}
 					list = append(list, map[string]interface{}{
 						"id":        s.ID,
 						"name":      s.Name,
@@ -1237,6 +1284,7 @@ func NewFakeServer() *FakeServer {
 						"flavor":    s.Flavor,
 						"image":     s.Image,
 						"addresses": buildAddresses(s.Networks),
+						"project_id": s.Project,
 					})
 				}
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"servers": list})
@@ -1248,17 +1296,55 @@ func NewFakeServer() *FakeServer {
 			}
 
 			if r.Method == http.MethodPost {
+				// Log raw body
+				body, _ := io.ReadAll(r.Body)
+				log.Printf("DEBUG: Raw POST body: %s", string(body))
+				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
 				var req struct {
 					Server struct {
-						Name      string              `json:"name"`
-						FlavorRef string              `json:"flavorRef"`
-						ImageRef  string              `json:"imageRef"`
-						Networks  []map[string]string `json:"networks"`
+						Name     string              `json:"name"`
+						Flavor   string              `json:"flavor"`
+						Image    string              `json:"image"`
+						Networks []map[string]string `json:"networks"`
 					} `json:"server"`
 				}
 				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 					http.Error(w, "invalid JSON body", http.StatusBadRequest)
 					return
+				}
+				log.Printf("DEBUG: POST server body - Name=%s, Flavor=%s, Image=%s", req.Server.Name, req.Server.Flavor, req.Server.Image)
+
+				// Resolve flavor (by ID or name)
+				flavorRef := req.Server.Flavor
+				if flavorRef != "" {
+					for _, f := range flavors {
+						if fID, ok := f["id"].(string); ok && fID == flavorRef {
+							break
+						}
+						if fName, ok := f["name"].(string); ok && fName == flavorRef {
+							if fID, ok := f["id"].(string); ok {
+								flavorRef = fID
+							}
+							break
+						}
+					}
+				}
+
+				// Resolve image (by ID or name)
+				imageRef := req.Server.Image
+				if imageRef != "" {
+					for _, img := range images {
+						if imgID, ok := img["id"].(string); ok && imgID == imageRef {
+							break
+						}
+						if imgName, ok := img["name"].(string); ok && imgName == imageRef {
+							if imgID, ok := img["id"].(string); ok {
+								imageRef = imgID
+							}
+							break
+						}
+					}
 				}
 
 				id := fmt.Sprintf("%d", serverID)
@@ -1268,9 +1354,10 @@ func NewFakeServer() *FakeServer {
 					ID:       id,
 					Name:     req.Server.Name,
 					Status:   "ACTIVE",
-					Flavor:   map[string]string{"id": req.Server.FlavorRef},
-					Image:    map[string]string{"id": req.Server.ImageRef},
+					Flavor:   map[string]string{"id": flavorRef},
+					Image:    map[string]string{"id": imageRef},
 					Networks: req.Server.Networks,
+					Project:  p[1],
 				}
 				servers[id] = s
 
