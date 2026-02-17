@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"vmware-migration-kit/plugins/module_utils/ansible"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -53,26 +55,20 @@ type Response struct {
 	Stack   StackInfo `json:"stack,omitempty"`
 }
 
-func ExitJson(responseBody Response) {
-	returnResponse(responseBody)
-}
-
-func FailJson(responseBody Response) {
-	responseBody.Failed = true
-	returnResponse(responseBody)
-}
-
-func returnResponse(responseBody Response) {
-	response, err := json.Marshal(responseBody)
-	if err != nil {
-		response, _ = json.Marshal(Response{Msg: "Invalid response object"})
-	}
-	fmt.Println(string(response))
-	if responseBody.Failed {
-		os.Exit(1)
-	} else {
-		os.Exit(0)
-	}
+func exitJson(responseBody Response) {
+	ansible.ReturnResponseWithDeps(ansible.Response{
+		Msg:     responseBody.Msg,
+		Changed: responseBody.Changed,
+		Failed:  responseBody.Failed,
+	}, os.Exit, func(s string) {
+		// Marshall and print custom response instead
+		response, err := json.Marshal(responseBody)
+		if err != nil {
+			fmt.Println(`{"msg": "Invalid response object", "failed": true}`)
+			return
+		}
+		fmt.Println(string(response))
+	})
 }
 
 func waitForStackStatus(ctx context.Context, client *gophercloud.ServiceClient, stackName, stackID, targetStatus string, timeout int) error {
@@ -103,35 +99,29 @@ func waitForStackStatus(ctx context.Context, client *gophercloud.ServiceClient, 
 }
 
 func main() {
-	var response Response
 	if len(os.Args) != 2 {
-		response.Msg = "No argument file provided"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
 	}
 
 	argsFile := os.Args[1]
 	text, err := os.ReadFile(argsFile)
 	if err != nil {
-		response.Msg = "Could not read configuration file: " + argsFile
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Could not read configuration file: " + argsFile})
 	}
 
 	var moduleArgs ModuleArgs
 	err = json.Unmarshal(text, &moduleArgs)
 	if err != nil {
-		response.Msg = "Configuration file not valid JSON: " + argsFile + " - " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Configuration file not valid JSON: " + argsFile + " - " + err.Error()})
 	}
 
 	// Validate inputs
 	if moduleArgs.StackName == "" {
-		response.Msg = "Stack name is required"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Stack name is required"})
 	}
 
 	if moduleArgs.TemplatePath == "" {
-		response.Msg = "Template path is required"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Template path is required"})
 	}
 
 	// Set default timeout if not provided
@@ -144,30 +134,26 @@ func main() {
 	defer cancel()
 	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.Cloud)
 	if err != nil {
-		response.Msg = "Authentication failed: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Authentication failed: " + err.Error()})
 	}
 
 	// Create Heat client
 	heatClient, err := openstack.NewOrchestrationV1(provider, gophercloud.EndpointOpts{})
 	if err != nil {
-		response.Msg = "Failed to create Heat client: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to create Heat client: " + err.Error()})
 	}
 
 	// Read template file
 	templateContent, err := os.ReadFile(moduleArgs.TemplatePath)
 	if err != nil {
-		response.Msg = "Failed to read template file: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to read template file: " + err.Error()})
 	}
 
 	// Parse template as map[string]interface{} for Gophercloud
 	var templateMap map[string]interface{}
 	err = yaml.Unmarshal(templateContent, &templateMap)
 	if err != nil {
-		response.Msg = "Template YAML parsing failed: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Template YAML parsing failed: " + err.Error()})
 	}
 
 	// Create template using both Bin and Parsed
@@ -188,43 +174,47 @@ func main() {
 
 	createResult := stacks.Create(ctx, heatClient, createOpts)
 	if createResult.Err != nil {
-		response.Msg = "Failed to create Heat stack: " + createResult.Err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to create Heat stack: " + createResult.Err.Error()})
 	}
 
 	createdStack, err := createResult.Extract()
 	if err != nil {
-		response.Msg = "Failed to extract created stack: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to extract created stack: " + err.Error()})
 	}
 
 	// If wait is true, wait for stack to reach CREATE_COMPLETE
 	if moduleArgs.Wait {
 		err = waitForStackStatus(ctx, heatClient, moduleArgs.StackName, createdStack.ID, "CREATE_COMPLETE", moduleArgs.Timeout)
 		if err != nil {
-			response.Msg = "Stack creation failed: " + err.Error()
-			response.Stack = StackInfo{
-				ID:     createdStack.ID,
-				Name:   moduleArgs.StackName,
-				Status: "CREATE_FAILED",
+			// For wait failures, we need to include stack info, so use custom response
+			response := Response{
+				Msg:     "Stack creation failed: " + err.Error(),
+				Failed:  true,
+				Changed: true,
+				Stack: StackInfo{
+					ID:     createdStack.ID,
+					Name:   moduleArgs.StackName,
+					Status: "CREATE_FAILED",
+				},
 			}
-			FailJson(response)
+			exitJson(response)
 		}
 	}
 
 	// Retrieve final stack details
 	finalStack, err := stacks.Get(ctx, heatClient, moduleArgs.StackName, createdStack.ID).Extract()
 	if err != nil {
-		response.Msg = "Stack created but failed to retrieve details: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Stack created but failed to retrieve details: " + err.Error()})
 	}
 
-	response.Changed = true
-	response.Msg = "Heat stack created successfully"
-	response.Stack = StackInfo{
-		ID:     finalStack.ID,
-		Name:   finalStack.Name,
-		Status: finalStack.Status,
+	response := Response{
+		Changed: true,
+		Msg:     "Heat stack created successfully",
+		Stack: StackInfo{
+			ID:     finalStack.ID,
+			Name:   finalStack.Name,
+			Status: finalStack.Status,
+		},
 	}
-	ExitJson(response)
+	exitJson(response)
 }

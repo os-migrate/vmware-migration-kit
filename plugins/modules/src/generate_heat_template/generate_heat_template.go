@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"vmware-migration-kit/plugins/module_utils/ansible"
 )
 
 // Ansible module args
@@ -49,26 +51,20 @@ type Response struct {
 	Parameters   map[string]interface{} `json:"parameters,omitempty"`
 }
 
-func ExitJson(responseBody Response) {
-	returnResponse(responseBody)
-}
-
-func FailJson(responseBody Response) {
-	responseBody.Failed = true
-	returnResponse(responseBody)
-}
-
-func returnResponse(responseBody Response) {
-	response, err := json.Marshal(responseBody)
-	if err != nil {
-		response, _ = json.Marshal(Response{Msg: "Invalid response object"})
-	}
-	fmt.Println(string(response))
-	if responseBody.Failed {
-		os.Exit(1)
-	} else {
-		os.Exit(0)
-	}
+func exitJson(responseBody Response) {
+	ansible.ReturnResponseWithDeps(ansible.Response{
+		Msg:     responseBody.Msg,
+		Changed: responseBody.Changed,
+		Failed:  responseBody.Failed,
+	}, os.Exit, func(s string) {
+		// Marshall and print custom response instead
+		response, err := json.Marshal(responseBody)
+		if err != nil {
+			fmt.Println(`{"msg": "Invalid response object", "failed": true}`)
+			return
+		}
+		fmt.Println(string(response))
+	})
 }
 
 func sanitizeName(name string) string {
@@ -178,40 +174,33 @@ func generateHeatTemplate(vmsData []VMData, stackName string) (string, map[strin
 }
 
 func main() {
-	var response Response
 	if len(os.Args) != 2 {
-		response.Msg = "No argument file provided"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
 	}
 
 	argsFile := os.Args[1]
 	text, err := os.ReadFile(argsFile)
 	if err != nil {
-		response.Msg = "Could not read configuration file: " + argsFile
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Could not read configuration file: " + argsFile})
 	}
 
 	var moduleArgs ModuleArgs
 	err = json.Unmarshal(text, &moduleArgs)
 	if err != nil {
-		response.Msg = "Configuration file not valid JSON: " + argsFile + " - " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Configuration file not valid JSON: " + argsFile + " - " + err.Error()})
 	}
 
 	// Validate inputs
 	if len(moduleArgs.VMsData) == 0 {
-		response.Msg = "No VMs data provided"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "No VMs data provided"})
 	}
 
 	if moduleArgs.StackName == "" {
-		response.Msg = "Stack name is required"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Stack name is required"})
 	}
 
 	if moduleArgs.OutputDir == "" {
-		response.Msg = "Output directory is required"
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Output directory is required"})
 	}
 
 	// Generate Heat template
@@ -220,22 +209,22 @@ func main() {
 	// Ensure output directory exists
 	err = os.MkdirAll(moduleArgs.OutputDir, 0755)
 	if err != nil {
-		response.Msg = "Failed to create output directory: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to create output directory: " + err.Error()})
 	}
 
 	// Write template to file
 	templatePath := filepath.Join(moduleArgs.OutputDir, "heat_template.yaml")
 	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
 	if err != nil {
-		response.Msg = "Failed to write Heat template: " + err.Error()
-		FailJson(response)
+		ansible.FailJson(ansible.Response{Msg: "Failed to write Heat template: " + err.Error()})
 	}
 
-	response.Changed = true
-	response.Msg = fmt.Sprintf("Heat template generated successfully for %d VMs", len(moduleArgs.VMsData))
-	response.TemplatePath = templatePath
-	response.StackName = moduleArgs.StackName
-	response.Parameters = parameters
-	ExitJson(response)
+	response := Response{
+		Changed:      true,
+		Msg:          fmt.Sprintf("Heat template generated successfully for %d VMs", len(moduleArgs.VMsData)),
+		TemplatePath: templatePath,
+		StackName:    moduleArgs.StackName,
+		Parameters:   parameters,
+	}
+	exitJson(response)
 }
