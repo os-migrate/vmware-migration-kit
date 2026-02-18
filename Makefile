@@ -269,7 +269,10 @@ integration-test:
 	echo "*** Installing collection dependencies... ***" && \
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
 	echo "*** Running integration tests... ***" && \
-	ansible-playbook -i $(COLLECTION_ROOT)/localhost_inventory.yml $(COLLECTION_ROOT)/tests/integration/test_flavor_info.yml && \
+	for test in $(COLLECTION_ROOT)/tests/integration/test_*.yml; do \
+		echo "*** Running integration test: $$test ***"; \
+		ansible-playbook -i $(COLLECTION_ROOT)/localhost_inventory.yml $$test || exit 1; \
+	done && \
 	echo "*** Integration tests completed successfully ***" && \
 	rm -rf $$TMPDIR && \
 	deactivate

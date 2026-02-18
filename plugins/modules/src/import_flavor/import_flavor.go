@@ -30,7 +30,8 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
 	"gopkg.in/yaml.v3"
 )
-/*This is the structure of the flavor file:		 
+
+/*This is the structure of the flavor file:
 	{
         "os_migrate_version": "1.0.1",
         "resources": [
@@ -139,7 +140,7 @@ func main() {
 	// Authenticate to OpenStack
 	provider, err := osm_os.OpenstackAuth(ctx, moduleArgs.Cloud)
 	if err != nil {
-		logger.Log.Infof("Failed to authenticate OpenStack client: " + err.Error())
+		logger.Log.Infof("Failed to authenticate OpenStack client: %v", err)
 		ansible.FailJson(ansible.Response{Msg: "Failed to authenticate OpenStack client: " + err.Error()})
 	}
 
@@ -148,14 +149,14 @@ func main() {
 		Region: moduleArgs.Cloud.RegionName,
 	})
 	if err != nil {
-		logger.Log.Infof("Failed to create Compute client: " + err.Error())
+		logger.Log.Infof("Failed to create Compute client: %v", err)
 		ansible.FailJson(ansible.Response{Msg: "Failed to create Compute client: " + err.Error()})
 	}
 
 	// --- Read YAML ---
 	yamlText, err := os.ReadFile(moduleArgs.FlavorsFile)
 	if err != nil {
-		logger.Log.Infof("Failed to read flavors file: " + err.Error())
+		logger.Log.Infof("Failed to read flavors file: %v", err)
 		fail("Failed to read flavors file: " + err.Error())
 	}
 
@@ -166,7 +167,7 @@ func main() {
 		} `yaml:"resources"`
 	}
 	if err := yaml.Unmarshal(yamlText, &raw); err != nil {
-		logger.Log.Infof("Failed to parse flavors YAML: " + err.Error())
+		logger.Log.Infof("Failed to parse flavors YAML: %v", err)
 		fail("Failed to parse flavors YAML: " + err.Error())
 	}
 	//Verify that at least one flavor is present
@@ -180,7 +181,7 @@ func main() {
 	// List existing flavors
 	allPages, err := flavors.ListDetail(computeClient, nil).AllPages(ctx)
 	if err != nil {
-		logger.Log.Infof("Failed to list flavors: " + err.Error())
+		logger.Log.Infof("Failed to list flavors: %v", err)
 		fail("Failed to list flavors: " + err.Error())
 	}
 	//Extract existing flavors into a map for easy lookup
