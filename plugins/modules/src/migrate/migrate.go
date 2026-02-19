@@ -382,6 +382,14 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				}
 			} else {
 				logger.Log.Infof("Skipping V2V conversion...")
+				volMetadata = map[string]string{
+					"osm":       "true",
+					"converted": "true",
+				}
+				err = osm_os.UpdateVolumeMetadata(c.OSClient, volume.ID, volMetadata)
+				if err != nil {
+					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
+				}
 			}
 		}
 	}
