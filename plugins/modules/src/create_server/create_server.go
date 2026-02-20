@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/ansible"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
@@ -153,7 +154,7 @@ func main() {
 		}
 
 		ServerAgrs := osm_os.ServerArgs{
-			Name:             moduleArgs.Name,
+			Name:             moduleutils.SafeVmName(moduleArgs.Name),
 			Flavor:           moduleArgs.Flavor,
 			BootVolume:       moduleArgs.BootVolume,
 			SecurityGroups:   moduleArgs.SecurityGroups,
@@ -172,7 +173,7 @@ func main() {
 	}
 
 	ServerAgrs := osm_os.ServerArgs{
-		Name:             moduleArgs.Name,
+		Name:             moduleutils.SafeVmName(moduleArgs.Name),
 		Flavor:           moduleArgs.Flavor,
 		BootVolume:       moduleArgs.BootVolume,
 		SecurityGroups:   moduleArgs.SecurityGroups,
