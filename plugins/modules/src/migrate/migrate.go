@@ -144,7 +144,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		return "", err
 	}
 	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey))
-	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
+	volume, err := osm_os.GetVolumeID(c.OSClient, moduleutils.SafeVmName(vmName), diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
 		return "", err
@@ -223,7 +223,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		// 	volumeMetadata["hw_scsi_model"] = "virtio-scsi"
 		// }
 		volOpts := osm_os.VolOpts{
-			Name:             vmName + "-" + diskNameStr,
+			Name:             moduleutils.SafeVmName(vmName) + "-" + diskNameStr,
 			Size:             int(diskSize[diskNameStr] / 1024 / 1024),
 			VolumeType:       c.VolumeType,
 			AvailabilityZone: c.VolumeAz,
