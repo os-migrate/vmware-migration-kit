@@ -1,4 +1,3 @@
-# 31-32
 ---
 - name: Integration tests for volume lifecycle against mock OpenStack
   hosts: localhost
@@ -55,7 +54,7 @@
           ansible.builtin.set_fact:
             fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
 
-        # TEST31: Attach network interface dynamically
+        # TEST01: Attach network interface dynamically
         - name: Create server for interface attachment test
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers"
@@ -83,7 +82,7 @@
             status_code: 201
           register: interface_port
 
-        - name: TEST31 - Attach interface to server dynamically
+        - name: TEST01 - Attach interface to server dynamically
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (interface_server.content | from_json).server.id }}/os-interface"
             method: POST
@@ -134,7 +133,7 @@
                 first).device_id == None
             msg: "Port should be DOWN and device_id should be null after detachment"
 
-        # TEST32: Server deletion cascade cleanup
+        # TEST02: Server deletion cascade cleanup
         - name: Create server for deletion test
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers"
@@ -159,6 +158,16 @@
             body: '{"volume":{"name":"deletion-test-volume","size":5}}'
             status_code: 202
           register: deletion_volume
+
+        - name: Wait for volume to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (deletion_volume.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: deletion_vol_status
+          until: (deletion_vol_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
 
         - name: Attach volume to server
           ansible.builtin.uri:
@@ -193,7 +202,7 @@
                 port_id: "{{ (deletion_port.content | from_json).port.id }}"
             status_code: 200
 
-        - name: TEST32 - Delete server with attached resources
+        - name: TEST02 - Delete server with attached resources
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (deletion_server.content | from_json).server.id }}"
             method: DELETE
@@ -211,26 +220,19 @@
             that:
               - "(deletion_server.content | from_json).server.id not in ((servers_after_delete.content | from_json).servers | map(attribute='id'))"
 
-        # TODO: Add volume deletion tests in srv.go !!!
-        # - name: Verify volume detached (status back to available)
-        #   ansible.builtin.uri:
-        #     url: "{{ fake_os_url }}/v3/demo/volumes"
-        #     method: GET
-        #     return_content: true
-        #   register: volumes_after_delete
+        - name: Verify volume detached (status back to available)
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (deletion_volume.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: volume_after_server_delete
 
-        # - name: "ASSERT: Volume status returned to available"
-        #   ansible.builtin.assert:
-        #     that:
-        #       -#       - >-
-        #         ((volumes_after_delete.content | from_json).volumes |
-        #         selectattr('id', 'equalto', (deletion_volume.content | from_json).volume.id) |
-        #         first).status == 'available'
-        #       #       - >-
-        #         ((volumes_after_delete.content | from_json).volumes |
-        #         selectattr('id', 'equalto', (deletion_volume.content | from_json).volume.id) |
-        #         first).attachments | length == 0
-        #     msg: "Volume should be available with no attachments after server deletion"
+        - name: "ASSERT: Volume status returned to available after server deletion"
+          ansible.builtin.assert:
+            that:
+              - "(volume_after_server_delete.content | from_json).volume.status == 'available'"
+              - "(volume_after_server_delete.content | from_json).volume.attachments | length == 0"
+            msg: "Volume should be available with no attachments after server deletion"
 
         - name: Verify port released (device_id cleared)
           ansible.builtin.uri:
@@ -266,10 +268,3 @@
             path: "{{ server_pid_file }}"
             state: absent
           failed_when: false
-
-# BLOCKED TESTS - Server Lifecycle:
-# These tests require srv.go extensions before implementation:
-# - Volume attachment DELETE endpoint (DELETE /os-volume_attachments/{id})
-#   Related to: TEST32 - currently only detaches ports, not volumes
-# - Stateful transitions (creating → available, attaching → in-use)
-#   Related to: TEST32 cascade cleanup validation

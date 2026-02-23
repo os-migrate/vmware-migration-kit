@@ -1,4 +1,3 @@
-# 17-20
 ---
 - name: Integration tests for volume lifecycle against mock OpenStack
   hosts: localhost
@@ -55,8 +54,8 @@
           ansible.builtin.set_fact:
             fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
 
-        # TEST17: Compare detailed vs non-detailed volume list endpoints
-        - name: TEST17 - Get non-detailed volume list
+        # TEST01: Compare detailed vs non-detailed volume list endpoints
+        - name: TEST01 - Get non-detailed volume list
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: GET
@@ -78,8 +77,111 @@
               - "((volumes_basic.content | from_json).volumes | length) > 0"
               - "((volumes_detailed.content | from_json).volumes | length) > 0"
 
-        # TEST18: List available flavors
-        - name: TEST18 - List flavors (detailed)
+        # TEST02: Filter volumes by name using query parameters
+        - name: Create volumes with specific names for filtering
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body: '{"volume":{"name":"{{ item.name }}","size":{{ item.size }}}}'
+            status_code: 202
+          loop:
+            - { name: "filter-test-alpha", size: 5 }
+            - { name: "filter-test-beta", size: 10 }
+            - { name: "other-name", size: 15 }
+          register: filter_vols
+
+        - name: Wait for volumes to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: filter_vol_status
+          until: (filter_vol_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+          loop: "{{ filter_vols.results }}"
+
+        - name: TEST02 - List volumes filtered by name
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes?name=filter-test-alpha"
+            method: GET
+            return_content: true
+          register: filtered_by_name
+
+        - name: "ASSERT: Name filter returns only matching volume"
+          ansible.builtin.assert:
+            that:
+              - "filtered_by_name is succeeded"
+              - "((filtered_by_name.content | from_json).volumes | length) == 1"
+              - "((filtered_by_name.content | from_json).volumes[0].name) == 'filter-test-alpha'"
+
+        # TEST03: Filter volumes by status using query parameters
+        - name: TEST03 - List volumes filtered by status
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes?status=available"
+            method: GET
+            return_content: true
+          register: filtered_by_status
+
+        - name: "ASSERT: Status filter returns only available volumes"
+          ansible.builtin.assert:
+            that:
+              - "filtered_by_status is succeeded"
+              - "((filtered_by_status.content | from_json).volumes | length) > 0"
+              - >-
+                ((filtered_by_status.content | from_json).volumes |
+                selectattr('status', 'equalto', 'available') | list | length) ==
+                ((filtered_by_status.content | from_json).volumes | length)
+
+          # TEST04: Filter volumes by metadata using query parameters
+        - name: Create volumes with metadata
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "metadata-test-vol"
+                size: 5
+                metadata:
+                  osm: "true"
+                  changeID: "cbt-12345"
+            status_code: 202
+          register: metadata_vol
+
+        - name: Wait for metadata volume to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (metadata_vol.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: metadata_vol_status
+          until: (metadata_vol_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+
+        - name: TEST04 - List volumes filtered by metadata
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes?metadata[osm]=true"
+            method: GET
+            return_content: true
+          register: filtered_by_metadata
+
+        - name: "ASSERT: Metadata filter returns matching volumes"
+          ansible.builtin.assert:
+            that:
+              - "filtered_by_metadata is succeeded"
+              - "((filtered_by_metadata.content | from_json).volumes | length) >= 1"
+              - >-
+                ((filtered_by_metadata.content | from_json).volumes |
+                selectattr('id', 'equalto', (metadata_vol.content | from_json).volume.id) |
+                list | length) == 1
+
+
+        # TEST05: List available flavors
+        - name: TEST05 - List flavors (detailed)
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/flavors/detail"
             method: GET
@@ -93,8 +195,8 @@
               - "((flavors_list.content | from_json).flavors | length) > 0"
               - "((flavors_list.content | from_json).flavors | selectattr('id', 'defined') | list | length) > 0"
 
-        # TEST19: Authenticate and validate token format
-        - name: TEST19 - Request authentication token
+        # TEST06: Authenticate and validate token format
+        - name: TEST06 - Request authentication token
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/auth/tokens"
             method: POST
@@ -125,8 +227,8 @@
               - "auth_token_test.x_subject_token is defined"
               - "((auth_token_test.content | from_json).token.catalog | length) > 0"
 
-        # TEST20: Various malformed JSON request formats
-        - name: TEST20 - Send completely invalid JSON
+        # TEST07: Various malformed JSON request formats
+        - name: TEST07 - Send completely invalid JSON
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: POST
@@ -176,12 +278,3 @@
             path: "{{ server_pid_file }}"
             state: absent
           failed_when: false
-
-# BLOCKED TESTS - API Completeness:
-# These tests require srv.go extensions before implementation:
-# - List volumes with filter by name (requires query parameter support)
-#   Related to: TEST17 listing operations
-# - List and create images (requires Glance endpoints beyond catalog)
-#   Related to: TEST19 service catalog validation
-# - OpenStack CLI compatibility (requires proper Content-Type headers + field formatting)
-#   Related to: All tests in this file
