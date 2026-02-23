@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -70,17 +71,22 @@ type Role struct {
 
 var (
 	mu sync.Mutex
+	tokenMu sync.RWMutex
 
 	domains = map[string]*Domain{
 		"default": {ID: "default", Name: "default"},
 	}
 
 	users    = map[string]*User{}
-	projects = map[string]*Project{}
+	projects = map[string]*Project{
+		"demo":        {ID: "demo", Name: "source", DomainID: "default", Enabled: true},
+		"destination": {ID: "destination", Name: "destination", DomainID: "default", Enabled: true},
+	}
 	roles    = map[string]*Role{
 		"member": {ID: "member", Name: "member"},
 		"admin":  {ID: "admin", Name: "admin"},
 	}
+	tokenProjects = map[string]string{}
 	seq = 1
 )
 
@@ -89,13 +95,14 @@ var (
 ============================ */
 
 type Server struct {
-	ID       string              `json:"id"`
-	Name     string              `json:"name"`
-	Status   string              `json:"status"`
-	Flavor   map[string]string   `json:"flavor"`
-	Image    map[string]string   `json:"image"`
-	Networks []map[string]string `json:"addresses"`
-	Project  string              `json:"project_id"`
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Status      string              `json:"status"`
+	Flavor      map[string]string   `json:"flavor"`
+	Image       map[string]string   `json:"image"`
+	Networks    []map[string]string `json:"addresses"`
+	Project     string              `json:"project_id"`
+	AccessIPv4  string              `json:"accessIPv4,omitempty"`
 }
 
 var servers = map[string]*Server{}
@@ -144,7 +151,7 @@ var volumeID = 1
 ============================
 */
 var images = []map[string]interface{}{
-	{"id": "img-1", "name": "cirros", "status": "active", "owner": "demo"},
+	{"id": "img-1", "name": "cirros", "status": "active", "owner": "demo", "visibility": "public"},
 }
 
 /* ============================
@@ -152,7 +159,7 @@ var images = []map[string]interface{}{
 ============================ */
 
 var networks = []map[string]interface{}{
-	{"id": "net-1", "name": "private"},
+	{"id": "net-1", "name": "private", "project_id": "demo"},
 }
 var subnets = []map[string]interface{}{}
 var ports = []map[string]interface{}{
@@ -160,6 +167,10 @@ var ports = []map[string]interface{}{
 		"id":                "port-sriov",
 		"network_id":        "net-1",
 		"binding:vnic_type": "direct",
+		"project_id":        "demo",
+		"device_owner":      "",
+		"device_id":         nil,
+		"status":            "DOWN",
 	},
 }
 
@@ -218,6 +229,54 @@ func parts(p string) []string {
 	return strings.Split(strings.Trim(p, "/"), "/")
 }
 
+func projectIDFromToken(r *http.Request) string {
+	token := r.Header.Get("X-Auth-Token")
+	if token == "" {
+		return "demo"
+	}
+	tokenMu.RLock()
+	defer tokenMu.RUnlock()
+	if projectID, ok := tokenProjects[token]; ok {
+		return projectID
+	}
+	if strings.HasPrefix(token, "fake-token-") {
+		proj := strings.TrimPrefix(token, "fake-token-")
+		if p, ok := projects[proj]; ok {
+			return p.ID
+		}
+		for _, p := range projects {
+			if p.Name == proj {
+				return p.ID
+			}
+		}
+	}
+	if projID := r.Header.Get("X-Project-Id"); projID != "" {
+		if p, ok := projects[projID]; ok {
+			return p.ID
+		}
+	}
+	if projID := r.Header.Get("X-Auth-Project-Id"); projID != "" {
+		if p, ok := projects[projID]; ok {
+			return p.ID
+		}
+	}
+	if projName := r.Header.Get("X-Project-Name"); projName != "" {
+		for _, p := range projects {
+			if p.Name == projName {
+				return p.ID
+			}
+		}
+	}
+	if projName := r.Header.Get("X-Auth-Project-Name"); projName != "" {
+		for _, p := range projects {
+			if p.Name == projName {
+				return p.ID
+			}
+		}
+	}
+	return "demo"
+}
+
 type FakeServer struct {
 	URL    string
 	server *httptest.Server
@@ -238,6 +297,9 @@ func NewFakeServer() *FakeServer {
 	if err := os.WriteFile("/tmp/fake_os_server.pid", []byte(fmt.Sprintf("%d", pid)), 0644); err != nil {
 		log.Fatalf("Failed to write PID file: %v", err)
 	}
+
+	// role assignments: project_id -> user_id -> roles
+	var roleAssignments = map[string]map[string][]string{}
 
 	// Default handler.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +330,48 @@ func NewFakeServer() *FakeServer {
 	})
 	// Token and catalog def
 	mux.HandleFunc("/v3/auth/tokens", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Subject-Token", "fake-token")
+		projectID := "source"
+		projectName := "source"
+		if r.Body != nil {
+			var authReq struct {
+				Auth struct {
+					Scope struct {
+						Project struct {
+							ID   string `json:"id"`
+							Name string `json:"name"`
+						} `json:"project"`
+					} `json:"scope"`
+				} `json:"auth"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&authReq); err == nil {
+				if authReq.Auth.Scope.Project.ID != "" {
+					projectID = authReq.Auth.Scope.Project.ID
+				}
+				if authReq.Auth.Scope.Project.Name != "" {
+					projectName = authReq.Auth.Scope.Project.Name
+				}
+			}
+		}
+		if p, ok := projects[projectID]; ok {
+			projectID = p.ID
+			projectName = p.Name
+		} else if p, ok := projects[projectName]; ok {
+			projectID = p.ID
+			projectName = p.Name
+		} else {
+			for _, p := range projects {
+				if p.Name == projectName {
+					projectID = p.ID
+					projectName = p.Name
+					break
+				}
+			}
+		}
+		token := "fake-token-" + projectID
+		w.Header().Set("X-Subject-Token", token)
+		tokenMu.Lock()
+		tokenProjects[token] = projectID
+		tokenMu.Unlock()
 		w.WriteHeader(http.StatusCreated)
 		catalog := []map[string]interface{}{
 			{
@@ -293,7 +396,7 @@ func NewFakeServer() *FakeServer {
 						"interface": "public",
 						"region":    "RegionOne",
 						"region_id": "RegionOne",
-						"url":       "http://127.0.0.1:5000/v2.1/demo",
+						"url":       "http://127.0.0.1:5000/v2.1/" + projectID,
 					},
 				},
 			},
@@ -332,7 +435,7 @@ func NewFakeServer() *FakeServer {
 						"interface": "public",
 						"region":    "RegionOne",
 						"region_id": "RegionOne",
-						"url":       "http://127.0.0.1:5000/v3/demo",
+						"url":       "http://127.0.0.1:5000/v3/" + projectID,
 					},
 				},
 			},
@@ -344,8 +447,8 @@ func NewFakeServer() *FakeServer {
 				"expires_at": "2099-01-01T00:00:00.000000Z",
 				"issued_at":  "2026-01-01T00:00:00.000000Z",
 				"project": map[string]string{
-					"id":   "demo",
-					"name": "demo",
+					"id":   projectID,
+					"name": projectName,
 				},
 				"user": map[string]string{
 					"id":   "demo-user",
@@ -495,22 +598,19 @@ func NewFakeServer() *FakeServer {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 
-	/* role assignments */
-	// role assignments: project_id -> user_id -> roles
-	var roleAssignments = map[string]map[string][]string{}
-
-	// GET roles assigned to a user in a project
+	// GET /v3/projects/{id}
 	mux.HandleFunc("/v3/projects/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
 		log.Printf("%s %s", r.Method, r.URL.String())
+		
+		// Handle /v3/projects/{project_id}/users/{user_id}/roles format
 		pathParts := parts(r.URL.Path)
-
+		
 		// Match: /v3/projects/{project_id}/users/{user_id}/roles
 		if len(pathParts) == 6 && pathParts[2] == "users" && pathParts[4] == "roles" && r.Method == http.MethodGet {
 			projectID := pathParts[1]
 			userID := pathParts[3]
-
-			mu.Lock()
-			defer mu.Unlock()
 
 			userRoles := []map[string]string{}
 			if projMap, ok := roleAssignments[projectID]; ok {
@@ -542,9 +642,6 @@ func NewFakeServer() *FakeServer {
 			userID := pathParts[3]
 			roleID := pathParts[5]
 
-			mu.Lock()
-			defer mu.Unlock()
-
 			if _, ok := roleAssignments[projectID]; !ok {
 				roleAssignments[projectID] = map[string][]string{}
 			}
@@ -553,11 +650,10 @@ func NewFakeServer() *FakeServer {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		// Match: v3/projects/{project_id}
+
+		// Match: /v3/projects/{id} - GET single project
 		if len(pathParts) == 3 {
 			projectID := pathParts[2]
-			mu.Lock()
-			defer mu.Unlock()
 
 			p, ok := projects[projectID]
 			if !ok {
@@ -1214,19 +1310,42 @@ func NewFakeServer() *FakeServer {
 			}
 			if strings.HasSuffix(r.URL.Path, "/detail") {
 				projectFilter := r.URL.Query().Get("project_id")
+				tokenProject := projectIDFromToken(r)
+				if tokenProject != "" {
+					projectFilter = tokenProject
+				} else if projectFilter == "" {
+					projectFilter = p[1]
+				}
+				nameFilter := r.URL.Query().Get("name")
+				var nameRe *regexp.Regexp
+				if nameFilter != "" {
+					var err error
+					nameRe, err = regexp.Compile(nameFilter)
+					if err != nil {
+						http.Error(w, "invalid name regex", http.StatusBadRequest)
+						return
+					}
+				}
 				list := []interface{}{}
 				for _, s := range servers {
 					if projectFilter != "" && s.Project != projectFilter {
 						continue
 					}
+					if nameRe != nil && !nameRe.MatchString(s.Name) {
+						continue
+					}
 					list = append(list, map[string]interface{}{
-						"id":        s.ID,
-						"name":      s.Name,
-						"status":    s.Status,
-						"flavor":    s.Flavor,
-						"image":     s.Image,
-						"addresses": buildAddresses(s.Networks),
-						"project_id": s.Project,
+						"id":               s.ID,
+						"name":             s.Name,
+						"status":           s.Status,
+						"flavor":           s.Flavor,
+						"image":            s.Image,
+						"addresses":        buildAddresses(s.Networks),
+						"project_id":       s.Project,
+						"security_groups": []interface{}{},
+						"metadata":         map[string]string{},
+						"key_name":         nil,
+						"accessIPv4":       s.AccessIPv4,
 					})
 				}
 				w.Header().Set("Content-Type", "application/json")
@@ -1244,6 +1363,22 @@ func NewFakeServer() *FakeServer {
 			log.Printf("%s %s", r.Method, r.URL.String())
 			if r.Method == http.MethodGet {
 				projectFilter := r.URL.Query().Get("project_id")
+				tokenProject := projectIDFromToken(r)
+				if tokenProject != "" {
+					projectFilter = tokenProject
+				} else if projectFilter == "" {
+					projectFilter = p[1]
+				}
+				nameFilter := r.URL.Query().Get("name")
+				var nameRe *regexp.Regexp
+				if nameFilter != "" {
+					var err error
+					nameRe, err = regexp.Compile(nameFilter)
+					if err != nil {
+						http.Error(w, "invalid name regex", http.StatusBadRequest)
+						return
+					}
+				}
 				if len(p) == 4 {
 					serverID := p[3]
 					if s, ok := servers[serverID]; ok {
@@ -1251,16 +1386,24 @@ func NewFakeServer() *FakeServer {
 							http.NotFound(w, r)
 							return
 						}
+						if nameRe != nil && !nameRe.MatchString(s.Name) {
+							http.NotFound(w, r)
+							return
+						}
 						w.Header().Set("Content-Type", "application/json")
 						err := json.NewEncoder(w).Encode(map[string]interface{}{
 							"server": map[string]interface{}{
-								"id":        s.ID,
-								"name":      s.Name,
-								"status":    s.Status,
-								"flavor":    s.Flavor,
-								"image":     s.Image,
-								"addresses": buildAddresses(s.Networks),
-								"project_id": s.Project,
+								"id":              s.ID,
+								"name":            s.Name,
+								"status":          s.Status,
+								"flavor":          s.Flavor,
+								"image":           s.Image,
+								"addresses":       buildAddresses(s.Networks),
+								"project_id":      s.Project,
+								"security_groups": []interface{}{},
+								"metadata":        map[string]string{},
+								"key_name":        nil,
+								"accessIPv4":      s.AccessIPv4,
 							},
 						})
 						if err != nil {
@@ -1277,14 +1420,21 @@ func NewFakeServer() *FakeServer {
 					if projectFilter != "" && s.Project != projectFilter {
 						continue
 					}
+					if nameRe != nil && !nameRe.MatchString(s.Name) {
+						continue
+					}
 					list = append(list, map[string]interface{}{
-						"id":        s.ID,
-						"name":      s.Name,
-						"status":    s.Status,
-						"flavor":    s.Flavor,
-						"image":     s.Image,
-						"addresses": buildAddresses(s.Networks),
-						"project_id": s.Project,
+						"id":               s.ID,
+						"name":             s.Name,
+						"status":           s.Status,
+						"flavor":           s.Flavor,
+						"image":            s.Image,
+						"addresses":        buildAddresses(s.Networks),
+						"project_id":       s.Project,
+						"security_groups": []interface{}{},
+						"metadata":         map[string]string{},
+						"key_name":         nil,
+						"accessIPv4":       s.AccessIPv4,
 					})
 				}
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"servers": list})
@@ -1303,20 +1453,36 @@ func NewFakeServer() *FakeServer {
 
 				var req struct {
 					Server struct {
-						Name     string              `json:"name"`
-						Flavor   string              `json:"flavor"`
-						Image    string              `json:"image"`
-						Networks []map[string]string `json:"networks"`
+						Name       string              `json:"name"`
+						Flavor     string              `json:"flavor"`
+						FlavorRef  string              `json:"flavorRef"`
+						Image      string              `json:"image"`
+						ImageRef   string              `json:"imageRef"`
+						Networks   []map[string]string `json:"networks"`
+						AccessIPv4 string              `json:"accessIPv4"`
 					} `json:"server"`
 				}
 				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 					http.Error(w, "invalid JSON body", http.StatusBadRequest)
 					return
 				}
-				log.Printf("DEBUG: POST server body - Name=%s, Flavor=%s, Image=%s", req.Server.Name, req.Server.Flavor, req.Server.Image)
+				
+				// Support both flavor and flavorRef
+				flavorParam := req.Server.Flavor
+				if flavorParam == "" {
+					flavorParam = req.Server.FlavorRef
+				}
+				
+				// Support both image and imageRef
+				imageParam := req.Server.Image
+				if imageParam == "" {
+					imageParam = req.Server.ImageRef
+				}
+				
+				log.Printf("DEBUG: POST server body - Name=%s, Flavor=%s, Image=%s", req.Server.Name, flavorParam, imageParam)
 
 				// Resolve flavor (by ID or name)
-				flavorRef := req.Server.Flavor
+				flavorRef := flavorParam
 				if flavorRef != "" {
 					for _, f := range flavors {
 						if fID, ok := f["id"].(string); ok && fID == flavorRef {
@@ -1332,18 +1498,39 @@ func NewFakeServer() *FakeServer {
 				}
 
 				// Resolve image (by ID or name)
-				imageRef := req.Server.Image
+				imageRef := imageParam
 				if imageRef != "" {
+					projectID := projectIDFromToken(r)
+					var matchedImage map[string]interface{}
+					// First try exact ID match
 					for _, img := range images {
 						if imgID, ok := img["id"].(string); ok && imgID == imageRef {
+							matchedImage = img
 							break
 						}
-						if imgName, ok := img["name"].(string); ok && imgName == imageRef {
-							if imgID, ok := img["id"].(string); ok {
-								imageRef = imgID
+					}
+					// Then try name match (prioritize project-owned over public)
+					if matchedImage == nil {
+						for _, img := range images {
+							if imgName, ok := img["name"].(string); ok && imgName == imageRef {
+								owner, _ := img["owner"].(string)
+								visibility, _ := img["visibility"].(string)
+								if owner == projectID || visibility == "public" {
+									if matchedImage == nil || owner == projectID {
+										matchedImage = img
+									}
+								}
 							}
-							break
 						}
+					}
+					if matchedImage != nil {
+						if imgID, ok := matchedImage["id"].(string); ok {
+							imageRef = imgID
+							log.Printf("DEBUG: Resolved image '%s' to ID '%s'", req.Server.Image, imageRef)
+						}
+					} else {
+						log.Printf("WARNING: Could not resolve image '%s' for server creation", req.Server.Image)
+						imageRef = req.Server.Image // Keep original if not found
 					}
 				}
 
@@ -1351,13 +1538,14 @@ func NewFakeServer() *FakeServer {
 				serverID++
 
 				s := &Server{
-					ID:       id,
-					Name:     req.Server.Name,
-					Status:   "ACTIVE",
-					Flavor:   map[string]string{"id": flavorRef},
-					Image:    map[string]string{"id": imageRef},
-					Networks: req.Server.Networks,
-					Project:  p[1],
+					ID:         id,
+					Name:       req.Server.Name,
+					Status:     "ACTIVE",
+					Flavor:     map[string]string{"id": flavorRef},
+					Image:      map[string]string{"id": imageRef},
+					Networks:   req.Server.Networks,
+					Project:    p[1],
+					AccessIPv4: req.Server.AccessIPv4,
 				}
 				servers[id] = s
 
@@ -1412,10 +1600,15 @@ func NewFakeServer() *FakeServer {
 			}
 		case "images":
 			if strings.HasSuffix(r.URL.Path, "/detail") {
+				projectID := projectIDFromToken(r)
 				list := []interface{}{}
 
 				for _, img := range images {
-					list = append(list, img)
+					visibility, _ := img["visibility"].(string)
+					owner, _ := img["owner"].(string)
+					if visibility == "public" || owner == projectID {
+						list = append(list, img)
+					}
 				}
 
 				err := json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1426,9 +1619,15 @@ func NewFakeServer() *FakeServer {
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 			} else {
+				projectID := projectIDFromToken(r)
 				list := []interface{}{}
 
 				for _, img := range images {
+					visibility, _ := img["visibility"].(string)
+					owner, _ := img["owner"].(string)
+					if visibility != "public" && owner != projectID {
+						continue
+					}
 					list = append(list, map[string]interface{}{
 						"id":   img["id"],
 						"name": img["name"],
@@ -1513,8 +1712,28 @@ func NewFakeServer() *FakeServer {
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodGet {
+			tokenProject := projectIDFromToken(r)
+			projectFilter := r.URL.Query().Get("project_id")
 			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"networks": networks,
+				"networks": func() []map[string]interface{} {
+					filtered := []map[string]interface{}{}
+					for _, n := range networks {
+						if projectFilter != "" {
+							if n["project_id"] == projectFilter {
+								filtered = append(filtered, n)
+							}
+							continue
+						}
+						if n["project_id"] == tokenProject {
+							filtered = append(filtered, n)
+							continue
+						}
+						if isShared, ok := n["is_shared"].(bool); ok && isShared {
+							filtered = append(filtered, n)
+						}
+					}
+					return filtered
+				}(),
 			})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
@@ -1547,6 +1766,9 @@ func NewFakeServer() *FakeServer {
 			if _, ok := network["revision_number"]; !ok {
 				network["revision_number"] = 1
 			}
+			if _, ok := network["project_id"]; !ok {
+				network["project_id"] = projectIDFromToken(r)
+			}
 			networks = append(networks, network)
 
 			w.WriteHeader(http.StatusCreated)
@@ -1567,9 +1789,16 @@ func NewFakeServer() *FakeServer {
 		id := r.URL.Path[len("/v2.0/networks/"):]
 		mu.Lock()
 		defer mu.Unlock()
+		projectID := projectIDFromToken(r)
 
 		for _, n := range networks {
 			if n["id"] == id {
+				if n["project_id"] != projectID {
+					if isShared, ok := n["is_shared"].(bool); !ok || !isShared {
+						http.NotFound(w, r)
+						return
+					}
+				}
 				err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"network": n,
 				})
@@ -1592,8 +1821,21 @@ func NewFakeServer() *FakeServer {
 
 		// GET /v2.0/subnets
 		if r.Method == http.MethodGet {
+			projectFilter := r.URL.Query().Get("project_id")
+			if projectFilter == "" {
+				projectFilter = projectIDFromToken(r)
+			}
 			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"subnets": subnets,
+				"subnets": func() []map[string]interface{} {
+					filtered := []map[string]interface{}{}
+					for _, s := range subnets {
+						if projectFilter != "" && s["project_id"] != projectFilter {
+							continue
+						}
+						filtered = append(filtered, s)
+					}
+					return filtered
+				}(),
 			})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
@@ -1686,6 +1928,11 @@ func NewFakeServer() *FakeServer {
 				subnet["router:external"] = false
 			}
 
+			// Project ID (required for module to fetch project info)
+			if _, ok := subnet["project_id"]; !ok {
+				subnet["project_id"] = projectIDFromToken(r)
+			}
+
 			subnets = append(subnets, subnet)
 
 			w.WriteHeader(http.StatusCreated)
@@ -1702,14 +1949,55 @@ func NewFakeServer() *FakeServer {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 
+	// GET /v2.0/subnets/{id}
+	mux.HandleFunc("/v2.0/subnets/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		id := r.URL.Path[len("/v2.0/subnets/"):]
+		mu.Lock()
+		defer mu.Unlock()
+		projectID := projectIDFromToken(r)
+
+		for _, s := range subnets {
+			if s["id"] == id {
+				if s["project_id"] != projectID {
+					http.NotFound(w, r)
+					return
+				}
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
+					"subnet": s,
+				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+				return
+			}
+		}
+
+		http.NotFound(w, r)
+	})
+
 	// GET and POST /v2.0/ports
 	mux.HandleFunc("/v2.0/ports", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodGet {
+			projectFilter := r.URL.Query().Get("project_id")
+			if projectFilter == "" {
+				projectFilter = projectIDFromToken(r)
+			}
 			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"ports": ports,
+				"ports": func() []map[string]interface{} {
+					filtered := []map[string]interface{}{}
+					for _, p := range ports {
+						if projectFilter != "" && p["project_id"] != projectFilter {
+							continue
+						}
+						filtered = append(filtered, p)
+					}
+					return filtered
+				}(),
 			})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
@@ -1731,6 +2019,12 @@ func NewFakeServer() *FakeServer {
 			port["status"] = "ACTIVE"
 			if _, ok := port["binding:vif_type"]; !ok {
 				port["binding:vif_type"] = "hw_veb"
+			}
+			if _, ok := port["device_owner"]; !ok {
+				port["device_owner"] = ""
+			}
+			if _, ok := port["project_id"]; !ok {
+				port["project_id"] = projectIDFromToken(r)
 			}
 
 			if vnic, ok := port["binding:vnic_type"]; ok && vnic == "direct" {
@@ -1755,12 +2049,56 @@ func NewFakeServer() *FakeServer {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 
+	// GET /v2.0/ports/{id}
+	mux.HandleFunc("/v2.0/ports/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		id := r.URL.Path[len("/v2.0/ports/"):]
+		mu.Lock()
+		defer mu.Unlock()
+		projectID := projectIDFromToken(r)
+
+		for _, p := range ports {
+			if p["id"] == id {
+				if p["project_id"] != projectID {
+					http.NotFound(w, r)
+					return
+				}
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
+					"port": p,
+				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+				return
+			}
+		}
+
+		http.NotFound(w, r)
+	})
+
 	mux.HandleFunc("/v2.0/security-groups", func(w http.ResponseWriter, r *http.Request) {
 		err := json.NewEncoder(w).Encode(map[string]interface{}{"security_groups": neutronSecGroups})
 		if err != nil {
 			log.Printf("Error encoding JSON response: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
+	})
+
+	// GET /v2.0/floatingips
+	mux.HandleFunc("/v2.0/floatingips", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"floatingips": []interface{}{},
+			})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 
 	/* ============================
@@ -1844,7 +2182,42 @@ func NewFakeServer() *FakeServer {
 
 	mux.HandleFunc("/v2/images", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			err := json.NewEncoder(w).Encode(map[string]interface{}{"images": images})
+			projectID := projectIDFromToken(r)
+			nameFilter := r.URL.Query().Get("name")
+			ownerFilter := r.URL.Query().Get("owner")
+			projectImages := []map[string]interface{}{}
+			publicImages := []map[string]interface{}{}
+			for _, img := range images {
+				visibility, _ := img["visibility"].(string)
+				owner, _ := img["owner"].(string)
+				if nameFilter != "" {
+					if n, ok := img["name"].(string); !ok || n != nameFilter {
+						continue
+					}
+				}
+				if ownerFilter != "" && owner != ownerFilter {
+					continue
+				}
+				if owner == projectID {
+					projectImages = append(projectImages, img)
+				} else if visibility == "public" {
+					publicImages = append(publicImages, img)
+				}
+			}
+			visible := []map[string]interface{}{}
+			seenNames := make(map[string]bool)
+			for _, img := range projectImages {
+				name, _ := img["name"].(string)
+				seenNames[name] = true
+				visible = append(visible, img)
+			}
+			for _, img := range publicImages {
+				name, _ := img["name"].(string)
+				if !seenNames[name] {
+					visible = append(visible, img)
+				}
+			}
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"images": visible})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -1860,6 +2233,12 @@ func NewFakeServer() *FakeServer {
 			}
 			img["id"] = fmt.Sprintf("img-%d", len(images)+1)
 			img["status"] = "active"
+			if _, ok := img["owner"]; !ok {
+				img["owner"] = projectIDFromToken(r)
+			}
+			if _, ok := img["visibility"]; !ok {
+				img["visibility"] = "private"
+			}
 			images = append(images, img)
 			w.WriteHeader(http.StatusCreated)
 			err := json.NewEncoder(w).Encode(img)
@@ -1869,6 +2248,34 @@ func NewFakeServer() *FakeServer {
 			}
 			return
 		}
+	})
+
+	// GET /v2/images/{id}
+	mux.HandleFunc("/v2/images/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		id := r.URL.Path[len("/v2/images/"):]
+		projectID := projectIDFromToken(r)
+		
+		for _, img := range images {
+			if imgID, ok := img["id"].(string); ok && imgID == id {
+				visibility, _ := img["visibility"].(string)
+				owner, _ := img["owner"].(string)
+				if visibility == "public" || owner == projectID {
+					err := json.NewEncoder(w).Encode(img)
+					if err != nil {
+						log.Printf("Error encoding JSON response: %v", err)
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
+					return
+				}
+				http.NotFound(w, r)
+				return
+			}
+		}
+		http.NotFound(w, r)
 	})
 
 	log.Println("Fake OpenStack API listening on :5000")
