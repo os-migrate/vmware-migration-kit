@@ -25,10 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.0'
-
-      - name: Prepare Go modules
-        run: go mod tidy
+          go-version: '1.25.0'
 
       - name: Run ansible-test
         run: |
@@ -58,10 +55,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.0'
-
-      - name: Prepare Go modules
-        run: go mod tidy
+          go-version: '1.25.0'
 
       - name: Run ansible-test
         shell: bash
