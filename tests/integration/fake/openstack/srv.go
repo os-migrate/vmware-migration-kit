@@ -136,10 +136,11 @@ type Volume struct {
 	Size        int                      `json:"size"`
 	Status      string                   `json:"status"`
 	Attachments []map[string]interface{} `json:"attachments"`
+	Metadata    map[string]string        `json:"metadata"`
 }
 
 var volumes = map[string]*Volume{
-	"vol-1": {ID: "vol-1", Name: "volume-1", Size: 10, Status: "available", Attachments: []map[string]interface{}{}},
+	"vol-1": {ID: "vol-1", Name: "volume-1", Size: 10, Status: "available", Attachments: []map[string]interface{}{}, Metadata: map[string]string{}},
 }
 var volumeID = 1
 
@@ -1077,11 +1078,21 @@ func NewFakeServer() *FakeServer {
 
 		case "flavors":
 			if len(p) == 3 {
-				if r.Method != http.MethodGet {
+				if r.Method == http.MethodGet {
+					// Extract query parameters
+					nameFilter := r.URL.Query().Get("name")
+
+					mu.Lock()
 					list := []interface{}{}
 					for _, f := range flavors {
+						// Filter by name if provided
+						if nameFilter != "" && f["name"] != nameFilter {
+							continue
+						}
 						list = append(list, f)
 					}
+					mu.Unlock()
+
 					w.Header().Set("Content-Type", "application/json")
 					err := json.NewEncoder(w).Encode(map[string]interface{}{
 						"flavors": list,
@@ -1092,6 +1103,7 @@ func NewFakeServer() *FakeServer {
 					}
 					return
 				}
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
 			if len(p) == 4 && p[3] == "detail" {
@@ -1207,9 +1219,9 @@ func NewFakeServer() *FakeServer {
 							}
 							resp := map[string]interface{}{
 								"interfaceAttachment": map[string]interface{}{
-									"port_id": req.InterfaceAttachment.PortID,
+									"port_id":   req.InterfaceAttachment.PortID,
 									"server_id": serverID,
-							},
+								},
 							}
 							w.WriteHeader(http.StatusOK)
 							err := json.NewEncoder(w).Encode(resp)
@@ -1242,6 +1254,67 @@ func NewFakeServer() *FakeServer {
 					return
 				}
 			}
+			// DELETE /v2.1/{project}/servers/{id}/os-volume_attachments/{attachment-id}
+			if r.Method == http.MethodDelete && len(p) >= 6 && p[4] == "os-volume_attachments" {
+				// URL pattern: /v2.1/demo/servers/{server-id}/os-volume_attachments/{attachment-id}
+				// p = ["", "v2.1", "demo", "servers", "{server-id}", "os-volume_attachments", "{attachment-id}"]
+				if len(p) < 6 {
+					http.Error(w, "missing attachment id", http.StatusBadRequest)
+					return
+				}
+
+				attachmentID := p[5] // Extract attachment ID from URL
+				serverID := p[3]     // Extract server ID from URL
+
+				// Attachment ID format is "attach-{volume-id}"
+				// Extract volume ID from attachment ID
+				volumeID := strings.TrimPrefix(attachmentID, "attach-")
+				if volumeID == attachmentID {
+					// No "attach-" prefix found, invalid attachment ID
+					http.NotFound(w, r)
+					return
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				// Find the volume
+				vol, ok := volumes[volumeID]
+				if !ok {
+					http.NotFound(w, r)
+					return
+				}
+
+				// Remove attachment for this server
+				newAttachments := []map[string]interface{}{}
+				found := false
+				for _, attachment := range vol.Attachments {
+					if attachment["server_id"] == serverID {
+						found = true
+						// Skip this attachment (don't add to newAttachments)
+						log.Printf("Detaching volume %s from server %s", volumeID, serverID)
+						continue
+					}
+					newAttachments = append(newAttachments, attachment)
+				}
+
+				if !found {
+					// Attachment doesn't exist
+					http.NotFound(w, r)
+					return
+				}
+
+				vol.Attachments = newAttachments
+
+				// If no more attachments, set volume back to available
+				if len(vol.Attachments) == 0 {
+					vol.Status = "available"
+					log.Printf("Volume %s set to available (no attachments)", volumeID)
+				}
+
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			if strings.HasSuffix(r.URL.Path, "/os-volume_attachments") {
 				serverID := p[len(p)-2]
 				// POST attach volume
@@ -1256,15 +1329,47 @@ func NewFakeServer() *FakeServer {
 						return
 					}
 
-					// Update volume state
-					if v, ok := volumes[req.VolumeAttachment.VolumeID]; ok {
-						v.Status = "in-use"
-						v.Attachments = append(v.Attachments, map[string]interface{}{
-							"server_id": serverID,
-							"device":    "/dev/vdb",
-						})
+					// VALIDATION: Check if server exists
+					mu.Lock()
+					_, serverExists := servers[serverID]
+					mu.Unlock()
+					if !serverExists {
+						http.Error(w, "Server not found", http.StatusNotFound)
+						return
 					}
 
+					// VALIDATION: Check if volume exists
+					mu.Lock()
+					v, volumeExists := volumes[req.VolumeAttachment.VolumeID]
+					mu.Unlock()
+					if !volumeExists {
+						http.Error(w, "Volume not found", http.StatusNotFound)
+						return
+					}
+
+					// VALIDATION: Check if volume is available
+					if v.Status != "available" {
+						http.Error(w, fmt.Sprintf("Volume must be available (current: %s)", v.Status), http.StatusBadRequest)
+						return
+					}
+
+					// VALIDATION: Check if volume is already attached to this server
+					for _, attachment := range v.Attachments {
+						if attachment["server_id"] == serverID {
+							http.Error(w, "Volume already attached to this server", http.StatusConflict)
+							return
+						}
+					}
+
+					// Update volume state (existing code)
+					mu.Lock()
+					v.Status = "in-use"
+					v.Attachments = append(v.Attachments, map[string]interface{}{
+						"server_id": serverID,
+						"device":    "/dev/vdb",
+					})
+					mu.Unlock()
+					// Build and send response
 					resp := map[string]interface{}{
 						"volumeAttachment": map[string]interface{}{
 							"id":       "attach-" + req.VolumeAttachment.VolumeID,
@@ -1282,7 +1387,6 @@ func NewFakeServer() *FakeServer {
 					}
 					return
 				}
-
 				// GET attachments
 				if r.Method == http.MethodGet {
 					list := []interface{}{}
@@ -1358,10 +1462,9 @@ func NewFakeServer() *FakeServer {
 				}
 				return
 			}
-
 			// Match /v2.1/{id}/servers or /v2.1/{id}/servers/{server_id}
-			log.Printf("%s %s", r.Method, r.URL.String())
-			if r.Method == http.MethodGet {
+			if len(p) == 4 && r.Method == http.MethodGet {
+				serverID := p[3]
 				projectFilter := r.URL.Query().Get("project_id")
 				tokenProject := projectIDFromToken(r)
 				if tokenProject != "" {
@@ -1379,48 +1482,125 @@ func NewFakeServer() *FakeServer {
 						return
 					}
 				}
-				if len(p) == 4 {
-					serverID := p[3]
-					if s, ok := servers[serverID]; ok {
-						if projectFilter != "" && s.Project != projectFilter {
-							http.NotFound(w, r)
-							return
-						}
-						if nameRe != nil && !nameRe.MatchString(s.Name) {
-							http.NotFound(w, r)
-							return
-						}
-						w.Header().Set("Content-Type", "application/json")
-						err := json.NewEncoder(w).Encode(map[string]interface{}{
-							"server": map[string]interface{}{
-								"id":              s.ID,
-								"name":            s.Name,
-								"status":          s.Status,
-								"flavor":          s.Flavor,
-								"image":           s.Image,
-								"addresses":       buildAddresses(s.Networks),
-								"project_id":      s.Project,
-								"security_groups": []interface{}{},
-								"metadata":        map[string]string{},
-								"key_name":        nil,
-								"accessIPv4":      s.AccessIPv4,
-							},
-						})
-						if err != nil {
-							log.Printf("Error encoding JSON response: %v", err)
-							http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-						}
-						return
-					}
+
+				mu.Lock()
+				s, ok := servers[serverID]
+				mu.Unlock()
+
+				if !ok {
 					http.NotFound(w, r)
 					return
 				}
+
+				if projectFilter != "" && s.Project != projectFilter {
+					http.NotFound(w, r)
+					return
+				}
+				if nameRe != nil && !nameRe.MatchString(s.Name) {
+					http.NotFound(w, r)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				err := json.NewEncoder(w).Encode(map[string]interface{}{
+					"server": map[string]interface{}{
+						"id":               s.ID,
+						"name":             s.Name,
+						"status":           s.Status,
+						"flavor":           s.Flavor,
+						"image":            s.Image,
+						"addresses":        buildAddresses(s.Networks),
+						"project_id":       s.Project,
+						"security_groups": []interface{}{},
+						"metadata":         map[string]string{},
+						"key_name":         nil,
+						"accessIPv4":       s.AccessIPv4,
+					},
+				})
+				if err != nil {
+					log.Printf("Error encoding JSON response: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+				return
+			}
+
+			// DELETE /v2.1/{project}/servers/{id}
+			if len(p) == 4 && r.Method == http.MethodDelete {
+				serverID := p[3]
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				// Check if server exists
+				_, ok := servers[serverID]
+				if !ok {
+					http.NotFound(w, r)
+					return
+				}
+
+				log.Printf("Deleting server %s", serverID)
+
+				// Auto-detach all volumes attached to this server
+				for volID, vol := range volumes {
+					newAttachments := []map[string]interface{}{}
+					detachedAny := false
+					for _, attachment := range vol.Attachments {
+						if attachment["server_id"] == serverID {
+							detachedAny = true
+							log.Printf("Auto-detaching volume %s from server %s", volID, serverID)
+							continue
+						}
+						newAttachments = append(newAttachments, attachment)
+					}
+					if detachedAny {
+						vol.Attachments = newAttachments
+						if len(vol.Attachments) == 0 {
+							vol.Status = "available"
+							log.Printf("Volume %s set to available (server deleted)", volID)
+						}
+					}
+				}
+
+				// Auto-detach all ports attached to this server
+				for _, port := range ports {
+					if port["device_id"] == serverID {
+						log.Printf("Auto-detaching port %s from server %s", port["id"], serverID)
+						port["device_id"] = nil
+						port["device_owner"] = nil
+						port["status"] = "DOWN"
+					}
+				}
+
+				// Delete the server
+				delete(servers, serverID)
+				log.Printf("Server %s deleted", serverID)
+
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			// Match /v2.1/{id}/servers (list)
+			if len(p) == 3 && r.Method == http.MethodGet {
+				projectFilter := r.URL.Query().Get("project_id")
+				tokenProject := projectIDFromToken(r)
+				if tokenProject != "" {
+					projectFilter = tokenProject
+				} else if projectFilter == "" {
+					projectFilter = p[1]
+				}
+				nameFilter := r.URL.Query().Get("name")
+				statusFilter := r.URL.Query().Get("status")
+
+				mu.Lock()
 				list := []interface{}{}
 				for _, s := range servers {
 					if projectFilter != "" && s.Project != projectFilter {
 						continue
 					}
-					if nameRe != nil && !nameRe.MatchString(s.Name) {
+					if nameFilter != "" && s.Name != nameFilter {
+						continue
+					}
+					if statusFilter != "" && s.Status != statusFilter {
 						continue
 					}
 					list = append(list, map[string]interface{}{
@@ -1437,6 +1617,8 @@ func NewFakeServer() *FakeServer {
 						"accessIPv4":       s.AccessIPv4,
 					})
 				}
+				mu.Unlock()
+
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"servers": list})
 				if err != nil {
 					log.Printf("Error encoding JSON response: %v", err)
@@ -1540,16 +1722,29 @@ func NewFakeServer() *FakeServer {
 				s := &Server{
 					ID:         id,
 					Name:       req.Server.Name,
-					Status:     "ACTIVE",
+					Status:     "BUILD",
 					Flavor:     map[string]string{"id": flavorRef},
 					Image:      map[string]string{"id": imageRef},
 					Networks:   req.Server.Networks,
 					Project:    p[1],
 					AccessIPv4: req.Server.AccessIPv4,
 				}
+				mu.Lock()
 				servers[id] = s
+				mu.Unlock()
+
+				go func(srvID string) {
+					time.Sleep(5 * time.Second)
+					mu.Lock()
+					defer mu.Unlock()
+					if srv, ok := servers[srvID]; ok {
+						srv.Status = "ACTIVE"
+						log.Printf("Server %s transitioned to ACTIVE", srvID)
+					}
+				}(id)
 
 				// Attach ports referenced in networks
+				mu.Lock()
 				for _, net := range req.Server.Networks {
 					portID := ""
 					if v, ok := net["port"]; ok {
@@ -1571,6 +1766,7 @@ func NewFakeServer() *FakeServer {
 						}
 					}
 				}
+				mu.Unlock()
 
 				w.WriteHeader(http.StatusAccepted)
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"server": s})
@@ -1581,23 +1777,6 @@ func NewFakeServer() *FakeServer {
 				return
 			}
 
-			if r.Method == http.MethodDelete && len(p) == 4 {
-				serverID := p[3]
-				if _, ok := servers[serverID]; !ok {
-					http.NotFound(w, r)
-					return
-				}
-				delete(servers, serverID)
-				for _, p := range ports {
-					if p["device_id"] == serverID {
-						p["device_id"] = nil
-						p["device_owner"] = nil
-						p["status"] = "DOWN"
-					}
-				}
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
 		case "images":
 			if strings.HasSuffix(r.URL.Path, "/detail") {
 				projectID := projectIDFromToken(r)
@@ -1714,27 +1893,62 @@ func NewFakeServer() *FakeServer {
 		if r.Method == http.MethodGet {
 			tokenProject := projectIDFromToken(r)
 			projectFilter := r.URL.Query().Get("project_id")
-			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"networks": func() []map[string]interface{} {
-					filtered := []map[string]interface{}{}
-					for _, n := range networks {
-						if projectFilter != "" {
-							if n["project_id"] == projectFilter {
-								filtered = append(filtered, n)
+			nameFilter := r.URL.Query().Get("name")
+			statusFilter := r.URL.Query().Get("status")
+
+			filtered := []map[string]interface{}{}
+			for _, n := range networks {
+				// Project filtering (multi-tenant requirement)
+				if projectFilter != "" {
+					if n["project_id"] == projectFilter {
+						// Apply name/status filters
+						if nameFilter != "" {
+							if netName, ok := n["name"].(string); !ok || netName != nameFilter {
+								continue
 							}
-							continue
 						}
-						if n["project_id"] == tokenProject {
-							filtered = append(filtered, n)
-							continue
+						if statusFilter != "" {
+							if netStatus, ok := n["status"].(string); !ok || netStatus != statusFilter {
+								continue
+							}
 						}
-						if isShared, ok := n["is_shared"].(bool); ok && isShared {
-							filtered = append(filtered, n)
+						filtered = append(filtered, n)
+					}
+					continue
+				}
+				if n["project_id"] == tokenProject {
+					// Filter by name if provided
+					if nameFilter != "" {
+						if netName, ok := n["name"].(string); !ok || netName != nameFilter {
+							continue
 						}
 					}
-					return filtered
-				}(),
-			})
+					// Filter by status if provided
+					if statusFilter != "" {
+						if netStatus, ok := n["status"].(string); !ok || netStatus != statusFilter {
+							continue
+						}
+					}
+					filtered = append(filtered, n)
+					continue
+				}
+				// Check shared networks with name/status filters
+				if isShared, ok := n["is_shared"].(bool); ok && isShared {
+					if nameFilter != "" {
+						if netName, ok := n["name"].(string); !ok || netName != nameFilter {
+							continue
+						}
+					}
+					if statusFilter != "" {
+						if netStatus, ok := n["status"].(string); !ok || netStatus != statusFilter {
+							continue
+						}
+					}
+					filtered = append(filtered, n)
+				}
+			}
+
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"networks": filtered})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -1983,22 +2197,52 @@ func NewFakeServer() *FakeServer {
 		mu.Lock()
 		defer mu.Unlock()
 		if r.Method == http.MethodGet {
+			// Extract query parameters
 			projectFilter := r.URL.Query().Get("project_id")
 			if projectFilter == "" {
 				projectFilter = projectIDFromToken(r)
 			}
-			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"ports": func() []map[string]interface{} {
-					filtered := []map[string]interface{}{}
-					for _, p := range ports {
-						if projectFilter != "" && p["project_id"] != projectFilter {
+			deviceIDFilter := r.URL.Query().Get("device_id")
+			networkIDFilter := r.URL.Query().Get("network_id")
+			statusFilter := r.URL.Query().Get("status")
+
+			filtered := []map[string]interface{}{}
+			for _, p := range ports {
+				// Project filtering (multi-tenant requirement)
+				if projectFilter != "" && p["project_id"] != projectFilter {
+					continue
+				}
+
+				// Filter by device_id if provided
+				if deviceIDFilter != "" {
+					if portDeviceID, ok := p["device_id"].(string); ok {
+						if portDeviceID != deviceIDFilter {
 							continue
 						}
-						filtered = append(filtered, p)
+					} else if deviceIDFilter != "" {
+						// device_id is nil but filter is set
+						continue
 					}
-					return filtered
-				}(),
-			})
+				}
+
+				// Filter by network_id if provided
+				if networkIDFilter != "" {
+					if portNetID, ok := p["network_id"].(string); !ok || portNetID != networkIDFilter {
+						continue
+					}
+				}
+
+				// Filter by status if provided
+				if statusFilter != "" {
+					if portStatus, ok := p["status"].(string); !ok || portStatus != statusFilter {
+						continue
+					}
+				}
+
+				filtered = append(filtered, p)
+			}
+
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"ports": filtered})
 			if err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -2125,12 +2369,172 @@ func NewFakeServer() *FakeServer {
 			}
 			return
 		}
+		// GET /v3/{project}/volumes/{id}
+		if len(p) == 4 && p[2] == "volumes" && r.Method == http.MethodGet {
+			volumeID := p[3]
+
+			mu.Lock()
+			vol, ok := volumes[volumeID]
+			mu.Unlock()
+
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewEncoder(w).Encode(map[string]interface{}{"volume": vol})
+			if err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+		// POST /v3/{project}/volumes/{id}/action
+		if len(p) == 5 && p[2] == "volumes" && p[4] == "action" && r.Method == http.MethodPost {
+			volumeID := p[3]
+
+			mu.Lock()
+			vol, ok := volumes[volumeID]
+			mu.Unlock()
+
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			// Parse the action body
+			var actionBody map[string]interface{}
+			if err := json.NewDecoder(r.Body).Decode(&actionBody); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
+
+			// Handle os-set_bootable action
+			if bootableData, ok := actionBody["os-set_bootable"]; ok {
+				if bootableMap, ok := bootableData.(map[string]interface{}); ok {
+					if bootable, ok := bootableMap["bootable"].(bool); ok {
+						mu.Lock()
+						if vol.Metadata == nil {
+							vol.Metadata = make(map[string]string)
+						}
+						vol.Metadata["bootable"] = fmt.Sprintf("%t", bootable)
+						mu.Unlock()
+						log.Printf("Set volume %s bootable=%t", volumeID, bootable)
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			// Handle os-set_image_metadata action (for UEFI firmware, etc.)
+			if imageMetadata, ok := actionBody["os-set_image_metadata"]; ok {
+				if metadataMap, ok := imageMetadata.(map[string]interface{}); ok {
+					if metadata, ok := metadataMap["metadata"].(map[string]interface{}); ok {
+						mu.Lock()
+						if vol.Metadata == nil {
+							vol.Metadata = make(map[string]string)
+						}
+						// Store image metadata (hw_firmware_type, hw_machine_type, etc.)
+						for k, v := range metadata {
+							if strVal, ok := v.(string); ok {
+								vol.Metadata[k] = strVal
+							}
+						}
+						mu.Unlock()
+						log.Printf("Set volume %s image metadata: %v", volumeID, metadata)
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			// Unknown action
+			http.Error(w, "Unsupported action", http.StatusBadRequest)
+			return
+		}
+		// DELETE /v3/{project}/volumes/{id}
+		if len(p) == 4 && p[2] == "volumes" && r.Method == http.MethodDelete {
+			volumeID := p[3]
+
+			mu.Lock()
+			vol, ok := volumes[volumeID]
+			mu.Unlock()
+
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			// Check if volume is attached (can't delete attached volumes in real OpenStack)
+			if len(vol.Attachments) > 0 {
+				http.Error(w, "Volume is attached to a server", http.StatusBadRequest)
+				return
+			}
+
+			// Check if volume is not in "available" or "error" state
+			if vol.Status != "available" && vol.Status != "error" {
+				http.Error(w, "Volume must be available or error to delete", http.StatusBadRequest)
+				return
+			}
+
+			mu.Lock()
+			delete(volumes, volumeID)
+			mu.Unlock()
+
+			log.Printf("Deleted volume %s", volumeID)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if len(p) == 3 && p[2] == "volumes" {
 			if r.Method == http.MethodGet {
+				// Extract query parameters
+				q := r.URL.Query()
+				nameFilter := q.Get("name")
+				statusFilter := q.Get("status")
+
+				// Parse metadata filters (e.g., ?metadata[osm]=true)
+				metadataFilters := make(map[string]string)
+				for key, values := range q {
+					if strings.HasPrefix(key, "metadata[") && strings.HasSuffix(key, "]") {
+						// Extract "osm" from "metadata[osm]"
+						metaKey := key[9 : len(key)-1]
+						if len(values) > 0 {
+							metadataFilters[metaKey] = values[0]
+						}
+					}
+				}
+
+				mu.Lock()
 				list := []interface{}{}
 				for _, v := range volumes {
+					// Filter by name if provided
+					if nameFilter != "" && v.Name != nameFilter {
+						continue // Skip this volume
+					}
+
+					// Filter by status if provided
+					if statusFilter != "" && v.Status != statusFilter {
+						continue
+					}
+
+					// Filter by metadata - ALL requested metadata keys must match
+					matchesMeta := true
+					for metaKey, metaValue := range metadataFilters {
+						if v.Metadata[metaKey] != metaValue {
+							matchesMeta = false
+							break
+						}
+					}
+					if !matchesMeta {
+						continue
+					}
+
 					list = append(list, v)
 				}
+				mu.Unlock()
+
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"volumes": list})
 				if err != nil {
 					log.Printf("Error encoding JSON response: %v", err)
@@ -2138,12 +2542,12 @@ func NewFakeServer() *FakeServer {
 				}
 				return
 			}
-
 			if r.Method == http.MethodPost {
 				var req struct {
 					Volume struct {
-						Name string `json:"name"`
-						Size int    `json:"size"`
+						Name     string            `json:"name"`
+						Size     int               `json:"size"`
+						Metadata map[string]string `json:"metadata"` // ← Metadata support
 					} `json:"volume"`
 				}
 				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2158,10 +2562,30 @@ func NewFakeServer() *FakeServer {
 					ID:          id,
 					Name:        req.Volume.Name,
 					Size:        req.Volume.Size,
-					Status:      "available",
+					Status:      "creating", // ← Start in creating status
 					Attachments: []map[string]interface{}{},
+					Metadata:    req.Volume.Metadata, // ← Store metadata
 				}
+
+				// Initialize empty metadata if nil
+				if v.Metadata == nil {
+					v.Metadata = map[string]string{}
+				}
+
+				mu.Lock()
 				volumes[id] = v
+				mu.Unlock()
+
+				// Simulate async volume creation
+				go func(volID string) {
+					time.Sleep(2 * time.Second)
+					mu.Lock()
+					defer mu.Unlock()
+					if vol, ok := volumes[volID]; ok {
+						vol.Status = "available"
+						log.Printf("Volume %s transitioned to available", volID)
+					}
+				}(id)
 
 				w.WriteHeader(http.StatusAccepted)
 				err := json.NewEncoder(w).Encode(map[string]interface{}{"volume": v})
@@ -2169,6 +2593,10 @@ func NewFakeServer() *FakeServer {
 					log.Printf("Error encoding JSON response: %v", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
+				return
+			}
+			if r.Method == http.MethodDelete {
+				http.Error(w, "DELETE volumes list not supported", http.StatusMethodNotAllowed)
 				return
 			}
 			http.Error(w, "Method not Implemented", http.StatusNotImplemented)
