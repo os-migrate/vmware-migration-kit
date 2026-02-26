@@ -27,3 +27,4 @@
       vars:
         flavor_name_or_uuid: "{{ data.openstack.flavor_name_or_uuid }}"
         vm_name: "{{ data.vm_name }}"
+        vm_dest_name: "{{ data.vm_dest_name | default('') }}"

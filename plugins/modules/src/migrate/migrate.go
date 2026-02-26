@@ -69,6 +69,9 @@ type MigrationConfig struct {
 	Server             string
 	Libdir             string
 	VmName             string
+	// DestName is the optional destination name used for Cinder volume naming.
+	// If empty, SafeVmName(VmName) is used instead (default behaviour).
+	DestName           string
 	VolumeAz           string
 	VolumeType         string
 	AssumeZero         bool
@@ -104,6 +107,10 @@ type ModuleArgs struct {
 	Server         string
 	Libdir         string
 	VmName         string
+	// DestName is the optional destination name used for Cinder volume naming.
+	// When provided, it replaces SafeVmName(VmName) for resource naming while
+	// VmName continues to be used to locate the VM in vCenter.
+	DestName          string `json:"destname"`
 	VolumeAz       string
 	VolumeType     string
 	VolumeTypeMapping []VolumeTypeMapping `json:"volume_type_mapping"`
@@ -127,6 +134,16 @@ type ModuleArgs struct {
 	ExtraOpts      string
 }
 
+// resourceName returns the name to use when creating OpenStack resources
+// (Cinder volumes). If DestName is set it is used as-is; otherwise the
+// VMware VM name is sanitised with SafeVmName.
+func (c *MigrationConfig) resourceName(vmName string) string {
+	if c.DestName != "" {
+		return c.DestName
+	}
+	return moduleutils.SafeVmName(vmName)
+}
+
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
 	syncVol := false
 	ctx, cancel := context.WithCancel(context.Background())
@@ -144,7 +161,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		return "", err
 	}
 	diskNameStr := strconv.Itoa(int(c.NbdkitConfig.VddkConfig.DiskKey))
-	volume, err := osm_os.GetVolumeID(c.OSClient, vmName, diskNameStr)
+	volume, err := osm_os.GetVolumeID(c.OSClient, c.resourceName(vmName), diskNameStr)
 	if err != nil {
 		logger.Log.Infof("Failed to get volume: %v", err)
 		return "", err
@@ -223,7 +240,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		// 	volumeMetadata["hw_scsi_model"] = "virtio-scsi"
 		// }
 		volOpts := osm_os.VolOpts{
-			Name:             vmName + "-" + diskNameStr,
+			Name:             c.resourceName(vmName) + "-" + diskNameStr,
 			Size:             int(diskSize[diskNameStr] / 1024 / 1024),
 			VolumeType:       c.VolumeType,
 			AvailabilityZone: c.VolumeAz,
@@ -418,6 +435,7 @@ func main() {
 	password := ansible.RequireField(moduleArgs.Password, "Password is required")
 	server := ansible.RequireField(moduleArgs.Server, "Server is required")
 	vmname := ansible.RequireField(moduleArgs.VmName, "VM name is required")
+	destname := moduleArgs.DestName
 	libdir := ansible.DefaultIfEmpty(moduleArgs.Libdir, "/usr/lib/vmware-vix-disklib")
 	vddkpath := ansible.DefaultIfEmpty(moduleArgs.VddkPath, "/ha-datacenter/vm/")
 	osmdatadir := ansible.DefaultIfEmpty(moduleArgs.OSMDataDir, "/tmp/")
@@ -447,8 +465,13 @@ func main() {
 		response.Msg = "Failed to generate random string"
 		ansible.FailJson(response)
 	}
+	// Use destname for the log file name if provided, otherwise use the sanitised VM name
 	safeVmName := moduleutils.SafeVmName(vmname)
-	LogFile := "/tmp/osm-nbdkit-" + safeVmName + "-" + r + ".log"
+	logBaseName := safeVmName
+	if destname != "" {
+		logBaseName = destname
+	}
+	LogFile := "/tmp/osm-nbdkit-" + logBaseName + "-" + r + ".log"
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -536,6 +559,7 @@ func main() {
 				HostPool:   hostPool,
 			},
 			ManageExtVol:  externalVolume,
+			DestName:      destname,
 			OSMDataDir:    osmdatadir,
 			OSClient:      provider,
 			CBTSync:       cbtsync,

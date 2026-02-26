@@ -31,6 +31,9 @@ type ModuleArgs struct {
 	Cloud                 osm_os.DstCloud `json:"cloud"`
 	OsMigrateNicsFilePath string          `json:"os_migrate_nics_file_path"`
 	VmName                string          `json:"vm_name"`
+	// DestName is an optional override for port naming.
+	// When provided it is used instead of SafeVmName(VmName).
+	DestName              string          `json:"destname"`
 	UsedMappedNetworks    bool            `json:"used_mapped_networks"`
 	SecurityGroups        []string        `json:"security_groups"`
 	NetworkName           string          `json:"network_name"`
@@ -181,7 +184,11 @@ func main() {
 				}
 			}
 		}
-		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleArgs.VmName, nicIndex, nic.Vlan)
+		portBaseName := moduleArgs.VmName
+		if moduleArgs.DestName != "" {
+			portBaseName = moduleArgs.DestName
+		}
+		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", portBaseName, nicIndex, nic.Vlan)
 		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, nic.Subnet,
 			moduleArgs.SecurityGroups, nic.FixedIPs)
 		if err != nil {
