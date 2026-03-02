@@ -65,6 +65,7 @@
     password: "{{ vcenter_password }}"
     server: "{{ vcenter_hostname }}"
     vmname: "{{ vm_name }}"
+    destname: "{{ vm_dest_name | default('') }}"
     volumeaz: "{{ import_workloads_cinder_az | default(omit) }}"
     volumetype: "{{ import_workloads_cinder_volume_type | default(omit) }}"
     assumezero: "{{ import_workloads_nbdkit_assume_zero | bool }}"

@@ -15,14 +15,14 @@
 - name: Get volume information for virt-v2v
   os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
-    name: "{{ vm_name }}-sda"
+    name: "{{ vm_dest_name | default(vm_name) }}-sda"
   register: volume_result
   when: import_workloads_os_migrate_virt_v2v
 
 - name: Get volume information for Cinder boot
   os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
-    name: "{{ vm_name }}"
+    name: "{{ vm_dest_name | default(vm_name) }}"
   register: cinder_volume_result
   when: import_workloads_boot_from_cinder
 
@@ -71,6 +71,7 @@
         cloud: "{{ dst_cloud }}"
         state: "present"
         name: "{{ vm_name }}"
+        destname: "{{ vm_dest_name | default('') }}"
         nics: "{{ nics }}"
         volumes: "{{ volumes_list }}"
         boot_volume: "{{ boot_volume_uuid }}"

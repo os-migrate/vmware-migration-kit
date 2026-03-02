@@ -62,6 +62,10 @@ type ModuleArgs struct {
 	Cloud            osm_os.DstCloud `json:"cloud"`
 	State            string          `json:"state"`
 	Name             string          `json:"name"`
+	// DestName is an optional override for the OpenStack instance name.
+	// When provided it is used as-is, bypassing SafeVmName sanitisation.
+	// When absent, SafeVmName(Name) is used (default behaviour).
+	DestName         string          `json:"destname"`
 	Nics             []interface{}   `json:"nics"`
 	BootVolume       string          `json:"boot_volume"`
 	Volumes          []string        `json:"volumes"`
@@ -78,6 +82,14 @@ type ModuleResponse struct {
 	Failed  bool   `json:"failed"`
 	Msg     string `json:"msg,omitempty"`
 	ID      string `json:"id"`
+}
+
+// resolveInstanceName returns DestName if set, otherwise SafeVmName(Name).
+func resolveInstanceName(args ModuleArgs) string {
+	if args.DestName != "" {
+		return args.DestName
+	}
+	return moduleutils.SafeVmName(args.Name)
 }
 
 func success(changed bool, id string) {
@@ -153,7 +165,7 @@ func main() {
 		}
 
 		ServerAgrs := osm_os.ServerArgs{
-			Name:             moduleArgs.Name,
+			Name:             resolveInstanceName(moduleArgs),
 			Flavor:           moduleArgs.Flavor,
 			BootVolume:       moduleArgs.BootVolume,
 			SecurityGroups:   moduleArgs.SecurityGroups,
@@ -172,7 +184,7 @@ func main() {
 	}
 
 	ServerAgrs := osm_os.ServerArgs{
-		Name:             moduleArgs.Name,
+		Name:             resolveInstanceName(moduleArgs),
 		Flavor:           moduleArgs.Flavor,
 		BootVolume:       moduleArgs.BootVolume,
 		SecurityGroups:   moduleArgs.SecurityGroups,
