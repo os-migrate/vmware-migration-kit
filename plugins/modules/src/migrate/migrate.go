@@ -224,7 +224,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		// }
 		volOpts := osm_os.VolOpts{
 			Name:             vmName + "-" + diskNameStr,
-			Size:             int(diskSize[diskNameStr] / 1024 / 1024),
+			Size:             int((diskSize[diskNameStr] + 1024*1024 - 1) / (1024 * 1024)),
 			VolumeType:       c.VolumeType,
 			AvailabilityZone: c.VolumeAz,
 			BusType:          "virtio",
