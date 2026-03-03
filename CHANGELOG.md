@@ -201,16 +201,16 @@ Minor release which removes unused import_image module and fix AEE push
 
 ## v2.2.2
 
-- Add unit tests for openstack and vmware modules by @vyvle in https://github.com/os-migrate/vmware-migration-kit/pull/200
-- Remove useless dep in bindep files by @matbu in https://github.com/os-migrate/vmware-migration-kit/pull/207
-- test: add unit tests for nbdkit module by @vyvle in https://github.com/os-migrate/vmware-migration-kit/pull/205
-- test: add unit tests for utils.go by @vyvle in https://github.com/os-migrate/vmware-migration-kit/pull/209
-- Extend fake openstack server to support more services by @matbu in https://github.com/os-migrate/vmware-migration-kit/pull/210
-- Update port device and status metadata when needed by @fdiazbra in https://github.com/os-migrate/vmware-migration-kit/pull/212
-- Normalize v2/ path when gophercloud send weird uri by @matbu in https://github.com/os-migrate/vmware-migration-kit/pull/211
-- Move AEE base image to ubi 9.7 by @fdiazbra in https://github.com/os-migrate/vmware-migration-kit/pull/208
-- Upgrade go version and golintci job by @matbu in https://github.com/os-migrate/vmware-migration-kit/pull/216
-- test: integration tests for new srv.go capabilites by @vyvle in https://github.com/os-migrate/vmware-migration-kit/pull/214
-- Update check jobs with new go version by @matbu in https://github.com/os-migrate/vmware-migration-kit/pull/217
-- Enhance mock server and integration tests coverage by @vyvle in https://github.com/os-migrate/vmware-migration-kit/pull/221
-- Mock updates by @fdiazbra in https://github.com/os-migrate/vmware-migration-kit/pull/220
+- Add unit tests for openstack and vmware modules
+- Remove useless dep in bindep files
+- test: add unit tests for nbdkit module
+- test: add unit tests for utils.go
+- Extend fake openstack server to support more services
+- Update port device and status metadata when needed
+- Normalize v2/ path when gophercloud send weird uri
+- Move AEE base image to ubi 9.7
+- Upgrade go version and golintci job
+- test: integration tests for new srv.go capabilites
+- Update check jobs with new go version
+- Enhance mock server and integration tests coverage
+- Mock updates
