@@ -214,19 +214,49 @@ func TestFindDevName_BrokenSymlink(t *testing.T) {
 	}
 }
 
-// Test 11: SafeVmName sanitizes VM names for shell safety
+// Test 11: SafeVmName sanitizes VM names for use as OpenStack resource names
 func TestSafeVmName(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
 	}{
+		// Basic cases (existing)
 		{"vm1", "vm1"},
 		{"vm-01", "vm_01"},
 		{"My VM", "My_VM"},
-		{"vm@#$%", "vm____"},
-		{"_already_ok_", "_already_ok_"},
-		{" ", "_"},
+		{"vm@#$%", "vm"},
+		{"_already_ok_", "_already_ok"},
+		{" ", ""},
 		{"Mi-VM.2025", "Mi_VM_2025"},
+		// Underscore collapsing
+		{"vm--01", "vm_01"},
+		{"vm...test", "vm_test"},
+		{"VM  prod", "VM_prod"},
+		{"vm___server", "vm_server"},
+		// Transliteration - Spanish
+		{"ñoño", "nono"},
+		{"Ángel_García", "Angel_Garcia"},
+		{"Açaí_VM", "Acai_VM"},
+		{"Muñoz-Server", "Munoz_Server"},
+		{"Ñoño_Server", "Nono_Server"},
+		// Transliteration - accented vowels
+		{"áéíóú", "aeiou"},
+		{"ÁÉÍÓÚ", "AEIOU"},
+		{"São_Paulo", "Sao_Paulo"},
+		{"Château_prod", "Chateau_prod"},
+		// Transliteration - German
+		{"Müller_vm", "Muller_vm"},
+		{"straße_01", "strasse_01"},
+		// Transliteration - French
+		{"Hôtel_de_ville", "Hotel_de_ville"},
+		// Truncation to 64 characters
+		{strings.Repeat("a", 70), strings.Repeat("a", 64)},
+		{strings.Repeat("a", 64), strings.Repeat("a", 64)},
+		{strings.Repeat("a", 63), strings.Repeat("a", 63)},
+		// Trailing underscore stripped after truncation
+		{"vm_" + strings.Repeat("a", 60) + "!!!!", "vm_" + strings.Repeat("a", 60)},
+		// Combination: transliteration + collapsing + truncation
+		{"ñ" + strings.Repeat("a", 70), "n" + strings.Repeat("a", 63)},
 	}
 
 	for _, tt := range tests {

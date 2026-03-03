@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
 )
@@ -181,7 +182,7 @@ func main() {
 				}
 			}
 		}
-		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleArgs.VmName, nicIndex, nic.Vlan)
+		portName := fmt.Sprintf("%s-NIC-%d-VLAN-%s", moduleutils.SafeVmName(moduleArgs.VmName), nicIndex, nic.Vlan)
 		port, err := osm_os.CreatePort(provider, portName, network.ID, nic.Mac, nic.Subnet,
 			moduleArgs.SecurityGroups, nic.FixedIPs)
 		if err != nil {
