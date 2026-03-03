@@ -71,7 +71,66 @@ func GenRandom(length int) (string, error) {
 	return string(result), nil
 }
 
+// transliterations maps common non-ASCII characters to their ASCII equivalents.
+// Covers Spanish, Portuguese, French, German, and extended Latin characters.
+var transliterations = map[rune]string{
+	// Spanish
+	'á': "a", 'é': "e", 'í': "i", 'ó': "o", 'ú': "u",
+	'Á': "A", 'É': "E", 'Í': "I", 'Ó': "O", 'Ú': "U",
+	'ñ': "n", 'Ñ': "N", 'ü': "u", 'Ü': "U",
+	// Portuguese
+	'ã': "a", 'õ': "o", 'à': "a", 'â': "a",
+	'ê': "e", 'ô': "o", 'ç': "c",
+	'Ã': "A", 'Õ': "O", 'À': "A", 'Â': "A",
+	'Ê': "E", 'Ô': "O", 'Ç': "C",
+	// French
+	'è': "e", 'ë': "e", 'î': "i", 'ï': "i",
+	'ù': "u", 'û': "u",
+	'È': "E", 'Ë': "E", 'Î': "I", 'Ï': "I",
+	'Ù': "U", 'Û': "U",
+	'æ': "ae", 'Æ': "AE", 'œ': "oe", 'Œ': "OE",
+	// German
+	'ä': "a", 'ö': "o",
+	'Ä': "A", 'Ö': "O",
+	'ß': "ss",
+	// Extended Latin
+	'ì': "i", 'ò': "o",
+	'Ì': "I", 'Ò': "O",
+	// Common special characters
+	'·':    "_", // interpunct
+	'\u2019': "_", // right single quotation mark
+	'\u2013': "_", // en-dash
+	'\u2014': "_", // em-dash
+	'\u00A0': "_", // non-breaking space
+}
+
+// transliterate replaces known non-ASCII runes with their ASCII equivalents.
+func transliterate(vmName string) string {
+	var b strings.Builder
+	for _, r := range vmName {
+		if replacement, ok := transliterations[r]; ok {
+			b.WriteString(replacement)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// SafeVmName sanitizes a VMware VM name for use as an OpenStack resource name.
+// It transliterates common non-ASCII characters, replaces any remaining
+// non-alphanumeric characters (except underscore) with underscores, collapses
+// consecutive underscores into one, truncates to 64 characters, and strips
+// any trailing underscores left after truncation.
 func SafeVmName(vmName string) string {
+	safe := transliterate(vmName)
 	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
-	return re.ReplaceAllString(vmName, "_")
+	safe = re.ReplaceAllString(safe, "_")
+	multi := regexp.MustCompile(`_+`)
+	safe = multi.ReplaceAllString(safe, "_")
+	if len(safe) > 64 {
+		safe = safe[:64]
+	}
+	safe = strings.TrimRight(safe, "_")
+	return safe
 }
