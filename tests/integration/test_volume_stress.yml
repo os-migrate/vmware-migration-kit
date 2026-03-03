@@ -1,4 +1,3 @@
-# 21-28
 ---
 - name: Integration tests for volume lifecycle against mock OpenStack
   hosts: localhost
@@ -55,8 +54,8 @@
           ansible.builtin.set_fact:
             fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
 
-        # TEST21: Create 10 volumes sequentially (stress test - reduced to prevent crashes)
-        - name: TEST21 - Create 10 volumes sequentially
+        # TEST01: Create 10 volumes sequentially (stress test - reduced to prevent crashes)
+        - name: TEST01 - Create 10 volumes sequentially
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: POST
@@ -73,8 +72,8 @@
               - "stress_volumes.results | length == 10"
               - "stress_volumes.results | selectattr('failed', 'equalto', false) | list | length == 10"
 
-        # TEST22: List 10+ volumes efficiently
-        - name: TEST22 - List all volumes (10+ count)
+        # TEST02: List 10+ volumes efficiently
+        - name: TEST02 - List all volumes (10+ count)
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: GET
@@ -87,7 +86,7 @@
               - "large_volume_list is succeeded"
               - "((large_volume_list.content | from_json).volumes | length) >= 10"
 
-        # TEST23: Attach 5 volumes to single server (multiple attachments)
+        # TEST03: Attach 5 volumes to single server (multiple attachments)
         - name: Create server for multiple attachments
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers"
@@ -114,7 +113,18 @@
           loop: "{{ range(1, 6) | list }}"
           register: multi_vols
 
-        - name: TEST23 - Attach 5 volumes to single server
+        - name: Wait for all volumes to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: multi_vol_status
+          until: (multi_vol_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+          loop: "{{ multi_vols.results }}"
+
+        - name: TEST03 - Attach 5 volumes to single server
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (multi_attach_server.content | from_json).server.id }}/os-volume_attachments"
             method: POST
@@ -133,7 +143,7 @@
               - "multi_attachments.results | length == 5"
               - "multi_attachments.results | selectattr('failed', 'equalto', false) | list | length == 5"
 
-        # TEST24: Create server with multiple networks
+        # TEST04: Create server with multiple networks
         - name: Create second network
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.0/networks"
@@ -158,7 +168,7 @@
             status_code: 201
           register: network_24b
 
-        - name: TEST24 - Create server with multiple networks
+        - name: TEST04 - Create server with multiple networks
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers"
             method: POST
@@ -181,8 +191,8 @@
               - "multi_network_server is succeeded"
               - "((multi_network_server.content | from_json).server.addresses | length) == 2"
 
-        # TEST25: Concurrent operations across resource types (volumes + servers)
-        - name: TEST25 - Create volumes and servers concurrently
+        # TEST05: Concurrent operations across resource types (volumes + servers)
+        - name: TEST05 - Create volumes and servers concurrently
           ansible.builtin.uri:
             url: "{{ item.url }}"
             method: POST
@@ -218,7 +228,7 @@
               - "item is succeeded"
           loop: "{{ mixed_results.results }}"
 
-        # TEST26: Sequential attachment of multiple volumes to same server
+        # TEST06: Sequential attachment of multiple volumes to same server
         - name: Create server for sequential attachments
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers"
@@ -245,7 +255,18 @@
           loop: [1, 2, 3]
           register: seq_vols
 
-        - name: TEST26 - Attach volumes sequentially
+        - name: Wait for all volumes to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: seq_vol_status
+          until: (seq_vol_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+          loop: "{{ seq_vols.results }}"
+
+        - name: TEST06 - Attach volumes sequentially
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (seq_server.content | from_json).server.id }}/os-volume_attachments"
             method: POST
@@ -264,8 +285,8 @@
               - "seq_attachments.results | length == 3"
               - "seq_attachments.results | selectattr('failed', 'equalto', false) | list | length == 3"
 
-        # TEST27: Create two volumes with identical names (collision handling)
-        - name: TEST27 - Create first volume with name
+        # TEST07: Create two volumes with identical names (collision handling)
+        - name: TEST07 - Create first volume with name
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: POST
@@ -293,8 +314,8 @@
               - "(dup_vol_1.content | from_json).volume.id != (dup_vol_2.content | from_json).volume.id"
             msg: "Mock doesn't prevent duplicate names - real OpenStack behavior may vary"
 
-        # TEST28: Create volume with Unicode/UTF-8 name
-        - name: TEST28 - Create volumes with Unicode characters
+        # TEST08: Create volume with Unicode/UTF-8 name
+        - name: TEST08 - Create volumes with Unicode characters
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v3/demo/volumes"
             method: POST
@@ -315,6 +336,65 @@
               - "(unicode_volumes.results | selectattr('failed', 'equalto', false) | list | length) >= 2"
             msg: "Some Unicode characters may crash mock server"
 
+        # TEST09: Cleanup - detach volumes from server
+        - name: TEST09 - Detach all volumes from server
+          ansible.builtin.uri:
+            url: >-
+              {{ fake_os_url }}/v2.1/demo/servers/{{
+              (multi_attach_server.content | from_json).server.id
+              }}/os-volume_attachments/attach-{{
+              (item.content | from_json).volume.id
+              }}
+            method: DELETE
+            status_code: 204
+          loop: "{{ multi_vols.results }}"
+          register: detach_results
+
+        - name: "ASSERT: All volumes detached successfully"
+          ansible.builtin.assert:
+            that:
+              - "detach_results.results | length == 5"
+              - "detach_results.results | selectattr('status', 'equalto', 204) | list | length == 5"
+
+        - name: Verify volumes returned to available status
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          loop: "{{ multi_vols.results }}"
+          register: detached_volume_status
+
+        - name: "ASSERT: Detached volumes are available again"
+          ansible.builtin.assert:
+            that:
+              - "(item.content | from_json).volume.status == 'available'"
+          loop: "{{ detached_volume_status.results }}"
+
+        # TEST10: Delete volumes to validate cleanup
+        - name: TEST10 - Delete a specific volume
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (dup_vol_1.content | from_json).volume.id }}"
+            method: DELETE
+            status_code: 204
+          register: delete_result
+
+        - name: "ASSERT: Volume deleted successfully"
+          ansible.builtin.assert:
+            that:
+              - "delete_result.status == 204"
+
+        - name: Verify volume no longer in list
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: GET
+            return_content: true
+          register: volumes_after_delete
+
+        - name: "ASSERT: Deleted volume removed from list"
+          ansible.builtin.assert:
+            that:
+              - "(dup_vol_1.content | from_json).volume.id not in ((volumes_after_delete.content | from_json).volumes | map(attribute='id') | list)"
+
       always:
         - name: Stop fake OpenStack server
           tags: cleanup
@@ -328,11 +408,3 @@
             path: "{{ server_pid_file }}"
             state: absent
           failed_when: false
-# BLOCKED TESTS - Performance & Scale:
-# These tests require srv.go extensions before implementation:
-# - Volume DELETE endpoint (for cleanup validation)
-#   Would enable: Proper cleanup between stress test iterations
-# - Attachment DELETE endpoint (DELETE /os-volume_attachments/{id})
-#   Would enable: TEST23, TEST26 cleanup and re-testing
-# - Stateful transitions (creating → available, attaching → in-use)
-#   Related to: All attachment tests
