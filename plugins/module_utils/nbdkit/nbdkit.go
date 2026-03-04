@@ -405,18 +405,19 @@ func versionIsLower(cVersion, rVersion string) bool {
 */
 
 // buildV2VCommand constructs the virt-v2v-in-place command string.
+// Paths are wrapped in single quotes to handle directory names with spaces.
 func buildV2VCommand(path, rsPath, bsPath, extraOpts string) string {
 	opts := ""
 	if rsPath != "" {
-		opts = opts + " --run " + rsPath
+		opts = opts + " --run '" + rsPath + "'"
 	}
 	if bsPath != "" {
-		opts = opts + " --firstboot " + bsPath
+		opts = opts + " --firstboot '" + bsPath + "'"
 	}
 	if extraOpts != "" {
 		opts += " " + extraOpts
 	}
-	return "virt-v2v-in-place" + opts + " -i disk " + path
+	return "virt-v2v-in-place" + opts + " -i disk '" + path + "'"
 }
 
 func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
