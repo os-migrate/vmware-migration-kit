@@ -159,6 +159,10 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			logger.Log.Infof("Volume already converted, skipping migration..")
 			return volume.ID, nil
 		}
+		if state, ok := volume.Metadata["osm_state"]; ok && state == "ready" {
+			logger.Log.Infof("Volume already migrated and ready to be used by OpenStack, skipping...")
+			return volume.ID, nil
+		}
 		if c.CBTSync {
 			logger.Log.Infof("Volume exists, syncing volume..")
 			syncVol = true
@@ -381,11 +385,11 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
 				}
 			} else {
-				logger.Log.Infof("Skipping V2V conversion...")
-				volMetadata = map[string]string{
-					"osm":       "true",
-					"converted": "true",
-				}
+			logger.Log.Infof("Skipping V2V conversion...")
+			volMetadata = map[string]string{
+				"osm":       "true",
+				"osm_state": "ready",
+			}
 				err = osm_os.UpdateVolumeMetadata(c.OSClient, volume.ID, volMetadata)
 				if err != nil {
 					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
