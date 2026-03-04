@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	moduleutils "vmware-migration-kit/plugins/module_utils"
 	"vmware-migration-kit/plugins/module_utils/ansible"
 	"vmware-migration-kit/plugins/module_utils/logger"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
