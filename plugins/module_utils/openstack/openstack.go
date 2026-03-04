@@ -241,6 +241,23 @@ func IsVolumeConverted(client *gophercloud.ProviderClient, volumeID string) (boo
 	return false, nil
 }
 
+func IsVolumeReady(client *gophercloud.ProviderClient, volumeID string) (bool, error) {
+	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
+	if err != nil {
+		logger.Log.Infof("Failed to create block storage client: %v", err)
+		return false, err
+	}
+	volume, err := volumes.Get(context.TODO(), blockStorageClient, volumeID).Extract()
+	if err != nil {
+		logger.Log.Infof("Failed to get volume: %v", err)
+		return false, err
+	}
+	if state, ok := volume.Metadata["osm_state"]; ok {
+		return state == "ready", nil
+	}
+	return false, nil
+}
+
 func GetOSChangeID(client *gophercloud.ProviderClient, volumeID string) (string, error) {
 	blockStorageClient, err := openstack.NewBlockStorageV3(client, gophercloud.EndpointOpts{})
 	if err != nil {

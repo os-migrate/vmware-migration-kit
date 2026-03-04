@@ -99,6 +99,13 @@ func main() {
 		response.Msg = "Failed to get volume metadata: " + moduleArgs.VolumeID + " error: " + err.Error()
 		FailJson(response)
 	}
+	if !converted {
+		converted, err = osm_os.IsVolumeReady(provider, moduleArgs.VolumeID)
+		if err != nil {
+			response.Msg = "Failed to get volume state: " + moduleArgs.VolumeID + " error: " + err.Error()
+			FailJson(response)
+		}
+	}
 	response.Changed = true
 	response.Msg = "Volume metadata info"
 	response.Converted = converted
