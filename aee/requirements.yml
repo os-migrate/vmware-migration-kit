@@ -1,8 +1,8 @@
 collections:
   - name: vmware.vmware
-    version: 2.4.0
+    version: 2.7.0
   - name: vmware.vmware_rest
-    version: 4.9.0
+    version: 4.10.0
   - name: os_migrate.vmware_migration_kit
     type: file
     source: tmp/os_migrate-vmware_migration_kit-2.2.3.tar.gz
