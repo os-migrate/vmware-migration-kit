@@ -1,5 +1,5 @@
 collections:
   - name: vmware.vmware
-    version: ">=2.4.0"
+    version: ">=2.7.0"
   - name: vmware.vmware_rest
-    version: ">=4.9.0"
+    version: ">=4.10.0"
