@@ -84,6 +84,16 @@
             status_code: 202
           register: test_volume_02
 
+        - name: Wait for volume to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (test_volume_02.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: volume_status
+          until: (volume_status.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+
         - name: TEST02 - Attach volume to server (status in-use)
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_02.content | from_json).server.id }}/os-volume_attachments"
@@ -172,6 +182,16 @@
             status_code: 202
           register: test_volume_04
 
+        - name: Wait for volume to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (test_volume_04.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: volume_status_04
+          until: (volume_status_04.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
+
         - name: Attach volume to server
           ansible.builtin.uri:
             url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_04.content | from_json).server.id }}/os-volume_attachments"
@@ -229,6 +249,16 @@
                 size: 5
             status_code: 202
           register: volume_05
+
+        - name: Wait for volume to become available
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (volume_05.content | from_json).volume.id }}"
+            method: GET
+            return_content: true
+          register: volume_status_05
+          until: (volume_status_05.content | from_json).volume.status == 'available'
+          retries: 10
+          delay: 1
 
         - name: Lookup server by name
           ansible.builtin.uri:
@@ -367,6 +397,67 @@
               - "result_sriov_server is succeeded"
               - "((created_port.content | from_json).port['binding:vnic_type']) == 'direct'"
               - "((created_port.content | from_json).port['binding:vif_details']) is defined"
+        # TEST09: Get network by ID directly
+        - name: TEST09 - Retrieve network by ID
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.0/networks/{{ (created_network.content | from_json).network.id }}"
+            method: GET
+            return_content: true
+          register: network_by_id
+
+        - name: "ASSERT: Network retrieved with correct details"
+          ansible.builtin.assert:
+            that:
+              - "network_by_id is succeeded"
+              - "(network_by_id.content | from_json).network.id == (created_network.content | from_json).network.id"
+              - "(network_by_id.content | from_json).network.name == 'test-network-07'"
+        # TEST10: Attempt to attach volume to non-existent server
+        - name: Create volume for invalid server test
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v3/demo/volumes"
+            method: POST
+            body_format: json
+            return_content: true
+            body:
+              volume:
+                name: "test-volume-invalid-server"
+                size: 5
+            status_code: 202
+          register: vol_invalid_server
+
+        - name: TEST10 - Attach volume to non-existent server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/nonexistent-server-id/os-volume_attachments"
+            method: POST
+            body_format: json
+            body:
+              volumeAttachment:
+                volumeId: "{{ (vol_invalid_server.content | from_json).volume.id }}"
+            status_code: 404
+          register: attach_invalid_server
+          failed_when: false
+
+        - name: "ASSERT: Attachment to non-existent server rejected"
+          ansible.builtin.assert:
+            that:
+              - "attach_invalid_server.status == 404"
+        # TEST11: Attempt to attach non-existent volume to server
+        - name: TEST11 - Attach non-existent volume to server
+          ansible.builtin.uri:
+            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (test_server_04.content | from_json).server.id }}/os-volume_attachments"
+            method: POST
+            body_format: json
+            body:
+              volumeAttachment:
+                volumeId: "nonexistent-volume-id"
+            status_code: 404
+          register: attach_invalid_volume
+          failed_when: false
+
+        - name: "ASSERT: Attachment of non-existent volume rejected"
+          ansible.builtin.assert:
+            that:
+              - "attach_invalid_volume.status == 404"
       always:
         - name: Stop fake OpenStack server
           tags: cleanup
@@ -380,12 +471,3 @@
             path: "{{ server_pid_file }}"
             state: absent
           failed_when: false
-
-# BLOCKED TESTS - Basic Operations:
-# These tests require srv.go extensions before implementation:
-# - Get network by ID (requires GET /v2.0/networks/{id} endpoint)
-#   Related to: TEST07, TEST08 network operations
-# - Attach volume to non-existent server (requires validation logic)
-#   Related to: TEST02, TEST04 attachment operations
-# - Attach non-existent volume (requires validation logic)
-#   Related to: TEST02, TEST04 attachment operations

@@ -158,9 +158,9 @@ Minor release which removes unused import_image module and fix AEE push
 
 ## v2.1.5
 
-- Run sanity test on each required versions of python 
+- Run sanity test on each required versions of python
 - Remove f-strings for python retrocompatibility
-- Add future import and metaclass boilerplate 
+- Add future import and metaclass boilerplate
 - Update readme links
 
 ## v2.1.6
@@ -198,3 +198,19 @@ Minor release which removes unused import_image module and fix AEE push
 
 - Add AGENTS.md file for AI agent guidelines
 - remove parseable which is now not allowed
+
+## v2.2.2
+
+- Add unit tests for openstack and vmware modules
+- Remove useless dep in bindep files
+- test: add unit tests for nbdkit module
+- test: add unit tests for utils.go
+- Extend fake openstack server to support more services
+- Update port device and status metadata when needed
+- Normalize v2/ path when gophercloud send weird uri
+- Move AEE base image to ubi 9.7
+- Upgrade go version and golintci job
+- test: integration tests for new srv.go capabilites
+- Update check jobs with new go version
+- Enhance mock server and integration tests coverage
+- Mock updates
