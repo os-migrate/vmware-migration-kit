@@ -12,3 +12,5 @@ plugins/modules/migrate.py validate-modules:missing-gplv3-license
 plugins/modules/volume_info.py validate-modules:missing-gplv3-license
 plugins/modules/volume_metadata_info.py validate-modules:missing-gplv3-license
 plugins/modules/import_flavor.py validate-modules:missing-gplv3-license
+plugins/modules/create_heat_stack.py validate-modules:missing-gplv3-license
+plugins/modules/generate_heat_template.py validate-modules:missing-gplv3-license

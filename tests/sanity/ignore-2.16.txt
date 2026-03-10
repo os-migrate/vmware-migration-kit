@@ -12,6 +12,12 @@ plugins/modules/migrate.py validate-modules:missing-gplv3-license
 plugins/modules/volume_info.py validate-modules:missing-gplv3-license
 plugins/modules/volume_metadata_info.py validate-modules:missing-gplv3-license
 plugins/modules/import_flavor.py validate-modules:missing-gplv3-license
+plugins/modules/create_heat_stack.py validate-modules:missing-gplv3-license
+plugins/modules/generate_heat_template.py validate-modules:missing-gplv3-license
+plugins/modules/src/create_heat_stack/create_heat_stack.go validate-modules:invalid-extension
+plugins/modules/src/create_heat_stack/create_heat_stack.go validate-modules:python-syntax-error
+plugins/modules/src/generate_heat_template/generate_heat_template.go validate-modules:invalid-extension
+plugins/modules/src/generate_heat_template/generate_heat_template.go validate-modules:python-syntax-error
 plugins/modules/src/best_match_flavor/best_match_flavor.go validate-modules:invalid-extension
 plugins/modules/src/create_network_port/create_network_port.go validate-modules:invalid-extension
 plugins/modules/src/create_server/create_server.go validate-modules:invalid-extension
