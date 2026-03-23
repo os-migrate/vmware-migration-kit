@@ -1,0 +1,17 @@
+# Reusable setup: wait for fake OpenStack server (started by scripts/prelude.sh)
+# Include this at the start of integration test playbooks.
+# Vars required: server_pid_file, fake_os_url
+- name: Wait for fake OpenStack server
+  tags: setup
+  ansible.builtin.wait_for:
+    path: "{{ server_pid_file }}"
+    state: present
+    timeout: 15
+  failed_when: false
+  register: wait_pid
+
+- name: Fail if fake server not running
+  tags: setup
+  ansible.builtin.fail:
+    msg: "Fake server not running. Run tests/integration/scripts/prelude.sh first."
+  when: wait_pid.failed | default(false) | bool
