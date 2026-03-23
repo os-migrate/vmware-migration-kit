@@ -22,3 +22,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libnbd-dev pkg-config nbdkit
       - name: Run Go unit tests
         run: go test -v ./...
+      - name: Fail if binaries in tests/
+        run: |
+          binaries=$(find tests/ -type f ! -name "*.go" ! -name "*.py" ! -name "*.yml" ! -name "*.txt" 2>/dev/null)
+          if [ -n "$binaries" ]; then
+            echo "ERROR: Binary files found in tests/:"
+            echo "$binaries"
+            exit 1
+          fi
