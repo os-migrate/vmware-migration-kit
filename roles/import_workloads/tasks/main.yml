@@ -3,21 +3,31 @@
   ansible.builtin.include_tasks: nbdkit.yml
   when: os_migrate_nbkit|default(true)|bool
 
+- name: Generate and deploy Heat stack for migrated workloads
+  ansible.builtin.include_tasks: heat_deploy.yml
+  when:
+    - import_workloads_use_heat|default(false)|bool
+    - import_workloads_converted
+
 - name: Run migration with virt v2v
   ansible.builtin.include_tasks: virt_v2v.yml
-  when: os_migrate_virt_v2v|default(false)|bool
+  when:
+    - os_migrate_virt_v2v|default(false)|bool
+    - not import_workloads_use_heat|default(false)|bool
 
 - name: Create neutron port
   ansible.builtin.include_tasks: create_network_port.yml
   when:
     - os_migrate_create_network_port|default(true)|bool
     - import_workloads_converted
+    - not import_workloads_use_heat|default(false)|bool
 
 - name: Create OpenStack instance
   ansible.builtin.include_tasks: create_os_instance.yml
   when:
     - os_migrate_create_os_instance|default(true)|bool
     - import_workloads_converted
+    - not import_workloads_use_heat|default(false)|bool
 
 - name: Teardown
   ansible.builtin.include_tasks: teardown.yml
