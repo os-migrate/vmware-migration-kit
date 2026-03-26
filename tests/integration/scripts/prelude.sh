@@ -38,7 +38,7 @@ log "Starting fake OpenStack server on port $PORT..."
 "${GOSTACK_DIR}/bin/fake-openstack" --port "$PORT" --pid-file "$PID_FILE" &
 
 # Wait for gostack to write its PID file
-for i in {1..10}; do
+for ((attempt = 1; attempt <= 10; attempt++)); do
   sleep 1
   [[ -f "$PID_FILE" ]] && break
 done
