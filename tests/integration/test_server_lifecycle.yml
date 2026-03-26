@@ -16,7 +16,7 @@
         project_domain_name: "default"
         region_name: "RegionOne"
   tasks:
-    # SETUP: fake server must be started by scripts/prelude.sh 
+    # SETUP: fake server must be started by scripts/prelude.sh
     - name: Include fake server setup
       ansible.builtin.include_tasks: fake_server_setup.yml
 
@@ -219,4 +219,3 @@
             selectattr('id', 'equalto', (deletion_port.content | from_json).port.id) |
             first).status == 'DOWN'
         msg: "Port should have null device_id and DOWN status after server deletion"
-
