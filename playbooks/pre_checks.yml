@@ -30,11 +30,13 @@
           {{ lookup('config', 'COLLECTIONS_PATHS') | join(', ') }}
       when: collection_paths.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length == 0
 
-    - name: List all Go module directories
+    - name: List compiled Go binaries in the collection
       ansible.builtin.find:
         paths: "{{ modules_root }}"
         file_type: file
         recurse: false
+        excludes:
+          - "*.py"
       register: src_contents
       no_log: true
 
