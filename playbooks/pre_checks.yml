@@ -33,7 +33,7 @@
     - name: List all Go module directories
       ansible.builtin.find:
         paths: "{{ modules_root }}"
-        file_type: directory
+        file_type: file
         recurse: false
       register: src_contents
       no_log: true
