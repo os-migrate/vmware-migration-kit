@@ -3,7 +3,6 @@
   hosts: localhost
   gather_facts: false
   vars:
-    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
     server_pid_file: /tmp/fake_os_server.pid
     cloud_config:
       auth:
@@ -16,42 +15,9 @@
         project_domain_name: "default"
         region_name: "RegionOne"
   tasks:
-    # SETUP FOR FAKE SERVER
-    - name: Setup fake OpenStack server
-      tags: setup
-      block:
-        - name: Start fake OpenStack server asynchronously
-          ansible.builtin.command: go run "{{ go_server_path }}"
-          args:
-            creates: "{{ server_pid_file }}"
-          async: 30
-          poll: 0
-          register: fake_server_job
-          changed_when: false
-
-        - name: Check command
-          ansible.builtin.async_status:
-            jid: "{{ fake_server_job.ansible_job_id }}"
-          register: result
-
-        - name: Debug command
-          ansible.builtin.debug:
-            var: result.stdout
-
-        - name: Wait for the server URL file to be created
-          ansible.builtin.wait_for:
-            path: "{{ server_pid_file }}"
-            state: present
-            timeout: 10
-
-        - name: Read the server PID from the file
-          ansible.builtin.slurp:
-            src: "{{ server_pid_file }}"
-          register: fake_os_pid_b64
-
-        - name: Set the server PID fact
-          ansible.builtin.set_fact:
-            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+    # SETUP: fake server must be started by scripts/prelude.sh
+    - name: Include fake server setup
+      ansible.builtin.include_tasks: fake_server_setup.yml
 
     - name: Run test scenarios
       tags: tests
@@ -258,16 +224,3 @@
                 not ('authentication failed' in
                 result_connection_fail.msg | lower)
               - "result_connection_fail.flavor is none"
-      # CLEANUP
-      always:
-        - name: Stop fake OpenStack server
-          tags: cleanup
-          ansible.builtin.command: "kill {{ fake_os_pid }}"
-          changed_when: false
-          failed_when: false
-        - name: Clean URL and PID files
-          ansible.builtin.file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - "{{ server_pid_file }}"

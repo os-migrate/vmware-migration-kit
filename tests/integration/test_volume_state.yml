@@ -3,7 +3,6 @@
   hosts: localhost
   gather_facts: false
   vars:
-    go_server_path: "{{ playbook_dir ~ '/fake/openstack/srv.go' }}"
     server_pid_file: /tmp/fake_os_server.pid
     fake_os_url: "http://127.0.0.1:5000"
     cloud_config:
@@ -17,202 +16,157 @@
         project_domain_name: "default"
         region_name: "RegionOne"
   tasks:
-    # SETUP FOR FAKE SERVER
-    - name: Setup fake OpenStack server
-      tags: setup
-      block:
-        - name: Start fake OpenStack server asynchronously
-          ansible.builtin.command: go run "{{ go_server_path }}"
-          args:
-            creates: "{{ server_pid_file }}"
-          async: 30
-          poll: 0
-          register: fake_server_job
-          changed_when: false
+    # SETUP: fake server must be started by scripts/prelude.sh
+    - name: Include fake server setup
+      ansible.builtin.include_tasks: fake_server_setup.yml
 
-        - name: Check command
-          ansible.builtin.async_status:
-            jid: "{{ fake_server_job.ansible_job_id }}"
-          register: result
+    # TEST01: Cross-validate attachment state (volume.attachments + server list)
+    - name: Create server for cross-validation
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v2.1/demo/servers"
+        method: POST
+        body_format: json
+        return_content: true
+        body:
+          server:
+            name: "cross-val-server"
+            flavorRef: "1"
+            imageRef: "img-1"
+            networks: []
+        status_code: 202
+      register: cross_val_server
 
-        - name: Debug command
-          ansible.builtin.debug:
-            var: result.stdout
+    - name: Create and attach volume
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes"
+        method: POST
+        body_format: json
+        return_content: true
+        body: '{"volume":{"name":"cross-val-volume","size":5}}'
+        status_code: 202
+      register: cross_val_vol
 
-        - name: Wait for the server URL file to be created
-          ansible.builtin.wait_for:
-            path: "{{ server_pid_file }}"
-            state: present
-            timeout: 10
+    - name: Wait for volume to become available
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (cross_val_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: cross_val_vol_status
+      until: (cross_val_vol_status.content | from_json).volume.status == 'available'
+      retries: 10
+      delay: 1
 
-        - name: Read the server PID from the file
-          ansible.builtin.slurp:
-            src: "{{ server_pid_file }}"
-          register: fake_os_pid_b64
+    - name: Attach volume
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (cross_val_server.content | from_json).server.id }}/os-volume_attachments"
+        method: POST
+        body_format: json
+        return_content: true
+        body:
+          volumeAttachment:
+            volumeId: "{{ (cross_val_vol.content | from_json).volume.id }}"
+        status_code: 200
+      register: cross_val_attach
 
-        - name: Set the server PID fact
-          ansible.builtin.set_fact:
-            fake_os_pid: "{{ fake_os_pid_b64['content'] | b64decode }}"
+    - name: Get volume details
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes"
+        method: GET
+        return_content: true
+      register: cross_val_volumes
 
-        # TEST01: Cross-validate attachment state (volume.attachments + server list)
-        - name: Create server for cross-validation
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v2.1/demo/servers"
-            method: POST
-            body_format: json
-            return_content: true
-            body:
-              server:
-                name: "cross-val-server"
-                flavorRef: "1"
-                imageRef: "img-1"
-                networks: []
-            status_code: 202
-          register: cross_val_server
+    - name: Get server attachments
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (cross_val_server.content | from_json).server.id }}/os-volume_attachments"
+        method: GET
+        return_content: true
+      register: cross_val_attachments
 
-        - name: Create and attach volume
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes"
-            method: POST
-            body_format: json
-            return_content: true
-            body: '{"volume":{"name":"cross-val-volume","size":5}}'
-            status_code: 202
-          register: cross_val_vol
+    - name: TEST01 - Cross-validate attachment from both sides
+      ansible.builtin.assert:
+        that:
+          - >-
+            (((cross_val_volumes.content | from_json).volumes |
+            selectattr('id', 'equalto', (cross_val_vol.content | from_json).volume.id) |
+            first).status) == 'in-use'
+          - >-
+            ((cross_val_attachments.content | from_json).volumeAttachments |
+            selectattr('volumeId', 'equalto', (cross_val_vol.content | from_json).volume.id) |
+            list | length) == 1
 
-        - name: Wait for volume to become available
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (cross_val_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: cross_val_vol_status
-          until: (cross_val_vol_status.content | from_json).volume.status == 'available'
-          retries: 10
-          delay: 1
+    # TEST02: Query individual volume by ID to verify attachment state
+    - name: TEST02 - Get attached volume by ID
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (cross_val_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: vol_by_id
 
-        - name: Attach volume
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (cross_val_server.content | from_json).server.id }}/os-volume_attachments"
-            method: POST
-            body_format: json
-            return_content: true
-            body:
-              volumeAttachment:
-                volumeId: "{{ (cross_val_vol.content | from_json).volume.id }}"
-            status_code: 200
-          register: cross_val_attach
+    - name: "ASSERT: Volume by ID shows correct attachment state"
+      ansible.builtin.assert:
+        that:
+          - "(vol_by_id.content | from_json).volume.status == 'in-use'"
+          - "(vol_by_id.content | from_json).volume.attachments | length == 1"
+          - "(vol_by_id.content | from_json).volume.attachments[0].server_id == (cross_val_server.content | from_json).server.id"
+        msg: "GET by ID should return full attachment details"
 
-        - name: Get volume details
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes"
-            method: GET
-            return_content: true
-          register: cross_val_volumes
+    # TEST03: Volume status persistence across multiple reads
+    - name: Create volume for persistence test
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes"
+        method: POST
+        body_format: json
+        return_content: true
+        body: '{"volume":{"name":"persistence-test","size":5}}'
+        status_code: 202
+      register: persist_vol
 
-        - name: Get server attachments
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v2.1/demo/servers/{{ (cross_val_server.content | from_json).server.id }}/os-volume_attachments"
-            method: GET
-            return_content: true
-          register: cross_val_attachments
+    - name: Wait for volume to become available
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: persist_wait
+      until: (persist_wait.content | from_json).volume.status == 'available'
+      retries: 10
+      delay: 1
 
-        - name: TEST01 - Cross-validate attachment from both sides
-          ansible.builtin.assert:
-            that:
-              - >-
-                (((cross_val_volumes.content | from_json).volumes |
-                selectattr('id', 'equalto', (cross_val_vol.content | from_json).volume.id) |
-                first).status) == 'in-use'
-              - >-
-                ((cross_val_attachments.content | from_json).volumeAttachments |
-                selectattr('volumeId', 'equalto', (cross_val_vol.content | from_json).volume.id) |
-                list | length) == 1
+    - name: Read volume by ID (first time)
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: persist_read_1
 
-        # TEST02: Query individual volume by ID to verify attachment state
-        - name: TEST02 - Get attached volume by ID
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (cross_val_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: vol_by_id
+    - name: Read volume by ID (second time)
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: persist_read_2
 
-        - name: "ASSERT: Volume by ID shows correct attachment state"
-          ansible.builtin.assert:
-            that:
-              - "(vol_by_id.content | from_json).volume.status == 'in-use'"
-              - "(vol_by_id.content | from_json).volume.attachments | length == 1"
-              - "(vol_by_id.content | from_json).volume.attachments[0].server_id == (cross_val_server.content | from_json).server.id"
-            msg: "GET by ID should return full attachment details"
+    - name: Read volume by ID (third time)
+      ansible.builtin.uri:
+        url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
+        method: GET
+        return_content: true
+      register: persist_read_3
 
-        # TEST03: Volume status persistence across multiple reads
-        - name: Create volume for persistence test
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes"
-            method: POST
-            body_format: json
-            return_content: true
-            body: '{"volume":{"name":"persistence-test","size":5}}'
-            status_code: 202
-          register: persist_vol
+    - name: Extract volume data from all reads
+      ansible.builtin.set_fact:
+        persist_vol_id: "{{ (persist_vol.content | from_json).volume.id }}"
+        vol_read_1: "{{ (persist_read_1.content | from_json).volume }}"
+        vol_read_2: "{{ (persist_read_2.content | from_json).volume }}"
+        vol_read_3: "{{ (persist_read_3.content | from_json).volume }}"
 
-        - name: Wait for volume to become available
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: persist_wait
-          until: (persist_wait.content | from_json).volume.status == 'available'
-          retries: 10
-          delay: 1
+    - name: TEST03 - Verify volume status persistence
+      ansible.builtin.assert:
+        that:
+          - "vol_read_1.status == 'available'"
+          - "vol_read_2.status == 'available'"
+          - "vol_read_3.status == 'available'"
+          - "vol_read_1.id == persist_vol_id"
+          - "vol_read_2.id == persist_vol_id"
+          - "vol_read_3.id == persist_vol_id"
 
-        - name: Read volume by ID (first time)
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: persist_read_1
-
-        - name: Read volume by ID (second time)
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: persist_read_2
-
-        - name: Read volume by ID (third time)
-          ansible.builtin.uri:
-            url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
-            method: GET
-            return_content: true
-          register: persist_read_3
-
-        - name: Extract volume data from all reads
-          ansible.builtin.set_fact:
-            persist_vol_id: "{{ (persist_vol.content | from_json).volume.id }}"
-            vol_read_1: "{{ (persist_read_1.content | from_json).volume }}"
-            vol_read_2: "{{ (persist_read_2.content | from_json).volume }}"
-            vol_read_3: "{{ (persist_read_3.content | from_json).volume }}"
-
-        - name: TEST03 - Verify volume status persistence
-          ansible.builtin.assert:
-            that:
-              - "vol_read_1.status == 'available'"
-              - "vol_read_2.status == 'available'"
-              - "vol_read_3.status == 'available'"
-              - "vol_read_1.id == persist_vol_id"
-              - "vol_read_2.id == persist_vol_id"
-              - "vol_read_3.id == persist_vol_id"
-
-      always:
-        - name: Stop fake OpenStack server
-          tags: cleanup
-          ansible.builtin.command: "kill {{ fake_os_pid }}"
-          changed_when: false
-          failed_when: false
-
-        - name: Remove PID file
-          tags: cleanup
-          ansible.builtin.file:
-            path: "{{ server_pid_file }}"
-            state: absent
-          failed_when: false
+      failed_when: false
