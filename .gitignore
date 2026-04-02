@@ -84,6 +84,9 @@ aee/context
 # tests output
 tests/output
 
+# integration test ephemera (gostack clone)
+tests/integration/.gostack
+
 # collection tarball
 os_migrate-vmware_migration_kit-*.tar.gz
 

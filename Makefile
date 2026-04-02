@@ -241,6 +241,8 @@ test-ansible-sanity:
 	  --exclude plugins/modules/create_network_port \
 	  --exclude plugins/modules/create_server \
 	  --exclude plugins/modules/import_flavor \
+	  --exclude plugins/modules/create_heat_stack \
+	  --exclude plugins/modules/generate_heat_template \
 	  --exclude plugins/modules/delete_flavor \
 	  --exclude plugins/modules/delete_port \
 	  --exclude plugins/modules/delete_server \
@@ -266,11 +268,14 @@ integration-test:
 	$(MAKE) build && \
 	echo "*** Installing collection dependencies... ***" && \
 	ansible-galaxy collection install $(COLLECTION_TARBALL) --force-with-deps --collections-path "$$ANSIBLE_COLLECTIONS_PATH" && \
+	echo "*** Running prelude (clone + start gostack)... ***" && \
+	$(COLLECTION_ROOT)/tests/integration/scripts/prelude.sh && \
 	echo "*** Running integration tests... ***" && \
+	(trap '$(COLLECTION_ROOT)/tests/integration/scripts/cleanup.sh' EXIT; \
 	for test in $(COLLECTION_ROOT)/tests/integration/test_*.yml; do \
 		echo "*** Running integration test: $$test ***"; \
 		ansible-playbook -i $(COLLECTION_ROOT)/localhost_inventory.yml $$test || exit 1; \
-	done && \
+	done) && \
 	echo "*** Integration tests completed successfully ***" && \
 	rm -rf $$TMPDIR && \
 	deactivate

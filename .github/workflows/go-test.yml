@@ -22,3 +22,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libnbd-dev pkg-config nbdkit
       - name: Run Go unit tests
         run: go test -v ./...
+      - name: Fail if binary content in tests/
+        run: |
+          set -euo pipefail
+          binaries=()
+          while IFS= read -r -d '' f; do
+            [ -s "$f" ] || continue
+            enc=$(file -b --mime-encoding "$f")
+            if [ "$enc" = "binary" ]; then
+              binaries+=("$f")
+            fi
+          done < <(find tests/ -type d -name '__pycache__' -prune -o -type f -print0 2>/dev/null || true)
+          if [ ${#binaries[@]} -gt 0 ]; then
+            echo "ERROR: Binary file content detected in tests/:"
+            printf '%s\n' "${binaries[@]}"
+            exit 1
+          fi

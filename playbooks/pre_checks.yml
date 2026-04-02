@@ -4,16 +4,39 @@
   gather_facts: true
 
   vars:
-    repo_root: "{{ playbook_dir | dirname }}"
-    modules_root: "{{ repo_root }}/plugins/modules"
-    source_root: "{{ modules_root }}/src"
+    collection_modules_subpath: "ansible_collections/os_migrate/vmware_migration_kit/plugins/modules"
 
   tasks:
-    - name: List all Go module directories
+    - name: Check installed collection paths
+      ansible.builtin.stat:
+        path: "{{ item ~ '/' ~ collection_modules_subpath }}"
+      loop: "{{ lookup('config', 'COLLECTIONS_PATHS') }}"
+      register: collection_paths
+      no_log: true
+
+    - name: Set installed collection modules path
+      ansible.builtin.set_fact:
+        modules_root: >-
+          {{ (collection_paths.results
+              | selectattr('stat.isdir', 'defined')
+              | selectattr('stat.isdir')
+              | map(attribute='item')
+              | first) ~ '/' ~ collection_modules_subpath }}
+
+    - name: Fail if installed collection was not found in the execution environment
+      ansible.builtin.fail:
+        msg: >-
+          ERROR: Collection os_migrate.vmware_migration_kit was not found in configured COLLECTIONS_PATHS:
+          {{ lookup('config', 'COLLECTIONS_PATHS') | join(', ') }}
+      when: collection_paths.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length == 0
+
+    - name: List compiled Go binaries in the collection
       ansible.builtin.find:
-        paths: "{{ source_root }}"
-        file_type: directory
+        paths: "{{ modules_root }}"
+        file_type: file
         recurse: false
+        excludes:
+          - "*.py"
       register: src_contents
       no_log: true
 
