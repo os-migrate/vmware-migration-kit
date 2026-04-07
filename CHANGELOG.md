@@ -214,3 +214,10 @@ Minor release which removes unused import_image module and fix AEE push
 - Update check jobs with new go version
 - Enhance mock server and integration tests coverage
 - Mock updates
+
+## v2.2.3
+
+- Remove fake server binary
+- update go-tests to check if binaries are found in test folder
+- update for gostack integration
+- Fix pre-checks to work with AAP Execution Environments
