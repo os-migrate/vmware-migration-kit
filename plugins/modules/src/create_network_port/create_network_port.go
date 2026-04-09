@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package create_network_port
 
 import (
 	"context"
@@ -110,7 +110,7 @@ func loadJSONFile(filePath string, target interface{}) error {
 	return nil
 }
 
-func main() {
+func Run() {
 	var response Response
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"
