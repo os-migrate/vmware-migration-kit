@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package generate_heat_template
 
 import (
 	"encoding/json"
@@ -173,7 +173,7 @@ func generateHeatTemplate(vmsData []VMData, stackName string) (string, map[strin
 	return template.String(), parameters
 }
 
-func main() {
+func Run() {
 	if len(os.Args) != 2 {
 		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
 	}

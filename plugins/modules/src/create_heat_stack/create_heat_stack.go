@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package create_heat_stack
 
 import (
 	"context"
@@ -98,7 +98,7 @@ func waitForStackStatus(ctx context.Context, client *gophercloud.ServiceClient, 
 	}
 }
 
-func main() {
+func Run() {
 	if len(os.Args) != 2 {
 		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
 	}

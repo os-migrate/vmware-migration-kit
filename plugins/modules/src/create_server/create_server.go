@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package create_server
 
 import (
 	"context"
@@ -94,7 +94,7 @@ func success(changed bool, id string) {
 	os.Exit(0)
 }
 
-func main() {
+func Run() {
 	var response ansible.Response
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"

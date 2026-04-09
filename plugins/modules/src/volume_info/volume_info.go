@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package volume_info
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func returnResponse(responseBody Response) {
 	}
 }
 
-func main() {
+func Run() {
 	var response Response
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"

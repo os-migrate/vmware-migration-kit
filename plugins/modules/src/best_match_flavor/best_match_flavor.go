@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package main
+package best_match_flavor
 
 import (
 	"context"
@@ -168,7 +168,7 @@ func findBestMatchingFlavor(provider *gophercloud.ProviderClient, guestInfo *Gue
 	return bestFlavor, nil
 }
 
-func main() {
+func Run() {
 	var response Response
 	if len(os.Args) != 2 {
 		response.Msg = "No argument file provided"
