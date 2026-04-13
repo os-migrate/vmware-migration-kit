@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"vmware-migration-kit/plugins/modules/src/best_match_flavor"
 	"vmware-migration-kit/plugins/modules/src/create_heat_stack"
@@ -51,6 +52,8 @@ var dispatch = map[string]func(){
 
 func main() {
 	name := filepath.Base(os.Args[0])
+	name = strings.TrimPrefix(name, "AnsiballZ_")
+	name = strings.TrimSuffix(name, ".py")
 	if fn, ok := dispatch[name]; ok {
 		fn()
 		return
