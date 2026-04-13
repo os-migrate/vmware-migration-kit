@@ -222,14 +222,14 @@ func TestSafeVmName(t *testing.T) {
 	}{
 		// Basic cases (existing)
 		{"vm1", "vm1"},
-		{"vm-01", "vm_01"},
+		{"vm-01", "vm-01"},
 		{"My VM", "My_VM"},
 		{"vm@#$%", "vm"},
 		{"_already_ok_", "_already_ok"},
 		{" ", ""},
-		{"Mi-VM.2025", "Mi_VM_2025"},
-		// Underscore collapsing
-		{"vm--01", "vm_01"},
+		{"Mi-VM.2025", "Mi-VM_2025"},
+		// Underscore / hyphen collapsing
+		{"vm--01", "vm-01"},
 		{"vm...test", "vm_test"},
 		{"VM  prod", "VM_prod"},
 		{"vm___server", "vm_server"},
@@ -237,7 +237,7 @@ func TestSafeVmName(t *testing.T) {
 		{"ñoño", "nono"},
 		{"Ángel_García", "Angel_Garcia"},
 		{"Açaí_VM", "Acai_VM"},
-		{"Muñoz-Server", "Munoz_Server"},
+		{"Muñoz-Server", "Munoz-Server"},
 		{"Ñoño_Server", "Nono_Server"},
 		// Transliteration - accented vowels
 		{"áéíóú", "aeiou"},
