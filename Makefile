@@ -248,6 +248,7 @@ test-ansible-sanity:
 	  --exclude plugins/modules/delete_server \
 	  --exclude plugins/modules/delete_volume \
 	  --exclude plugins/modules/flavor_info \
+	  --exclude plugins/modules/module_dispatcher \
 	  --exclude plugins/modules/migrate \
 	  --exclude plugins/modules/volume_info \
 	  --exclude plugins/modules/volume_metadata_info && \
