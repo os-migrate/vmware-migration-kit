@@ -119,18 +119,20 @@ func transliterate(vmName string) string {
 
 // SafeVmName sanitizes a VMware VM name for use as an OpenStack resource name.
 // It transliterates common non-ASCII characters, replaces any remaining
-// non-alphanumeric characters (except underscore) with underscores, collapses
-// consecutive underscores into one, truncates to 64 characters, and strips
-// any trailing underscores left after truncation.
+// non-alphanumeric characters (except underscore and ASCII hyphen) with underscores,
+// collapses consecutive underscores and consecutive hyphens, truncates to 64 characters,
+// and strips trailing underscores and hyphens left after truncation.
 func SafeVmName(vmName string) string {
 	safe := transliterate(vmName)
-	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	re := regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 	safe = re.ReplaceAllString(safe, "_")
 	multi := regexp.MustCompile(`_+`)
 	safe = multi.ReplaceAllString(safe, "_")
+	hyphenMulti := regexp.MustCompile(`-+`)
+	safe = hyphenMulti.ReplaceAllString(safe, "-")
 	if len(safe) > 64 {
 		safe = safe[:64]
 	}
-	safe = strings.TrimRight(safe, "_")
+	safe = strings.TrimRight(safe, "_-")
 	return safe
 }
