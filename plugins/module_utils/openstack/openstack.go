@@ -89,7 +89,7 @@ func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.Provi
 	}
 
 	authURL := os.Getenv("OS_AUTH_URL")
-	if authURL != "" {
+	if authURL != "" && moduleOpts.AuthURL == "" {
 		var err error
 		opts, err = openstack.AuthOptionsFromEnv()
 		if err != nil {

@@ -19,7 +19,7 @@
 
     - name: Import flavors from YAML
       os_migrate.vmware_migration_kit.import_flavor:
-        cloud: "{{ dst_cloud }}"
+        cloud: "{{ dst_cloud | combine({'openstack_insecure': openstack_insecure | default(false) | bool}, recursive=True) }}"
         flavors_file: "{{ os_migrate_vmw_data_dir }}/{{ vm_name }}/flavors.yml"
       register: imported_flavors
       loop: "{{ vms }}"
