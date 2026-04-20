@@ -123,8 +123,10 @@ type ModuleArgs struct {
 	ExternalVolume bool
 	VolumeName     string
 	HostPool       string
-	BootScript     string
-	ExtraOpts      string
+	BootScript                   string
+	ExtraOpts                    string
+	VmwareInsecure    bool `json:"vmware_insecure"`
+	
 }
 
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
@@ -435,8 +437,8 @@ func main() {
 	socks := moduleArgs.UseSocks
 	instanceUUid := moduleArgs.InstanceUUID
 	debug := moduleArgs.Debug
+	vmwareInsecure := moduleArgs.VmwareInsecure
 	localDisk := moduleArgs.LocalDiskPath
-	// Cinder manage options
 	externalVolume := moduleArgs.ExternalVolume
 	volumeName := moduleArgs.VolumeName
 	hostPool := moduleArgs.HostPool
@@ -452,7 +454,7 @@ func main() {
 	logger.InitLogger(LogFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	c, err := vmware.VMWareAuth(ctx, server, user, password)
+	c, err := vmware.VMWareAuth(ctx, server, user, password, vmwareInsecure)
 	if err != nil {
 		logger.Log.Infof("Failed to initiate Vmware client: %v", err)
 		response.Msg = "Failed to initiate Vmware client: " + err.Error()
@@ -525,6 +527,7 @@ func main() {
 				Compression: compression,
 				UUID:        r,
 				UseSocks:    socks,
+				Insecure:    vmwareInsecure,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
 					SnapshotReference: types.ManagedObjectReference{},
@@ -551,7 +554,6 @@ func main() {
 			CloudOpts:     moduleArgs.DstCloud,
 			VolumeType:    volType,
 			VolumeAz:      volAz,
-			AssumeZero:    assumeZero,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
