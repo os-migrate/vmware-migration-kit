@@ -430,7 +430,6 @@ func main() {
 	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
 	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
 	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
-	assumeZero := moduleArgs.AssumeZero
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
 	skipV2V := moduleArgs.SkipConversion
