@@ -49,6 +49,8 @@ options:
   use_fixed_ips:
     description:
       - Whether to assign fixed IPs to the created ports based on the IP addresses found in the nics file.
+      - Only IPv4 addresses are used and other IPv6 addresses from VMware metadata are ignored
+        so Neutron fixed IPs can target a single IPv4 subnet without requiring matching IPv6 subnets.
     type: bool
     default: false
     required: false

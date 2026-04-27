@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,6 +57,23 @@ func FDevName(
 		}
 	}
 	return "", nil
+}
+
+func FixedIPsForNeutron(ips []string) []string {
+	if len(ips) == 0 {
+		return nil
+	}
+	var out []string
+	for _, s := range ips {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			continue
+		}
+		if ip4 := ip.To4(); ip4 != nil {
+			out = append(out, ip4.String())
+		}
+	}
+	return out
 }
 
 func GenRandom(length int) (string, error) {
@@ -97,7 +115,7 @@ var transliterations = map[rune]string{
 	'ì': "i", 'ò': "o",
 	'Ì': "I", 'Ò': "O",
 	// Common special characters
-	'·':    "_", // interpunct
+	'·':      "_", // interpunct
 	'\u2019': "_", // right single quotation mark
 	'\u2013': "_", // en-dash
 	'\u2014': "_", // em-dash
