@@ -165,6 +165,8 @@ func main() {
 		}
 		if !moduleArgs.UseFixedIPs {
 			nic.FixedIPs = nil
+		} else {
+			nic.FixedIPs = moduleutils.FixedIPsForNeutron(nic.FixedIPs)
 		}
 		// If using fixed IPs, get subnet ID if not provided
 		if moduleArgs.UseFixedIPs {
