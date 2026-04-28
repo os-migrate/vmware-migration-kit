@@ -47,7 +47,8 @@
           }] }}
       loop: "{{ vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list }}"
       vars:
-        mapped_vlan: "{{ network_map.get(vm_info_file[item].portgroup_key, 'UNMAPPED') }}"
+        lookup_key: "{{ vm_info_file[item].portgroup_key | default(vm_info_file[item].summary, true) }}"
+        mapped_vlan: "{{ network_map.get(lookup_key, 'UNMAPPED') }}"
         vlan_parts: "{{ mapped_vlan.split(',') }}"
         vlan_name: "{{ vlan_parts[0] }}"
         subnet_uuid: "{{ vlan_parts[1] if vlan_parts | length > 1 else omit }}"
@@ -72,6 +73,7 @@
           VMware networks found on this VM:
           {% for eth in vm_info_file.keys() | select('match', '^hw_eth[0-9]+$') | list %}
           - {{ vm_info_file[eth].portgroup_key }}
+          - {{ vm_info_file[eth].summary }}
           {% endfor %}
 
           Your current network_map:
