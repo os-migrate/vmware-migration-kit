@@ -42,3 +42,5 @@ plugins/modules/src/import_flavor/import_flavor.go validate-modules:python-synta
 plugins/modules/src/migrate/migrate.go validate-modules:python-syntax-error
 plugins/modules/src/volume_info/volume_info.go validate-modules:python-syntax-error
 plugins/modules/src/volume_metadata_info/volume_metadata_info.go validate-modules:python-syntax-error
+plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:invalid-extension
+plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:python-syntax-error
