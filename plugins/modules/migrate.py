@@ -130,8 +130,8 @@ options:
     type: bool
     default: false
     required: false
-  vsphere_insecure: # Common optional parameter for vSphere connections
-    description: If C(true), SSL certificate verification for the vSphere C(server) will be skipped.
+  vmware_insecure: # SSL verification for VMware connections
+    description: If C(true), SSL certificate verification for the VMware C(server) will be skipped.
     type: bool
     default: false
     required: false
@@ -169,7 +169,7 @@ EXAMPLES = r"""
     # convhostname: "{{ specific_conversion_host | default(omit) }}"
     compression: "zstd"
     debug_mode: true
-    vsphere_insecure: true
+    vmware_insecure: true
     wait: true
     timeout: 7200
   register: migrate_vm_output
