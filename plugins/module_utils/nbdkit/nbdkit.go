@@ -42,6 +42,7 @@ type NbdkitConfig struct {
 	Compression string
 	UUID        string
 	UseSocks    bool
+	Insecure    bool
 	VddkConfig  *vmware.VddkConfig
 }
 
@@ -102,7 +103,7 @@ func (c *NbdkitConfig) RunNbdKit(diskName string) (*NbdkitServer, error) {
 }
 
 func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
-	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
+	thumbprint, err := vmware.GetThumbprint(c.Server, "443", c.Insecure)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 }
 
 func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
-	thumbprint, err := vmware.GetThumbprint(c.Server, "443")
+	thumbprint, err := vmware.GetThumbprint(c.Server, "443", c.Insecure)
 	if err != nil {
 		return nil, err
 	}

@@ -48,10 +48,13 @@ type VddkConfig struct {
 
 const maxChunkSize = 64 * 1024 * 1024
 
-func VMWareAuth(ctx context.Context, server string, user string, password string) (*govmomi.Client, error) {
+func VMWareAuth(ctx context.Context, server string, user string, password string, insecureSkipVerify bool) (*govmomi.Client, error) {
 	u, _ := url.Parse("https://" + server + "/sdk")
 	ProcessUrl(u, user, password)
-	c, err := govmomi.NewClient(ctx, u, true)
+	if insecureSkipVerify {
+		logger.Log.Warnf("TLS certificate verification is disabled for VMware client")
+	}
+	c, err := govmomi.NewClient(ctx, u, insecureSkipVerify)
 	if err != nil {
 		logger.Log.Infof("Failed to authenticate to VMware client %v", err)
 		return nil, err
@@ -88,9 +91,14 @@ func ProcessUrl(u *url.URL, user string, password string) {
 	}
 }
 
-func GetThumbprint(host string, port string) (string, error) {
+func GetThumbprint(host string, port string, insecureSkipVerify bool) (string, error) {
+	if insecureSkipVerify {
+		logger.Log.Warnf("TLS certificate verification is disabled while retrieving VMware thumbprint")
+	}
+
 	config := tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: insecureSkipVerify,
+		MinVersion:         tls.VersionTLS12,
 	}
 	if port == "" {
 		port = "443"

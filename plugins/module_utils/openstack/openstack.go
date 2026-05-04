@@ -44,6 +44,7 @@ type DstCloud struct {
 	RegionName         string `json:"region_name"`
 	Interface          string `json:"interface"`
 	IdentityAPIVersion int    `json:"identity_api_version"`
+	OpenStackInsecure  bool   `json:"openstack_insecure"`
 }
 
 type Auth struct {
@@ -81,9 +82,14 @@ type CinderManageConfig struct {
 }
 
 func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
+	insecureSkipVerify := moduleOpts.OpenStackInsecure
 	var opts gophercloud.AuthOptions
+	if insecureSkipVerify {
+		logger.Log.Warnf("TLS certificate verification is disabled for OpenStack client")
+	}
+
 	authURL := os.Getenv("OS_AUTH_URL")
-	if authURL != "" {
+	if authURL != "" && moduleOpts.AuthURL == "" {
 		var err error
 		opts, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
@@ -100,7 +106,11 @@ func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.Provi
 			AllowReauth:      true,
 		}
 	}
-	provider, err := config.NewProviderClient(ctx, opts, config.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecureSkipVerify,
+		MinVersion:         tls.VersionTLS12,
+	}
+	provider, err := config.NewProviderClient(ctx, opts, config.WithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, err
 	}
