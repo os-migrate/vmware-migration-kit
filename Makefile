@@ -112,14 +112,14 @@ clean-binaries: check-root
 		echo "*** Error: $(MODULES_DIR) directory not found. ***"; \
 		exit 1; \
 	fi
-	@# Count files that would be deleted
-	@files_to_delete=$$(find $(MODULES_DIR) -type f ! -name "*.py" -a ! -name "*.go" | wc -l); \
+	@# Count files and symlinks that would be deleted
+	@files_to_delete=$$(find $(MODULES_DIR) \( -type f ! -name "*.py" ! -name "*.go" -o -type l \) | wc -l); \
 	if [ $$files_to_delete -eq 0 ]; then \
 		echo "*** No binary files found to delete in $(MODULES_DIR) ***"; \
 	else \
 		echo "*** Found $$files_to_delete files to delete ***"; \
 		echo "*** Removing binary files from $(MODULES_DIR) ... ***"; \
-		find $(MODULES_DIR) -type f ! -name "*.go" -a ! -name "*.py" -delete; \
+		find $(MODULES_DIR) \( -type f ! -name "*.go" ! -name "*.py" -o -type l \) -delete; \
 		echo "*** Cleanup complete. ***"; \
 	fi
 
@@ -248,6 +248,7 @@ test-ansible-sanity:
 	  --exclude plugins/modules/delete_server \
 	  --exclude plugins/modules/delete_volume \
 	  --exclude plugins/modules/flavor_info \
+	  --exclude plugins/modules/module_dispatcher \
 	  --exclude plugins/modules/migrate \
 	  --exclude plugins/modules/volume_info \
 	  --exclude plugins/modules/volume_metadata_info && \

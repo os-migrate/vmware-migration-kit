@@ -14,7 +14,7 @@
  * Copyright 2025 Red Hat, Inc.
  */
 
-package main
+package import_flavor
 
 import (
 	"context"
@@ -110,7 +110,7 @@ func fail(msg string) {
 	os.Exit(1)
 }
 
-func main() {
+func Run() {
 	var response ansible.Response
 
 	// Check if argument file is provided
