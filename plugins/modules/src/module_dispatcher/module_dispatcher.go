@@ -31,6 +31,10 @@ import (
 	"vmware-migration-kit/plugins/modules/src/create_heat_stack"
 	"vmware-migration-kit/plugins/modules/src/create_network_port"
 	"vmware-migration-kit/plugins/modules/src/create_server"
+	"vmware-migration-kit/plugins/modules/src/delete_flavor"
+	"vmware-migration-kit/plugins/modules/src/delete_port"
+	"vmware-migration-kit/plugins/modules/src/delete_server"
+	"vmware-migration-kit/plugins/modules/src/delete_volume"
 	"vmware-migration-kit/plugins/modules/src/flavor_info"
 	"vmware-migration-kit/plugins/modules/src/generate_heat_template"
 	"vmware-migration-kit/plugins/modules/src/import_flavor"
@@ -43,6 +47,10 @@ var dispatch = map[string]func(){
 	"create_heat_stack":      create_heat_stack.Run,
 	"create_network_port":    create_network_port.Run,
 	"create_server":          create_server.Run,
+	"delete_flavor":          delete_flavor.Run,
+	"delete_port":            delete_port.Run,
+	"delete_server":          delete_server.Run,
+	"delete_volume":          delete_volume.Run,
 	"flavor_info":            flavor_info.Run,
 	"generate_heat_template": generate_heat_template.Run,
 	"import_flavor":          import_flavor.Run,
