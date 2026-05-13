@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"vmware-migration-kit/plugins/module_utils/ansible"
@@ -40,6 +41,7 @@ type ModuleArgs struct {
 	Parameters   map[string]interface{} `json:"parameters"`
 	Wait         bool                   `json:"wait"`
 	Timeout      int                    `json:"timeout"`
+	OutputDir    string                 `json:"output_dir"`
 }
 
 type StackInfo struct {
@@ -49,10 +51,11 @@ type StackInfo struct {
 }
 
 type Response struct {
-	Msg     string    `json:"msg"`
-	Changed bool      `json:"changed"`
-	Failed  bool      `json:"failed"`
-	Stack   StackInfo `json:"stack,omitempty"`
+	Msg      string    `json:"msg"`
+	Changed  bool      `json:"changed"`
+	Failed   bool      `json:"failed"`
+	Stack    StackInfo `json:"stack,omitempty"`
+	InfoPath string    `json:"info_path,omitempty"`
 }
 
 func exitJson(responseBody Response) {
@@ -216,5 +219,16 @@ func main() {
 			Status: finalStack.Status,
 		},
 	}
+
+	if moduleArgs.OutputDir != "" {
+		infoPath := filepath.Join(moduleArgs.OutputDir, "heat-stack-info.txt")
+		content := fmt.Sprintf("Stack Name: %s\nStack ID: %s\nStatus: %s\nTemplate: %s\n",
+			finalStack.Name, finalStack.ID, finalStack.Status, moduleArgs.TemplatePath)
+		if err := os.WriteFile(infoPath, []byte(content), 0644); err != nil {
+			ansible.FailJson(ansible.Response{Msg: "Failed to write stack info file: " + err.Error()})
+		}
+		response.InfoPath = infoPath
+	}
+
 	exitJson(response)
 }

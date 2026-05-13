@@ -86,6 +86,7 @@
     parameters: "{{ heat_template_generated.parameters }}"
     wait: true
     timeout: 600
+    output_dir: "{{ os_migrate_vmw_data_dir }}"
   register: heat_stack_created
   when: import_workloads_heat_auto_deploy | default(true) | bool
 
@@ -101,45 +102,7 @@
       View events: openstack stack event list {{ heat_stack_created.stack.id }}
   when: heat_stack_created is defined and not heat_stack_created.failed
 
-- name: Save Heat stack information to file
-  ansible.builtin.copy:
-    content: |
-      # Heat Stack Information
-      Stack Name: {{ heat_stack_created.stack.name }}
-      Stack ID: {{ heat_stack_created.stack.id }}
-      Status: {{ heat_stack_created.stack.status }}
-      Template: {{ heat_template_generated.template_path }}
-
-      ## Migrated VMs
-      {% for vm in heat_vms_data %}
-      - {{ vm.name }}:
-        Boot Volume: {{ vm.boot_volume_id }}
-        Flavor: {{ vm.flavor }}
-        Network: {{ vm.network }}
-      {% endfor %}
-
-      ## Heat Management Commands
-      # View stack details
-      openstack stack show {{ heat_stack_created.stack.id }}
-
-      # List stack resources
-      openstack stack resource list {{ heat_stack_created.stack.id }}
-
-      # View stack events
-      openstack stack event list {{ heat_stack_created.stack.id }}
-
-      # Update stack (with template changes)
-      openstack stack update {{ heat_stack_created.stack.id }} -t {{ heat_template_generated.template_path }}
-
-      # Delete stack (WARNING: This will delete managed resources - instances and ports)
-      # Note: Cinder volumes are external and will NOT be deleted
-      openstack stack delete {{ heat_stack_created.stack.id }}
-    dest: "{{ os_migrate_vmw_data_dir }}/heat-stack-info.txt"
-    mode: '0644'
-  when: heat_stack_created is defined and not heat_stack_created.failed
-  delegate_to: localhost
-
 - name: Display saved stack info location
   ansible.builtin.debug:
-    msg: "Stack information saved to {{ os_migrate_vmw_data_dir }}/heat-stack-info.txt"
+    msg: "Stack information saved to {{ heat_stack_created.info_path }}"
   when: heat_stack_created is defined and not heat_stack_created.failed
