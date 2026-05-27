@@ -45,6 +45,12 @@ options:
     required: false
     type: int
     default: 600
+  output_dir:
+    description:
+      - Directory where heat-stack-info.txt will be written after successful stack creation.
+      - When set, the file is written on the same host that runs the module, at the exact path specified.
+    required: false
+    type: str
 """
 
 EXAMPLES = r"""
@@ -72,4 +78,9 @@ stack:
     returned: success
     type: dict
     sample: {"id": "stack-uuid", "name": "os-migrate-20240120", "status": "CREATE_COMPLETE"}
+info_path:
+  description: Path to the written heat-stack-info.txt file
+  returned: when output_dir is provided
+  type: str
+  sample: "/opt/os-migrate/heat-stack-info.txt"
 """
