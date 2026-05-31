@@ -605,7 +605,7 @@ func GetDiskTargets(ctx context.Context, v *object.VirtualMachine) ([]DiskDevice
 			diskDevices = append(diskDevices, DiskDevice{
 				Type:   "file",
 				Device: "disk",
-				Source: "" // Source is not needed for target mapping
+				Source: DiskSource{}, // Source is not needed for target mapping
 				Target: DiskTarget{
 					Dev: devName,
 					Bus: busType,
