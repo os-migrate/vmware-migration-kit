@@ -601,7 +601,11 @@ func main() {
 				response.Msg = "Failed to attach volume: " + err.Error() + ". Check logs: " + LogFile
 				ansible.FailJson(response)
 			}
-			defer osm_os.DetachVolume(provider, v, "", convUUID, moduleArgs.DstCloud)
+			defer func(volumeID string) {
+				if err := osm_os.DetachVolume(provider, volumeID, "", convUUID, moduleArgs.DstCloud); err != nil {
+					logger.Log.Infof("Failed to detach volume %s: %v", volumeID, err)
+				}
+			}(v)
 		}
 
 		// Get volume attachments with device paths
