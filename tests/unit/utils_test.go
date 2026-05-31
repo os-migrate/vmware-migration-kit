@@ -281,6 +281,48 @@ func TestSafeVmName(t *testing.T) {
 	}
 }
 
+// TestSafeVmName_HyphenHandling verifies hyphens are preserved so Cinder volume
+// names built from SafeVmName stay consistent across create and lookup paths.
+func TestSafeVmName_HyphenHandling(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"vm-01", "vm-01"},
+		{"prod-web-server", "prod-web-server"},
+		{"MyCompany-Web-01", "MyCompany-Web-01"},
+		{"vm--01", "vm-01"},
+		{"web---app", "web-app"},
+		{"vm_01", "vm_01"},
+		{"vm-01_prod", "vm-01_prod"},
+		{"host-", "host"},
+		{"host---", "host"},
+		{strings.Repeat("a", 63) + "-", strings.Repeat("a", 63)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := moduleutils.SafeVmName(tt.input)
+			if result != tt.expected {
+				t.Errorf("SafeVmName(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSafeVmName_VolumeNameConsistency(t *testing.T) {
+	vmName := "prod-web-01"
+	safeName := moduleutils.SafeVmName(vmName)
+	volumeName := safeName + "-0"
+
+	if safeName != "prod-web-01" {
+		t.Errorf("SafeVmName(%q) = %q; want %q", vmName, safeName, "prod-web-01")
+	}
+	if volumeName != "prod-web-01-0" {
+		t.Errorf("volume name = %q; want %q", volumeName, "prod-web-01-0")
+	}
+}
+
 // Test 12: GenRandom produces different outputs on multiple calls (randomness)
 func TestGenRandom_Randomness(t *testing.T) {
 	length := 20
