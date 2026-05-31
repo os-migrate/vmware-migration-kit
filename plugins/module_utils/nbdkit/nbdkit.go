@@ -406,7 +406,7 @@ func versionIsLower(cVersion, rVersion string) bool {
 */
 
 // buildV2VCommand constructs the virt-v2v-in-place command string.
-func buildV2VCommand(path, rsPath, bsPath, extraOpts string) string {
+func buildV2VCommand(path, rsPath, bsPath, extraOpts string, multiDisk bool) string {
 	opts := ""
 	if rsPath != "" {
 		opts = opts + " --run " + rsPath
@@ -417,10 +417,16 @@ func buildV2VCommand(path, rsPath, bsPath, extraOpts string) string {
 	if extraOpts != "" {
 		opts += " " + extraOpts
 	}
-	return "virt-v2v-in-place" + opts + " -i disk " + path
+
+	inputOpt := "-i disk"
+	if multiDisk {
+		inputOpt = "-i libvirtxml"
+	}
+
+	return "virt-v2v-in-place" + opts + " " + inputOpt + " " + path
 }
 
-func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
+func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool, multiDisk bool) error {
 	_, err := findVirtV2v()
 	if err != nil {
 		logger.Log.Infof("Failed to find virt-v2v-in-place: %v", err)
@@ -456,7 +462,7 @@ func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool) error {
 		}
 	}
 
-	v2vcmd := buildV2VCommand(path, rsPath, bsPath, extraOpts)
+	v2vcmd := buildV2VCommand(path, rsPath, bsPath, extraOpts, multiDisk)
 	cmd := exec.Command("bash", "-c", v2vcmd)
 	logger.Log.Infof("Running virt-v2v: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()
