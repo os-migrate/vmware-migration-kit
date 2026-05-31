@@ -595,9 +595,10 @@ func GetDiskTargets(ctx context.Context, v *object.VirtualMachine) ([]DiskDevice
 			if mappedBus, exists := controllerMap[parentKey]; exists {
 				busType = mappedBus
 			}
-			if busType == "ide" {
+			switch busType {
+			case "ide":
 				devName = "hd" + driveLetter
-			} else if busType == "nvme" || busType == "virtio" {
+			case "nvme", "virtio":
 				devName = "vda"
 			}
 			logger.Log.Infof("Disk device found - Key: %d, DevName: %s, BusType: %s", disk.Key, devName, busType)
