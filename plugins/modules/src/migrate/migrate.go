@@ -646,7 +646,7 @@ func main() {
 		if !skipV2V {
 			logger.Log.Infof("Running V2V conversion for multidisk with domain XML: %s", domainXMLPath)
 			var netConfScript string
-			if ok, _ := vmware.VddkConfig{VirtualMachine: vm}.IsLinuxFamily(ctx); ok && runScript != "" {
+			if runScript != "" {
 				netConfScript = runScript
 			} else {
 				netConfScript = ""

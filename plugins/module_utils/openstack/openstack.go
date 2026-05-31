@@ -465,7 +465,7 @@ func GetServerVolumeAttachments(client *gophercloud.ProviderClient, serverID str
 		return nil, fmt.Errorf("failed to create compute client: %w", err)
 	}
 
-	allPages, err := volumeattach.List(computeClient, serverID).AllPages()
+	allPages, err := volumeattach.List(computeClient, serverID).AllPages(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list volume attachments: %w", err)
 	}
