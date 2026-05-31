@@ -58,6 +58,18 @@ type Response struct {
 	InfoPath string    `json:"info_path,omitempty"`
 }
 
+const stackInfoFileName = "heat_stack_info.txt"
+
+func WriteStackInfoFile(outputDir string, stack StackInfo, templatePath string) (string, error) {
+	infoPath := filepath.Join(outputDir, stackInfoFileName)
+	content := fmt.Sprintf("Stack Name: %s\nStack ID: %s\nStatus: %s\nTemplate: %s\n",
+		stack.Name, stack.ID, stack.Status, templatePath)
+	if err := os.WriteFile(infoPath, []byte(content), 0644); err != nil {
+		return "", err
+	}
+	return infoPath, nil
+}
+
 func exitJson(responseBody Response) {
 	ansible.ReturnResponseWithDeps(ansible.Response{
 		Msg:     responseBody.Msg,
@@ -221,10 +233,12 @@ func Run() {
 	}
 
 	if moduleArgs.OutputDir != "" {
-		infoPath := filepath.Join(moduleArgs.OutputDir, "heat_stack_info.txt")
-		content := fmt.Sprintf("Stack Name: %s\nStack ID: %s\nStatus: %s\nTemplate: %s\n",
-			finalStack.Name, finalStack.ID, finalStack.Status, moduleArgs.TemplatePath)
-		if err := os.WriteFile(infoPath, []byte(content), 0644); err != nil {
+		infoPath, err := WriteStackInfoFile(moduleArgs.OutputDir, StackInfo{
+			Name:   finalStack.Name,
+			ID:     finalStack.ID,
+			Status: finalStack.Status,
+		}, moduleArgs.TemplatePath)
+		if err != nil {
 			ansible.FailJson(ansible.Response{Msg: "Failed to write stack info file: " + err.Error()})
 		}
 		response.InfoPath = infoPath
