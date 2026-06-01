@@ -126,7 +126,7 @@ type ModuleArgs struct {
 	BootScript        string
 	ExtraOpts         string
 	VmwareInsecure    bool `json:"vmware_insecure"`
-	MultiDiskFS       bool `json:"multidisk_fs"`
+	MultiDiskFS       bool `json:"multidiskfs"`
 }
 
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
@@ -586,6 +586,7 @@ func main() {
 
 	// Handle multidisk:
 	if multiDiskFS {
+		volumeDeviceMap := make(map[string]string)
 		convUUID, err := osm_os.GetInstanceUUID()
 		if err != nil {
 			logger.Log.Infof("Failed to get conversion host UUID: %v", err)
@@ -601,26 +602,15 @@ func main() {
 				response.Msg = "Failed to attach volume: " + err.Error() + ". Check logs: " + LogFile
 				ansible.FailJson(response)
 			}
-			defer func(volumeID string) {
-				if err := osm_os.DetachVolume(provider, volumeID, "", convUUID, moduleArgs.DstCloud); err != nil {
-					logger.Log.Infof("Failed to detach volume %s: %v", volumeID, err)
+			defer func() {
+				if err := osm_os.DetachVolume(provider, v, "", convUUID, moduleArgs.DstCloud); err != nil {
+					logger.Log.Infof("Failed to detach volume %s: %v", vmname, err)
 				}
-			}(v)
-		}
+			}()
 
-		// Get volume attachments with device paths
-		volumeAttachments, err := osm_os.GetServerVolumeAttachments(provider, convUUID)
-		if err != nil {
-			logger.Log.Infof("Failed to get volume attachments: %v", err)
-			response.Msg = "Failed to get volume attachments: " + err.Error() + ". Check logs: " + LogFile
-			ansible.FailJson(response)
-		}
-
-		// Map volume IDs to device paths
-		volumeDeviceMap := make(map[string]string)
-		for _, attachment := range volumeAttachments {
-			volumeDeviceMap[attachment.VolumeID] = attachment.Device
-			logger.Log.Infof("Volume %s attached at device %s", attachment.VolumeID, attachment.Device)
+			devPath, err := moduleutils.FindDevName(v)
+			volumeDeviceMap[v] = devPath
+			logger.Log.Infof("Volume %s attached at device %s", v, devPath)
 		}
 
 		// Map device paths to diskTargets: volume[0] -> diskTargets[0].Source.File, etc.
@@ -637,8 +627,7 @@ func main() {
 			}
 		}
 
-		// Write domain.xml file
-		domainXMLPath, err := vmware.WriteDomainXML(diskTargets, safeVmName)
+		domainXMLPath, err := vmware.WriteDomainXML(diskTargets, safeVmName+r)
 		if err != nil {
 			logger.Log.Infof("Failed to write domain XML: %v", err)
 			response.Msg = "Failed to write domain XML: " + err.Error() + ". Check logs: " + LogFile
