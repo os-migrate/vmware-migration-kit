@@ -73,6 +73,9 @@ type Devices struct {
 // Domain represents the root domain element in the virsh XML output
 type Domain struct {
 	XMLName xml.Name `xml:"domain"`
+	Type    string   `xml:"type,attr"`
+	Name    string   `xml:"name"`
+	Memory  int64    `xml:"memory"`
 	Devices Devices  `xml:"devices"`
 }
 
@@ -620,6 +623,9 @@ func GetDiskTargets(ctx context.Context, v *object.VirtualMachine) ([]DiskDevice
 
 func WriteDomainXML(diskDevices []DiskDevice, vmName string) (string, error) {
 	domain := Domain{
+		Type:   "kvm",
+		Name:   vmName,
+		Memory: 2 * 1024 * 1024, // Set a default memory size (2GB) for the domain XML
 		Devices: Devices{
 			Disks: diskDevices,
 		},
