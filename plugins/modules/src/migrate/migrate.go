@@ -129,6 +129,127 @@ type ModuleArgs struct {
 	MultiDiskFS       bool `json:"multidiskfs"`
 }
 
+func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
+	if multiDisk {
+		logger.Log.Infof("Running V2V conversion for multidisk with domain XML: %s", path)
+	} else {
+		logger.Log.Infof("Running V2V conversion with %v", volumeIDs[0])
+	}
+
+	var netConfScript string
+	if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.RunScript != "" {
+		netConfScript = c.RunScript
+	} else {
+		netConfScript = ""
+	}
+
+	err := nbdkit.V2VConversion(path, netConfScript, c.BootScript, c.ExtraOpts, c.Debug, multiDisk)
+	if err != nil {
+		if multiDisk {
+			logger.Log.Infof("Failed to convert multidisk: %v", err)
+		} else {
+			logger.Log.Infof("Failed to convert disk: %v", err)
+		}
+		return err
+	}
+
+	if !multiDisk {
+		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
+		if err != nil {
+			logger.Log.Infof("Warning: Failed to power off vm %v", err)
+			logger.Log.Infof("You will have to power off the vm manually...")
+		}
+	}
+
+	// Mark volume(s) as converted
+	for _, volumeID := range volumeIDs {
+		volMetadata := map[string]string{
+			"osm":       "true",
+			"converted": "true",
+		}
+		err = osm_os.UpdateVolumeMetadata(c.OSClient, volumeID, volMetadata)
+		if err != nil {
+			logger.Log.Infof("Failed to set volume metadata for %s: %v, ignoring ...", volumeID, err)
+		}
+	}
+
+	if multiDisk {
+		logger.Log.Infof("Multidisk V2V conversion completed successfully")
+	}
+
+	return nil
+}
+
+func (c *MigrationConfig) handleMultiDiskConversion(
+	ctx context.Context,
+	volumeIDs []string,
+	diskTargets []vmware.DiskDevice,
+	vmName string,
+	randomID string,
+	skipV2V bool,
+) error {
+	convUUID, err := osm_os.GetInstanceUUID()
+	if err != nil {
+		logger.Log.Infof("Failed to get conversion host UUID: %v", err)
+		return fmt.Errorf("failed to get conversion host UUID: %w", err)
+	}
+
+	// Attach all volumes to the conversion host
+	volumeDeviceMap := make(map[string]string)
+	for _, volumeID := range volumeIDs {
+		err := osm_os.AttachVolume(c.OSClient, volumeID, c.ConvHostName, convUUID)
+		if err != nil {
+			logger.Log.Infof("Failed to attach volume %s: %v", volumeID, err)
+			return fmt.Errorf("failed to attach volume: %w", err)
+		}
+		defer func(vid string) {
+			if err := osm_os.DetachVolume(c.OSClient, vid, "", convUUID, c.CloudOpts); err != nil {
+				logger.Log.Infof("Failed to detach volume %s: %v", vid, err)
+			}
+		}(volumeID)
+
+		devPath, err := moduleutils.FindDevName(volumeID)
+		if err != nil {
+			logger.Log.Infof("Failed to find device name for volume %s: %v", volumeID, err)
+			return fmt.Errorf("failed to find device name: %w", err)
+		}
+		volumeDeviceMap[volumeID] = devPath
+		logger.Log.Infof("Volume %s attached at device %s", volumeID, devPath)
+	}
+
+	// Map device paths to diskTargets: volume[0] -> diskTargets[0].Source.File, etc.
+	for i, volumeID := range volumeIDs {
+		if devPath, exists := volumeDeviceMap[volumeID]; exists {
+			if i < len(diskTargets) {
+				diskTargets[i].Source.File = devPath
+				logger.Log.Infof("Mapped volume %s (index %d) to device path %s in diskTargets", volumeID, i, devPath)
+			} else {
+				logger.Log.Warnf("Volume index %d exceeds diskTargets length %d", i, len(diskTargets))
+			}
+		} else {
+			logger.Log.Warnf("Device path not found for volume %s", volumeID)
+		}
+	}
+
+	// Write domain.xml file
+	domainXMLPath, err := vmware.WriteDomainXML(diskTargets, vmName+randomID)
+	if err != nil {
+		logger.Log.Infof("Failed to write domain XML: %v", err)
+		return fmt.Errorf("failed to write domain XML: %w", err)
+	}
+	logger.Log.Infof("Domain XML written to: %s", domainXMLPath)
+
+	// Run V2V conversion for multidisk
+	if !skipV2V {
+		err = c.runV2VConversion(ctx, domainXMLPath, volumeIDs, true)
+		if err != nil {
+			return fmt.Errorf("V2V conversion failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (string, error) {
 	syncVol := false
 	ctx, cancel := context.WithCancel(context.Background())
@@ -357,30 +478,9 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				}
 			}
 			if runV2V {
-				logger.Log.Infof("Running V2V conversion with %v", volume.ID)
-				var netConfScript string
-				if ok, _ := c.NbdkitConfig.VddkConfig.IsLinuxFamily(ctx); ok && c.RunScript != "" {
-					netConfScript = c.RunScript
-				} else {
-					netConfScript = ""
-				}
-				err = nbdkit.V2VConversion(devPath, netConfScript, c.BootScript, c.ExtraOpts, c.Debug, false)
+				err = c.runV2VConversion(ctx, devPath, []string{volume.ID}, false)
 				if err != nil {
-					logger.Log.Infof("Failed to convert disk: %v", err)
 					return "V2VFail", err
-				}
-				err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
-				if err != nil {
-					logger.Log.Infof("Warning: Failed to power off vm %v", err)
-					logger.Log.Infof("You will have to power off the vm manually...")
-				}
-				volMetadata = map[string]string{
-					"osm":       "true",
-					"converted": "true",
-				}
-				err = osm_os.UpdateVolumeMetadata(c.OSClient, volume.ID, volMetadata)
-				if err != nil {
-					logger.Log.Infof("Failed to set volume metadata: %v, ignoring ...", err)
 				}
 			} else {
 				logger.Log.Infof("Skipping V2V conversion...")
@@ -586,83 +686,25 @@ func main() {
 
 	// Handle multidisk:
 	if multiDiskFS {
-		volumeDeviceMap := make(map[string]string)
-		convUUID, err := osm_os.GetInstanceUUID()
+		multiDiskConfig := &MigrationConfig{
+			NbdkitConfig: &nbdkit.NbdkitConfig{
+				VddkConfig: &vmware.VddkConfig{
+					VirtualMachine: vm,
+				},
+			},
+			OSClient:     provider,
+			ConvHostName: convHostName,
+			RunScript:    runScript,
+			BootScript:   bootScript,
+			ExtraOpts:    extraOpts,
+			Debug:        debug,
+			CloudOpts:    moduleArgs.DstCloud,
+		}
+		err := multiDiskConfig.handleMultiDiskConversion(ctx, volume, diskTargets, safeVmName, r, skipV2V)
 		if err != nil {
-			logger.Log.Infof("Failed to get conversion host UUID: %v", err)
-			response.Msg = "Failed to get converion host UUID: " + err.Error() + ". Check logs: " + LogFile
+			logger.Log.Infof("Failed to handle multidisk conversion: %v", err)
+			response.Msg = "Failed to handle multidisk conversion: " + err.Error() + ". Check logs: " + LogFile
 			ansible.FailJson(response)
-		}
-
-		// Attach all volumes to the conversion host
-		for _, v := range volume {
-			err := osm_os.AttachVolume(provider, v, convHostName, convUUID)
-			if err != nil {
-				logger.Log.Infof("Failed to attach volume %s: %v", v, err)
-				response.Msg = "Failed to attach volume: " + err.Error() + ". Check logs: " + LogFile
-				ansible.FailJson(response)
-			}
-			defer func() {
-				if err := osm_os.DetachVolume(provider, v, "", convUUID, moduleArgs.DstCloud); err != nil {
-					logger.Log.Infof("Failed to detach volume %s: %v", vmname, err)
-				}
-			}()
-
-			devPath, err := moduleutils.FindDevName(v)
-			volumeDeviceMap[v] = devPath
-			logger.Log.Infof("Volume %s attached at device %s", v, devPath)
-		}
-
-		// Map device paths to diskTargets: volume[0] -> diskTargets[0].Source.File, etc.
-		for i, v := range volume {
-			if devPath, exists := volumeDeviceMap[v]; exists {
-				if i < len(diskTargets) {
-					diskTargets[i].Source.File = devPath
-					logger.Log.Infof("Mapped volume %s (index %d) to device path %s in diskTargets", v, i, devPath)
-				} else {
-					logger.Log.Warnf("Volume index %d exceeds diskTargets length %d", i, len(diskTargets))
-				}
-			} else {
-				logger.Log.Warnf("Device path not found for volume %s", v)
-			}
-		}
-
-		domainXMLPath, err := vmware.WriteDomainXML(diskTargets, safeVmName+r)
-		if err != nil {
-			logger.Log.Infof("Failed to write domain XML: %v", err)
-			response.Msg = "Failed to write domain XML: " + err.Error() + ". Check logs: " + LogFile
-			ansible.FailJson(response)
-		}
-		logger.Log.Infof("Domain XML written to: %s", domainXMLPath)
-
-		// Run V2V conversion for multidisk
-		if !skipV2V {
-			logger.Log.Infof("Running V2V conversion for multidisk with domain XML: %s", domainXMLPath)
-			var netConfScript string
-			if runScript != "" {
-				netConfScript = runScript
-			} else {
-				netConfScript = ""
-			}
-			err = nbdkit.V2VConversion(domainXMLPath, netConfScript, bootScript, extraOpts, debug, true)
-			if err != nil {
-				logger.Log.Infof("Failed to convert multidisk: %v", err)
-				response.Msg = "Failed to convert multidisk: " + err.Error() + ". Check logs: " + LogFile
-				ansible.FailJson(response)
-			}
-			logger.Log.Infof("Multidisk V2V conversion completed successfully")
-
-			// Mark all volumes as converted
-			for _, v := range volume {
-				volMetadata := map[string]string{
-					"osm":       "true",
-					"converted": "true",
-				}
-				err = osm_os.UpdateVolumeMetadata(provider, v, volMetadata)
-				if err != nil {
-					logger.Log.Infof("Failed to set volume metadata for %s: %v, ignoring ...", v, err)
-				}
-			}
 		}
 	}
 
