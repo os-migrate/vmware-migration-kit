@@ -1,2 +1,2 @@
 openssh-clients
-python3
+python3.12
