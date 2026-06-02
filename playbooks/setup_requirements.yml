@@ -28,6 +28,6 @@
         - openstacksdk>1.0.0
         - requests
         - pyVim
-        - pyVmomi==v9.0.0.0
+        - pyVmomi
         - aiohttp
       when: not runner_from_aee | default(false)
