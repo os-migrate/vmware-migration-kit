@@ -230,3 +230,8 @@ Minor release which removes unused import_image module and fix AEE push
 - filter at port creation when use_fixed_ips is set 
 - Use portgroup_key instead of summary for network mapping
 - Make source/destination cloud insecure connection configurable
+
+## v2.2.5
+
+- Remove useless echo
+- Clean Makefile since multicall needs the delete_ modules
