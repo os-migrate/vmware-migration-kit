@@ -25,7 +25,7 @@ The Ansible collection provides different steps to scale your migration from VMW
 ## Requirements
 
 This section list the required minimum versions of Ansible and Python, and any Python or external collection dependencies.
-- ansible `>=` 2.15.0
+- ansible `>=` 2.16.0
 - python `>=` 3.0
 
 
