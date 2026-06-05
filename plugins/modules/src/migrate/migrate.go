@@ -153,12 +153,10 @@ func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, vol
 		return err
 	}
 
-	if !multiDisk {
-		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
-		if err != nil {
-			logger.Log.Infof("Warning: Failed to power off vm %v", err)
-			logger.Log.Infof("You will have to power off the vm manually...")
-		}
+	err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
+	if err != nil {
+		logger.Log.Infof("Warning: Failed to power off vm %v", err)
+		logger.Log.Infof("You will have to power off the vm manually...")
 	}
 
 	// Mark volume(s) as converted
@@ -685,7 +683,7 @@ func main() {
 	}
 
 	// Handle multidisk:
-	if multiDiskFS {
+	if multiDiskFS && cutover {
 		multiDiskConfig := &MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
 				VddkConfig: &vmware.VddkConfig{
