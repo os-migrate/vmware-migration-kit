@@ -695,26 +695,33 @@ func main() {
 	}
 
 	// Handle multidisk:
-	if multiDiskFS && cutover {
-		multiDiskConfig := &MigrationConfig{
-			NbdkitConfig: &nbdkit.NbdkitConfig{
-				VddkConfig: &vmware.VddkConfig{
-					VirtualMachine: vm,
+	if multiDiskFS {
+		// In case of file system install accross multiple disks, we run V2V if
+		// - Cutover is true (we want to cutover to new volumes) AND CBT is enable
+		// - Or if mutlidisk is true and cbt is not enabled (so we run in this case the migration in a raw)
+		if (cutover && cbtsync) || !cbtsync {
+			multiDiskConfig := &MigrationConfig{
+				NbdkitConfig: &nbdkit.NbdkitConfig{
+					VddkConfig: &vmware.VddkConfig{
+						VirtualMachine: vm,
+					},
 				},
-			},
-			OSClient:     provider,
-			ConvHostName: convHostName,
-			RunScript:    runScript,
-			BootScript:   bootScript,
-			ExtraOpts:    extraOpts,
-			Debug:        debug,
-			CloudOpts:    moduleArgs.DstCloud,
-		}
-		err := multiDiskConfig.handleMultiDiskConversion(ctx, volume, diskTargets, safeVmName, r, skipV2V)
-		if err != nil {
-			logger.Log.Infof("Failed to handle multidisk conversion: %v", err)
-			response.Msg = "Failed to handle multidisk conversion: " + err.Error() + ". Check logs: " + LogFile
-			ansible.FailJson(response)
+				OSClient:     provider,
+				ConvHostName: convHostName,
+				RunScript:    runScript,
+				BootScript:   bootScript,
+				ExtraOpts:    extraOpts,
+				Debug:        debug,
+				CloudOpts:    moduleArgs.DstCloud,
+			}
+			err := multiDiskConfig.handleMultiDiskConversion(ctx, volume, diskTargets, safeVmName, r, skipV2V)
+			if err != nil {
+				logger.Log.Infof("Failed to handle multidisk conversion: %v", err)
+				response.Msg = "Failed to handle multidisk conversion: " + err.Error() + ". Check logs: " + LogFile
+				ansible.FailJson(response)
+			}
+		} else {
+			logger.Log.Infof("Skipping V2V conversion for multidisk scenario as per configuration (cutover: %v, cbtsync: %v)", cutover, cbtsync)
 		}
 	}
 
