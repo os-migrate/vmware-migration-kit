@@ -221,3 +221,12 @@ Minor release which removes unused import_image module and fix AEE push
 - update go-tests to check if binaries are found in test folder
 - update for gostack integration
 - Fix pre-checks to work with AAP Execution Environments
+
+## v2.2.4
+
+- Implementation of the binary dispatcher
+- fix: cinder vol mismatch over SafeVmName logic
+- Bump ansible core greater than 2.16
+- filter at port creation when use_fixed_ips is set 
+- Use portgroup_key instead of summary for network mapping
+- Make source/destination cloud insecure connection configurable
