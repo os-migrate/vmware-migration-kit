@@ -195,7 +195,19 @@ func (c *MigrationConfig) handleMultiDiskConversion(
 	// Attach all volumes to the conversion host
 	volumeDeviceMap := make(map[string]string)
 	for _, volumeID := range volumeIDs {
-		err := osm_os.AttachVolume(c.OSClient, volumeID, c.ConvHostName, convUUID)
+		// Check if the volume is already converted, if yes skip V2V conversion.
+		converted, err := osm_os.IsVolumeConverted(c.OSClient, volumeID)
+		if err != nil {
+			logger.Log.Infof("Failed to get volume metadata for %s: %v", volumeID, err)
+			return fmt.Errorf("failed to get volume metadata: %w", err)
+		}
+		if converted {
+			logger.Log.Infof("Volume %s is already converted, skipping V2V conversion..", volumeID)
+			// If one of the volumes has been already converted, we assume V2V already run though
+			// and we skip V2V for all volumes to avoid potential issues with multi-disk consistency.
+			return nil
+		}
+		err = osm_os.AttachVolume(c.OSClient, volumeID, c.ConvHostName, convUUID)
 		if err != nil {
 			logger.Log.Infof("Failed to attach volume %s: %v", volumeID, err)
 			return fmt.Errorf("failed to attach volume: %w", err)
