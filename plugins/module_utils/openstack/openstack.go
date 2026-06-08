@@ -81,6 +81,11 @@ type CinderManageConfig struct {
 	HostPool   string
 }
 
+type VolumeAttachment struct {
+	VolumeID string
+	Device   string
+}
+
 func OpenstackAuth(ctx context.Context, moduleOpts DstCloud) (*gophercloud.ProviderClient, error) {
 	insecureSkipVerify := moduleOpts.OpenStackInsecure
 	var opts gophercloud.AuthOptions
@@ -452,6 +457,33 @@ func DetachVolume(client *gophercloud.ProviderClient, volumeID, instanceName, in
 	}
 	logger.Log.Infof("Volume detached: %s", volumeID)
 	return nil
+}
+
+func GetServerVolumeAttachments(client *gophercloud.ProviderClient, serverID string) ([]VolumeAttachment, error) {
+	computeClient, err := openstack.NewComputeV2(client, gophercloud.EndpointOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	allPages, err := volumeattach.List(computeClient, serverID).AllPages(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list volume attachments: %w", err)
+	}
+
+	allAttachments, err := volumeattach.ExtractVolumeAttachments(allPages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract volume attachments: %w", err)
+	}
+
+	var attachments []VolumeAttachment
+	for _, att := range allAttachments {
+		attachments = append(attachments, VolumeAttachment{
+			VolumeID: att.VolumeID,
+			Device:   att.Device,
+		})
+	}
+
+	return attachments, nil
 }
 
 func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string, error) {

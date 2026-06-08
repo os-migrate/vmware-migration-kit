@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/tls"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/url"
@@ -46,6 +47,38 @@ type VddkConfig struct {
 	DiskKey           int32
 }
 
+// DiskTarget represents a disk target device in the XML
+type DiskTarget struct {
+	Dev string `xml:"dev,attr"`
+	Bus string `xml:"bus,attr"`
+}
+
+type DiskSource struct {
+	File string `xml:"file,attr"`
+}
+
+// DiskDevice represents a disk device in the XML
+type DiskDevice struct {
+	Type   string     `xml:"type,attr"`
+	Device string     `xml:"device,attr"`
+	Source DiskSource `xml:"source"`
+	Target DiskTarget `xml:"target"`
+}
+
+// Devices represents the devices section in the XML
+type Devices struct {
+	Disks []DiskDevice `xml:"disk"`
+}
+
+// Domain represents the root domain element in the virsh XML output
+type Domain struct {
+	XMLName xml.Name `xml:"domain"`
+	Type    string   `xml:"type,attr"`
+	Name    string   `xml:"name"`
+	Memory  int64    `xml:"memory"`
+	Devices Devices  `xml:"devices"`
+}
+
 const maxChunkSize = 64 * 1024 * 1024
 
 func VMWareAuth(ctx context.Context, server string, user string, password string, insecureSkipVerify bool) (*govmomi.Client, error) {
@@ -60,28 +93,28 @@ func VMWareAuth(ctx context.Context, server string, user string, password string
 		return nil, err
 	}
 	// Start a goroutine to keep the session alive
-    go func() {
-            ticker := time.NewTicker(5 * time.Minute)
-            defer ticker.Stop()
-            for {
-                    select {
-                    case <-ctx.Done():
-                            // If the migration ends, stop the goroutine
-                            logger.Log.Infof("Keep-alive goroutine stopping.")
-                            return
-                    case <-ticker.C:
-                            // Create local context for keep-alive call. The API call is cancelled in 5 segundos so it doesn't hang indefinitely.
-                            kaCtx, kaCancel := context.WithTimeout(context.Background(), 5*time.Second)
-                            logger.Log.Infof("KEEP-ALIVE: Session refreshed via goroutine.")
-                            // With UserSession, we just need to call it to refresh the session
-                            _, err := c.SessionManager.UserSession(kaCtx)
-                            if err != nil {
-                                    logger.Log.Errorf("KEEP-ALIVE FAILED: %v", err)
-                            }
-                            kaCancel()
-                    }
-            }
-        }()
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				// If the migration ends, stop the goroutine
+				logger.Log.Infof("Keep-alive goroutine stopping.")
+				return
+			case <-ticker.C:
+				// Create local context for keep-alive call. The API call is cancelled in 5 segundos so it doesn't hang indefinitely.
+				kaCtx, kaCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				logger.Log.Infof("KEEP-ALIVE: Session refreshed via goroutine.")
+				// With UserSession, we just need to call it to refresh the session
+				_, err := c.SessionManager.UserSession(kaCtx)
+				if err != nil {
+					logger.Log.Errorf("KEEP-ALIVE FAILED: %v", err)
+				}
+				kaCancel()
+			}
+		}
+	}()
 	return c, nil
 }
 
@@ -518,4 +551,101 @@ func (v *VddkConfig) SyncChangedDiskData(ctx context.Context, targetPath, change
 		}
 	}
 	return nil
+}
+
+func GetDiskTargets(ctx context.Context, v *object.VirtualMachine) ([]DiskDevice, error) {
+	/*
+		Determine disk targets by parsing the VM's hardware configuration and mapping disk
+		devices to their respective controllers to identify bus types.
+		This approach avoids reliance on guest OS tools and provides a more accurate representation
+		of the disk layout as seen by the hypervisor, which is crucial
+		for ensuring correct device naming and functionality post-migration.
+		virtio: vda/vdb, SCSI: sda/sdb, IDE: hda/hdb
+	*/
+	var vm mo.VirtualMachine
+	err := v.Properties(ctx, v.Reference(), []string{"config.hardware.device"}, &vm)
+	if err != nil {
+		logger.Log.Infof("Failed to retrieve VM properties: %v", err)
+		return nil, fmt.Errorf("failed to retrieve VM properties: %w", err)
+	}
+
+	controllerMap := make(map[int32]string)
+	for _, device := range vm.Config.Hardware.Device {
+		baseDevice := device.GetVirtualDevice()
+
+		switch device.(type) {
+		case *types.VirtualSCSIController, *types.VirtualLsiLogicController, *types.VirtualLsiLogicSASController, *types.VirtualBusLogicController, *types.ParaVirtualSCSIController:
+			controllerMap[baseDevice.Key] = "scsi"
+		case *types.VirtualSATAController:
+			controllerMap[baseDevice.Key] = "sata"
+		case *types.VirtualIDEController:
+			controllerMap[baseDevice.Key] = "ide"
+		case *types.VirtualNVMEController:
+			controllerMap[baseDevice.Key] = "nvme"
+		}
+	}
+	diskIndex := 0
+	var diskDevices []DiskDevice
+	for _, device := range vm.Config.Hardware.Device {
+		if disk, ok := device.(*types.VirtualDisk); ok {
+			baseDevice := disk.GetVirtualDevice()
+			// 'a' ASCII value is 97
+			driveLetter := string(rune(97 + diskIndex))
+			devName := "sd" + driveLetter
+
+			busType := "scsi" // Default fallback
+			parentKey := baseDevice.ControllerKey
+			if mappedBus, exists := controllerMap[parentKey]; exists {
+				busType = mappedBus
+			}
+			switch busType {
+			case "ide":
+				devName = "hd" + driveLetter
+			case "nvme", "virtio":
+				devName = "vda"
+			}
+			logger.Log.Infof("Disk device found - Key: %d, DevName: %s, BusType: %s", disk.Key, devName, busType)
+			diskIndex++
+			diskDevices = append(diskDevices, DiskDevice{
+				Type:   "file",
+				Device: "disk",
+				Source: DiskSource{}, // Source is not needed for target mapping
+				Target: DiskTarget{
+					Dev: devName,
+					Bus: busType,
+				},
+			})
+			logger.Log.Infof("Mapped disk key %d to device %s on bus %s", disk.Key, devName, busType)
+		}
+	}
+	return (diskDevices), nil
+}
+
+func WriteDomainXML(diskDevices []DiskDevice, vmName string) (string, error) {
+	domain := Domain{
+		Type:   "kvm",
+		Name:   vmName,
+		Memory: 2 * 1024 * 1024, // Set a default memory size (2GB) for the domain XML
+		Devices: Devices{
+			Disks: diskDevices,
+		},
+	}
+	logger.Log.Infof("Constructed domain struct for XML generation: %+v", domain)
+	xmlData, err := xml.MarshalIndent(domain, "", "  ")
+	if err != nil {
+		logger.Log.Infof("Failed to marshal domain XML: %v", err)
+		return "", fmt.Errorf("failed to marshal domain XML: %w", err)
+	}
+	logger.Log.Infof("Marshalled domain XML: %s", string(xmlData))
+	xmlFilePath := fmt.Sprintf("/tmp/%s-domain.xml", vmName)
+	xmlContent := []byte(xml.Header + string(xmlData))
+
+	err = os.WriteFile(xmlFilePath, xmlContent, 0644)
+	if err != nil {
+		logger.Log.Infof("Failed to write domain XML file: %v", err)
+		return "", fmt.Errorf("failed to write domain XML file: %w", err)
+	}
+
+	logger.Log.Infof("Domain XML written to: %s", xmlFilePath)
+	return xmlFilePath, nil
 }
