@@ -31,5 +31,6 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
         with:
+          claude-api-key: "placeholder-for-vertex"  # Required by action, but unused when using Vertex AI
           comment-pr: true
           upload-results: true
