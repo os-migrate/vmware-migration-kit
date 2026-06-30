@@ -242,3 +242,7 @@ Minor release which removes unused import_image module and fix AEE push
 - fix: write heat-stack-info.txt from Go module at the configured dir
 - Add security workflow with Claude workflow
 - Remove clean-build-pro which is not needed anymore and fix missing EOF
+
+## v2.2.7
+
+- Clean sanity tests for prod only
