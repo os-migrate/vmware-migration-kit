@@ -130,13 +130,17 @@ build: check-root clean-build clean-binaries binaries
 	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
 
 # Target to build the collection for production (without teardown tasks)
-build-prod: check-root clean-build clean-binaries binaries
+build-prod: check-root clean-build clean-binaries clean-build-prod binaries
 	@echo "*** Building Ansible collection for production...***"
 	@echo "*** Remove AEE and scripts from the build...***"
 	rm -rf $(COLLECTION_ROOT)/aee
 	rm -rf $(COLLECTION_ROOT)/scripts
 	@ANSIBLE_GALAXY_DISABLE_GIT_CHECKSUM=1 ansible-galaxy collection build
 	@echo "*** Built collection: $(COLLECTION_TARBALL) ***"
+
+# Target to clean sanity test ignore files for production build
+clean-build-prod:
+	sed -i '/plugins\/modules\/src/d' tests/sanity/ignore-2.*.txt
 
 # Target to clean the built collection
 clean-build:
