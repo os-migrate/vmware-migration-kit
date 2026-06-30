@@ -1,0 +1,36 @@
+name: Security Review
+
+permissions:
+  pull-requests: write  # Needed for PR comments
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - name: Security Review with Claude via Vertex AI
+        uses: anthropics/claude-code-security-review@main
+        env:
+          CLAUDE_CODE_USE_VERTEX: 1
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
+        with:
+          claude-api-key: "placeholder-for-vertex"  # Required by action, but unused when using Vertex AI
+          comment-pr: true
+          upload-results: true
