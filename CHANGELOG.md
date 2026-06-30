@@ -236,3 +236,9 @@ Minor release which removes unused import_image module and fix AEE push
 - Bump UBI9 image and vmware.vmware collection
 - Clean Makefile since multicall needs the delete_ modules
 - Add file system installed accross multiple disks support
+
+## v2.2.6
+
+- fix: write heat-stack-info.txt from Go module at the configured dir
+- Add security workflow with Claude workflow
+- Remove clean-build-pro which is not needed anymore and fix missing EOF
