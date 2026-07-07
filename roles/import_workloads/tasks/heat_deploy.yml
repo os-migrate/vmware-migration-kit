@@ -19,15 +19,26 @@
   loop: "{{ vms_list }}"
   register: disk_info_files
 
-- name: Build boot disk key map for each VM
+- name: Build disk key map for each VM
   ansible.builtin.set_fact:
-    vm_boot_disk_keys: >-
+    vm_disk_keys: >-
       {{
-        vm_boot_disk_keys | default({}) | combine({
-          item.item: (item.content | b64decode | from_json).disk_keys[0]
+        vm_disk_keys | default({}) | combine({
+          item.item: (item.content | b64decode | from_json).disk_keys
         })
       }}
   loop: "{{ disk_info_files.results }}"
+
+- name: Build VM disk key pairs for volume lookup
+  ansible.builtin.set_fact:
+    vm_disk_key_pairs: >-
+      {%- set pairs = [] -%}
+      {%- for vm in vms_list -%}
+      {%- for disk_key in vm_disk_keys[vm] -%}
+      {%- set _ = pairs.append({'vm_name': vm, 'disk_key': disk_key, 'volume_name': vm + '-' + disk_key}) -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {{ pairs }}
 
 - name: Get flavor UUID if flavor name is provided
   os_migrate.vmware_migration_kit.flavor_info:
@@ -35,25 +46,26 @@
     flavor_name: "{{ flavor_name_or_uuid }}"
   register: flavor_info
 
-- name: Gather Cinder volume info for all migrated VMs
+- name: Gather Cinder volume info for all migrated VM disks
   os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
-    name: "{{ item }}-{{ vm_boot_disk_keys[item] }}"
-  loop: "{{ vms_list }}"
+    name: "{{ item.volume_name }}"
+  loop: "{{ vm_disk_key_pairs }}"
   register: migrated_volumes_info
 
 - name: Build VM data structure for Heat template
   ansible.builtin.set_fact:
     heat_vms_data: "{{ heat_vms_data + [vm_entry] }}"
+  loop: "{{ vms_list }}"
   vars:
+    vm_volume_results: "{{ migrated_volumes_info.results | selectattr('item.vm_name', 'equalto', item) | list }}"
     vm_entry:
-      name: "{{ item.item }}"
-      boot_volume_id: "{{ item.volumes[0].id }}"
+      name: "{{ item }}"
+      boot_volume_id: "{{ vm_volume_results[0].volumes[0].id }}"
+      data_volume_ids: "{{ vm_volume_results[1:] | map(attribute='volumes.0.id') | list }}"
       flavor: "{{ flavor_info.flavor.id }}"
       network: "{{ openstack_private_network }}"
       security_groups: ["{{ security_groups | default('default') }}"]
-      data_volume_ids: []
-  loop: "{{ migrated_volumes_info.results }}"
 
 - name: Display VM data for Heat template
   ansible.builtin.debug:
