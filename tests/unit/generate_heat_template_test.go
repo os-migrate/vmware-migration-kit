@@ -14,15 +14,18 @@
  * Copyright 2025 Red Hat, Inc.
  *
  */
-package generate_heat_template
+
+package moduleutils
 
 import (
 	"strings"
 	"testing"
+
+	generateheattemplate "vmware-migration-kit/plugins/modules/src/generate_heat_template"
 )
 
 func TestGenerateHeatTemplateWithDataVolumes(t *testing.T) {
-	vmsData := []VMData{
+	vmsData := []generateheattemplate.VMData{
 		{
 			Name:           "vm-02-2d",
 			BootVolumeID:   "boot-volume-uuid",
@@ -33,7 +36,7 @@ func TestGenerateHeatTemplateWithDataVolumes(t *testing.T) {
 		},
 	}
 
-	template, parameters := generateHeatTemplate(vmsData, "os-migrate-test")
+	template, parameters := generateheattemplate.GenerateHeatTemplate(vmsData, "os-migrate-test")
 
 	if !strings.Contains(template, "vm_02_2d_data_volume_0_id") {
 		t.Fatalf("expected data volume parameter in template, got:\n%s", template)
@@ -57,7 +60,7 @@ func TestGenerateHeatTemplateWithDataVolumes(t *testing.T) {
 }
 
 func TestGenerateHeatTemplateBootVolumeOnly(t *testing.T) {
-	vmsData := []VMData{
+	vmsData := []generateheattemplate.VMData{
 		{
 			Name:           "rhel-1",
 			BootVolumeID:   "boot-volume-uuid",
@@ -67,7 +70,7 @@ func TestGenerateHeatTemplateBootVolumeOnly(t *testing.T) {
 		},
 	}
 
-	template, parameters := generateHeatTemplate(vmsData, "os-migrate-test")
+	template, parameters := generateheattemplate.GenerateHeatTemplate(vmsData, "os-migrate-test")
 
 	if strings.Contains(template, "data_volume_0") {
 		t.Fatalf("did not expect data volume resources for single-disk VM, got:\n%s", template)
