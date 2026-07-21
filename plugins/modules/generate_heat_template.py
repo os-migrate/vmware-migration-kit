@@ -17,6 +17,7 @@ options:
     description:
       - List of VM data dictionaries containing migration information.
       - Each VM must have name, boot_volume_id, flavor, network, and security_groups.
+      - Optional data_volume_ids lists additional Cinder volumes to attach to the instance.
     required: true
     type: list
     elements: dict
@@ -38,6 +39,8 @@ EXAMPLES = r"""
     vms_data:
       - name: rhel-1
         boot_volume_id: "volume-uuid-1"
+        data_volume_ids:
+          - "volume-uuid-1-data"
         flavor: "m1.medium"
         network: "provider_network_1"
         security_groups: ["default"]

@@ -74,7 +74,7 @@ func sanitizeName(name string) string {
 	return sanitized
 }
 
-func generateHeatTemplate(vmsData []VMData, stackName string) (string, map[string]interface{}) {
+func GenerateHeatTemplate(vmsData []VMData, stackName string) (string, map[string]interface{}) {
 	var template strings.Builder
 	parameters := make(map[string]interface{})
 
@@ -204,7 +204,7 @@ func Run() {
 	}
 
 	// Generate Heat template
-	templateContent, parameters := generateHeatTemplate(moduleArgs.VMsData, moduleArgs.StackName)
+	templateContent, parameters := GenerateHeatTemplate(moduleArgs.VMsData, moduleArgs.StackName)
 
 	// Ensure output directory exists
 	err = os.MkdirAll(moduleArgs.OutputDir, 0755)
