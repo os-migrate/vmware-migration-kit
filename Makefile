@@ -14,9 +14,8 @@ CONTAINER_ENGINE := podman
 # Override namespace with: make binaries QUAY_NAMESPACE=my-ns
 # Override image entirely with: make binaries CONTAINER_IMAGE=quay.io/centos/centos:stream9
 # Uncomment when the builder image is available on quay.io
-#QUAY_NAMESPACE ?= os-migrate
-#CONTAINER_IMAGE ?= quay.io/$(QUAY_NAMESPACE)/vmware-migration-kit-builder:latest
-CONTAINER_IMAGE=quay.io/centos/centos:stream9
+QUAY_NAMESPACE ?= os-migrate
+CONTAINER_IMAGE ?= quay.io/$(QUAY_NAMESPACE)/vmware-migration-kit-builder:latest
 
 BUILD_SCRIPT := /code/scripts/build.sh
 PYTHON_VERSION ?= 3.12
