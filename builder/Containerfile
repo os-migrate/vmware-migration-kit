@@ -1,26 +1,12 @@
 FROM quay.io/centos/centos:stream9
 
-# Fix CentOS Stream 9 yum repos: comment out metalink and enable baseurl.
-# The metalink endpoint is unreliable in CI/container environments.
-RUN sed -i \
-    -e 's|^metalink=|#metalink=|g' \
-    -e 's|^#baseurl=|baseurl=|g' \
-    /etc/yum.repos.d/centos.repo \
-    /etc/yum.repos.d/centos-addons.repo && \
-    # Ensure baseurl mirrors are explicitly set for BaseOS and AppStream
-    sed -i \
-    '/^\[baseos\]/,/^\[/{s|^baseurl=.*|baseurl=https://mirror.stream.centos.org/9-stream/BaseOS/$basearch/os/|}' \
-    /etc/yum.repos.d/centos.repo && \
-    sed -i \
-    '/^\[appstream\]/,/^\[/{s|^baseurl=.*|baseurl=https://mirror.stream.centos.org/9-stream/AppStream/$basearch/os/|}' \
-    /etc/yum.repos.d/centos.repo && \
-    sed -i \
-    '/^\[crb\]/,/^\[/{s|^baseurl=.*|baseurl=https://mirror.stream.centos.org/9-stream/CRB/$basearch/os/|}' \
-    /etc/yum.repos.d/centos-addons.repo
+# Replace the default repo file (metalink-based, unreliable in CI) with
+# one that uses direct baseurl mirrors. CRB is enabled here so packages
+# like libnbd-devel are available without a separate config-manager call.
+COPY centos.repo /etc/yum.repos.d/centos.repo
 
-# Enable CRB repo and install all Go build dependencies
+# Install all Go build dependencies in a single layer
 RUN dnf -y update && \
-    dnf config-manager --enable crb && \
     dnf install -y \
         golang \
         libnbd-devel \
@@ -28,10 +14,7 @@ RUN dnf -y update && \
         make \
         git \
         epel-release && \
-    dnf clean all
-
-# Install UPX from EPEL (available on CentOS Stream 9 via EPEL)
-RUN dnf install -y upx || echo "UPX not available in EPEL — skipping." && \
+    dnf install -y upx || echo "UPX not available in EPEL — skipping." && \
     dnf clean all
 
 WORKDIR /code
