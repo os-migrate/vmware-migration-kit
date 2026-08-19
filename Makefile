@@ -9,9 +9,12 @@ VENV_DIR := $(COLLECTION_ROOT)/.venv/
 
 # Configuration variables
 CONTAINER_ENGINE := podman
-# Use CentoS Stream 9 as base image because UPX is not available in CentOS 10
-# @TODO: move to 10 when the payload size will be increase in Galaxy
-CONTAINER_IMAGE := quay.io/centos/centos:stream9
+# Builder image: pre-built with all Go build deps (golang, libnbd-devel, gcc, upx).
+# Built by .github/workflows/build-builder.yml and pushed to quay.io.
+# Override namespace with: make binaries QUAY_NAMESPACE=my-ns
+# Override image entirely with: make binaries CONTAINER_IMAGE=quay.io/centos/centos:stream9
+QUAY_NAMESPACE ?= os-migrate
+CONTAINER_IMAGE ?= quay.io/$(QUAY_NAMESPACE)/vmware-migration-kit-builder:latest
 BUILD_SCRIPT := /code/scripts/build.sh
 PYTHON_VERSION ?= 3.12
 ANSIBLE_TEST_PYTHON_VERSION ?= 3.12
