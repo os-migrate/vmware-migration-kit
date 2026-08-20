@@ -5,7 +5,12 @@ FROM quay.io/centos/centos:stream9
 # like libnbd-devel are available without a separate config-manager call.
 COPY centos.repo /etc/yum.repos.d/centos.repo
 
-# Install all Go build dependencies in a single layer
+# Disable extras-common (uses metalink, not needed for Go builds)
+RUN sed -i '/^\[extras-common\]/,/^\[/{s/^enabled=1/enabled=0/}' \
+    /etc/yum.repos.d/centos-addons.repo
+
+# Install build dependencies, then fix the EPEL repo (which only exists after
+# epel-release is installed) and install UPX from it.
 RUN dnf -y update && \
     dnf install -y \
         golang \
@@ -14,7 +19,11 @@ RUN dnf -y update && \
         make \
         git \
         epel-release && \
-    dnf install -y upx || echo "UPX not available in EPEL — skipping." && \
+    sed -i \
+        -e 's|^metalink=|#metalink=|g' \
+        -e 's|^#baseurl=https://download.example/|baseurl=https://dl.fedoraproject.org/|g' \
+        /etc/yum.repos.d/epel.repo && \
+    { dnf install -y upx || echo "UPX not available in EPEL — skipping."; } && \
     dnf clean all
 
 WORKDIR /code
