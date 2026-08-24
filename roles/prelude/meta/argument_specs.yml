@@ -1,0 +1,266 @@
+---
+argument_specs:
+  main:
+    short_description: Preflight validation for VMware to OpenStack migration
+    description:
+      - Validates all required and optional variables before any migration task runs.
+      - Enforces types to prevent silent failures in downstream Golang modules
+        (e.g. identity_api_version must be an integer, not a string).
+    options:
+
+      # -----------------------------------------------------------------------
+      # Prelude-specific
+      # -----------------------------------------------------------------------
+      prelude_host_entries:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Lines to add to /etc/hosts on the managed host.
+
+      # -----------------------------------------------------------------------
+      # VMware source
+      # -----------------------------------------------------------------------
+      vcenter_hostname:
+        type: str
+        required: true
+        description: Hostname or IP address of the vCenter server.
+
+      vcenter_username:
+        type: str
+        required: true
+        description: Username for vCenter authentication.
+
+      vcenter_password:
+        type: str
+        required: true
+        no_log: true
+        description: Password for vCenter authentication.
+
+      vcenter_datacenter:
+        type: str
+        required: true
+        description: Name of the vCenter Datacenter containing the source VMs.
+
+      esxi_hostname:
+        type: str
+        required: true
+        description: Hostname or IP of the ESXi host used for disk access (NFC/NBD on port 902).
+
+      vmware_insecure:
+        type: bool
+        required: false
+        default: false
+        description: Skip TLS verification for VMware connections.
+
+      # -----------------------------------------------------------------------
+      # VMs to migrate
+      # -----------------------------------------------------------------------
+      vms_list:
+        type: list
+        elements: str
+        required: true
+        description: List of VM names to migrate from VMware to OpenStack.
+
+      # -----------------------------------------------------------------------
+      # OpenStack destination cloud
+      # -----------------------------------------------------------------------
+      dst_cloud:
+        type: dict
+        required: true
+        description: Authentication and connection parameters for the destination OpenStack cloud.
+        options:
+          auth:
+            type: dict
+            required: true
+            description: Keystone authentication credentials.
+            options:
+              auth_url:
+                type: str
+                required: true
+                description: Keystone endpoint URL (e.g. https://openstack.example.com:13000/v3).
+              username:
+                type: str
+                required: true
+                description: OpenStack username.
+              password:
+                type: str
+                required: true
+                no_log: true
+                description: OpenStack password.
+              project_name:
+                type: str
+                required: false
+                description: OpenStack project name.
+              project_id:
+                type: str
+                required: false
+                description: OpenStack project UUID (alternative to project_name).
+              user_domain_name:
+                type: str
+                required: false
+                default: Default
+                description: Keystone user domain name.
+              project_domain_name:
+                type: str
+                required: false
+                description: Keystone project domain name.
+              project_domain_id:
+                type: str
+                required: false
+                description: Keystone project domain ID.
+          identity_api_version:
+            type: int
+            required: false
+            default: 3
+            description: >
+              Keystone API version. Must be an integer (3), not a string ("3").
+              Passing a string will cause the Golang best_match_flavor and
+              create_server modules to fail JSON parsing.
+          region_name:
+            type: str
+            required: false
+            description: OpenStack region name.
+          interface:
+            type: str
+            required: false
+            default: public
+            choices:
+              - public
+              - internal
+              - admin
+            description: OpenStack endpoint interface.
+          cacert:
+            type: str
+            required: false
+            default: ""
+            description: Path to a CA certificate bundle for TLS verification.
+
+      openstack_insecure:
+        type: bool
+        required: false
+        default: false
+        description: Skip TLS verification for OpenStack connections.
+
+      # -----------------------------------------------------------------------
+      # Network
+      # -----------------------------------------------------------------------
+      openstack_private_network:
+        type: str
+        required: false
+        description: >
+          Name or UUID of the OpenStack network for migrated instances.
+          Required when used_mapped_networks is false.
+
+      used_mapped_networks:
+        type: bool
+        required: false
+        default: false
+        description: Use network_map to translate VMware networks to OpenStack networks.
+
+      network_map:
+        type: dict
+        required: false
+        default: {}
+        description: >
+          Mapping of VMware network names to OpenStack network names.
+          Required when used_mapped_networks is true.
+
+      security_groups:
+        type: str
+        required: false
+        description: UUID of the OpenStack security group to attach to migrated instances.
+
+      use_fixed_ips:
+        type: bool
+        required: false
+        default: false
+        description: Assign fixed IPs from VMware to migrated instances.
+
+      export_metadata_subnet_uuid:
+        type: str
+        required: false
+        description: Subnet UUID used for fixed IP assignment when use_fixed_ips is true.
+
+      # -----------------------------------------------------------------------
+      # Conversion host
+      # -----------------------------------------------------------------------
+      already_deploy_conversion_host:
+        type: bool
+        required: false
+        default: false
+        description: Reuse an existing conversion host instead of deploying a new one.
+
+      vddk_libdir:
+        type: str
+        required: false
+        default: /usr/lib/vmware-vix-disklib
+        description: Path to the VMware VDDK library directory on the conversion host.
+
+      # -----------------------------------------------------------------------
+      # Migration workflow flags
+      # -----------------------------------------------------------------------
+      os_migrate_vmw_data_dir:
+        type: str
+        required: false
+        default: /opt/os-migrate
+        description: Working directory for migration data on the conversion host.
+
+      cbt_sync:
+        type: bool
+        required: false
+        default: false
+        description: Enable Change Block Tracking incremental sync (Phase 1 of two-phase migration).
+
+      cutover:
+        type: bool
+        required: false
+        default: false
+        description: Perform final cutover disk sync and power off source VM (Phase 2).
+
+      availability_zone:
+        type: str
+        required: false
+        description: >
+          OpenStack availability zone for both Cinder volumes and Nova instances.
+          Overridden by import_workloads_cinder_az / import_workloads_nova_az.
+
+      cinder_volume_type:
+        type: str
+        required: false
+        default: __DEFAULT__
+        description: Cinder volume type for converted volumes.
+
+      use_existing_flavor:
+        type: bool
+        required: false
+        default: true
+        description: Find the best matching existing flavor instead of creating a new one.
+
+      flavor_uuid:
+        type: str
+        required: false
+        description: Explicit flavor UUID to use, bypassing automatic flavor selection.
+
+      ssh_key_name:
+        type: str
+        required: false
+        description: Name of the OpenStack key pair to inject into migrated instances.
+
+      debug:
+        type: bool
+        required: false
+        default: false
+        description: Enable verbose debug logging in Golang migration modules.
+
+      os_migrate_tear_down:
+        type: bool
+        required: false
+        default: false
+        description: Delete all created OpenStack resources after migration (for testing/dry-runs).
+
+      copy_openstack_credentials_to_conv_host:
+        type: bool
+        required: false
+        default: false
+        description: Copy clouds.yaml credentials to the conversion host instead of passing dst_cloud dict.
