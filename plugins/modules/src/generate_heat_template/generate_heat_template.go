@@ -28,9 +28,10 @@ import (
 
 // Ansible module args
 type ModuleArgs struct {
-	VMsData   []VMData `json:"vms_data"`
-	StackName string   `json:"stack_name"`
-	OutputDir string   `json:"output_dir"`
+	VMsData      []VMData `json:"vms_data"`
+	StackName    string   `json:"stack_name"`
+	OutputDir    string   `json:"output_dir"`
+	WrapExisting bool     `json:"wrap_existing"`
 }
 
 type VMData struct {
@@ -40,6 +41,8 @@ type VMData struct {
 	Network        string   `json:"network"`
 	SecurityGroups []string `json:"security_groups"`
 	DataVolumeIDs  []string `json:"data_volume_ids,omitempty"`
+	InstanceID     string   `json:"instance_id,omitempty"`
+	PortIDs        []string `json:"port_ids,omitempty"`
 }
 
 type Response struct {
@@ -173,6 +176,125 @@ func GenerateHeatTemplate(vmsData []VMData, stackName string) (string, map[strin
 	return template.String(), parameters
 }
 
+func ValidateWrapVMData(vmsData []VMData) error {
+	if len(vmsData) == 0 {
+		return fmt.Errorf("no VMs data provided")
+	}
+	for _, vm := range vmsData {
+		if vm.Name == "" {
+			return fmt.Errorf("VM name is required for wrap")
+		}
+		if vm.InstanceID == "" {
+			return fmt.Errorf("instance_id is required to wrap VM %s", vm.Name)
+		}
+		if vm.BootVolumeID == "" {
+			return fmt.Errorf("boot_volume_id is required to wrap VM %s", vm.Name)
+		}
+		if len(vm.PortIDs) == 0 {
+			return fmt.Errorf("port_ids is required to wrap VM %s", vm.Name)
+		}
+		for i, portID := range vm.PortIDs {
+			if portID == "" {
+				return fmt.Errorf("port_ids[%d] is empty for VM %s", i, vm.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func writeVolumeParams(template *strings.Builder, parameters map[string]interface{}, vm VMData, sanitized string) {
+	paramName := fmt.Sprintf("%s_boot_volume_id", sanitized)
+	template.WriteString(fmt.Sprintf("  %s:\n", paramName))
+	template.WriteString("    type: string\n")
+	template.WriteString(fmt.Sprintf("    description: Boot volume ID for %s\n", vm.Name))
+	parameters[paramName] = vm.BootVolumeID
+
+	for i, volID := range vm.DataVolumeIDs {
+		dataParamName := fmt.Sprintf("%s_data_volume_%d_id", sanitized, i)
+		template.WriteString(fmt.Sprintf("  %s:\n", dataParamName))
+		template.WriteString("    type: string\n")
+		template.WriteString(fmt.Sprintf("    description: Data volume %d ID for %s\n", i, vm.Name))
+		parameters[dataParamName] = volID
+	}
+}
+
+func writeExternalVolumeResources(template *strings.Builder, vm VMData, sanitized string) {
+	template.WriteString(fmt.Sprintf("  %s_boot_volume:\n", sanitized))
+	template.WriteString("    type: OS::Cinder::Volume\n")
+	template.WriteString(fmt.Sprintf("    external_id: { get_param: %s_boot_volume_id }\n\n", sanitized))
+
+	for i := range vm.DataVolumeIDs {
+		template.WriteString(fmt.Sprintf("  %s_data_volume_%d:\n", sanitized, i))
+		template.WriteString("    type: OS::Cinder::Volume\n")
+		template.WriteString(fmt.Sprintf("    external_id: { get_param: %s_data_volume_%d_id }\n\n", sanitized, i))
+	}
+}
+
+// GenerateWrapHeatTemplate references existing Nova servers, Neutron ports, and
+// Cinder volumes via external_id only. Heat must not create or rebuild them.
+func GenerateWrapHeatTemplate(vmsData []VMData, stackName string) (string, map[string]interface{}, error) {
+	if err := ValidateWrapVMData(vmsData); err != nil {
+		return "", nil, err
+	}
+
+	var template strings.Builder
+	parameters := make(map[string]interface{})
+
+	template.WriteString("heat_template_version: wallaby\n")
+	template.WriteString(fmt.Sprintf("description: 'Existing migrated workloads wrapped by os-migrate (Stack - %s)'\n\n", stackName))
+
+	template.WriteString("parameters:\n")
+	for _, vm := range vmsData {
+		sanitized := sanitizeName(vm.Name)
+		writeVolumeParams(&template, parameters, vm, sanitized)
+
+		instanceParam := fmt.Sprintf("%s_instance_id", sanitized)
+		template.WriteString(fmt.Sprintf("  %s:\n", instanceParam))
+		template.WriteString("    type: string\n")
+		template.WriteString(fmt.Sprintf("    description: Existing Nova instance ID for %s\n", vm.Name))
+		parameters[instanceParam] = vm.InstanceID
+
+		for i, portID := range vm.PortIDs {
+			portParam := fmt.Sprintf("%s_port_%d_id", sanitized, i)
+			template.WriteString(fmt.Sprintf("  %s:\n", portParam))
+			template.WriteString("    type: string\n")
+			template.WriteString(fmt.Sprintf("    description: Existing Neutron port %d ID for %s\n", i, vm.Name))
+			parameters[portParam] = portID
+		}
+	}
+
+	template.WriteString("\nresources:\n")
+	for _, vm := range vmsData {
+		sanitized := sanitizeName(vm.Name)
+		writeExternalVolumeResources(&template, vm, sanitized)
+
+		for i := range vm.PortIDs {
+			template.WriteString(fmt.Sprintf("  %s_port_%d:\n", sanitized, i))
+			template.WriteString("    type: OS::Neutron::Port\n")
+			template.WriteString(fmt.Sprintf("    external_id: { get_param: %s_port_%d_id }\n\n", sanitized, i))
+		}
+
+		template.WriteString(fmt.Sprintf("  %s_instance:\n", sanitized))
+		template.WriteString("    type: OS::Nova::Server\n")
+		template.WriteString(fmt.Sprintf("    external_id: { get_param: %s_instance_id }\n\n", sanitized))
+	}
+
+	template.WriteString("outputs:\n")
+	for _, vm := range vmsData {
+		sanitized := sanitizeName(vm.Name)
+		template.WriteString(fmt.Sprintf("  %s_instance_id:\n", sanitized))
+		template.WriteString(fmt.Sprintf("    description: Instance ID for %s\n", vm.Name))
+		template.WriteString(fmt.Sprintf("    value: { get_resource: %s_instance }\n", sanitized))
+		for i := range vm.PortIDs {
+			template.WriteString(fmt.Sprintf("  %s_port_%d_id:\n", sanitized, i))
+			template.WriteString(fmt.Sprintf("    description: Port %d ID for %s\n", i, vm.Name))
+			template.WriteString(fmt.Sprintf("    value: { get_resource: %s_port_%d }\n", sanitized, i))
+		}
+	}
+
+	return template.String(), parameters, nil
+}
+
 func Run() {
 	if len(os.Args) != 2 {
 		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
@@ -203,8 +325,17 @@ func Run() {
 		ansible.FailJson(ansible.Response{Msg: "Output directory is required"})
 	}
 
-	// Generate Heat template
-	templateContent, parameters := GenerateHeatTemplate(moduleArgs.VMsData, moduleArgs.StackName)
+	var templateContent string
+	var parameters map[string]interface{}
+	if moduleArgs.WrapExisting {
+		var errWrap error
+		templateContent, parameters, errWrap = GenerateWrapHeatTemplate(moduleArgs.VMsData, moduleArgs.StackName)
+		if errWrap != nil {
+			ansible.FailJson(ansible.Response{Msg: "Failed to generate wrap Heat template: " + errWrap.Error()})
+		}
+	} else {
+		templateContent, parameters = GenerateHeatTemplate(moduleArgs.VMsData, moduleArgs.StackName)
+	}
 
 	// Ensure output directory exists
 	err = os.MkdirAll(moduleArgs.OutputDir, 0755)

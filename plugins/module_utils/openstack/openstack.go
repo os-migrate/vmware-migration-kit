@@ -26,7 +26,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 	"vmware-migration-kit/plugins/module_utils/logger"
 
@@ -484,6 +486,225 @@ func GetServerVolumeAttachments(client *gophercloud.ProviderClient, serverID str
 	}
 
 	return attachments, nil
+}
+
+func GetServerByName(provider *gophercloud.ProviderClient, instanceName string) (*servers.Server, error) {
+	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	allPages, err := servers.List(computeClient, nil).AllPages(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list servers: %w", err)
+	}
+	serversList, err := servers.ExtractServers(allPages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract servers: %w", err)
+	}
+
+	var matches []servers.Server
+	for _, server := range serversList {
+		if server.Name == instanceName {
+			matches = append(matches, server)
+		}
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("server not found: %s", instanceName)
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("multiple servers found with name: %s", instanceName)
+	}
+	return &matches[0], nil
+}
+
+func HeatStackIDFromMetadata(metadata map[string]string) string {
+	if metadata == nil {
+		return ""
+	}
+	if id := metadata["OS::stack_id"]; id != "" {
+		return id
+	}
+	return metadata["metering.stack_id"]
+}
+
+func SplitBootAndDataVolumes(attachments []VolumeAttachment, bootable map[string]string) (string, []string, error) {
+	if len(attachments) == 0 {
+		return "", nil, fmt.Errorf("no volume attachments")
+	}
+
+	sorted := append([]VolumeAttachment(nil), attachments...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Device == sorted[j].Device {
+			return sorted[i].VolumeID < sorted[j].VolumeID
+		}
+		return sorted[i].Device < sorted[j].Device
+	})
+
+	boot := ""
+	for _, att := range sorted {
+		if strings.EqualFold(bootable[att.VolumeID], "true") {
+			boot = att.VolumeID
+			break
+		}
+	}
+	if boot == "" {
+		boot = sorted[0].VolumeID
+	}
+
+	var data []string
+	for _, att := range sorted {
+		if att.VolumeID != boot {
+			data = append(data, att.VolumeID)
+		}
+	}
+	return boot, data, nil
+}
+
+type WrapVM struct {
+	Name           string
+	InstanceID     string
+	PortIDs        []string
+	BootVolumeID   string
+	DataVolumeIDs  []string
+	Flavor         string
+	Network        string
+	SecurityGroups []string
+	Status         string
+}
+
+func DiscoverWrapVMs(provider *gophercloud.ProviderClient, names []string) ([]WrapVM, error) {
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no VM names provided")
+	}
+
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if name == "" {
+			return nil, fmt.Errorf("VM name is required")
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("duplicate VM name: %s", name)
+		}
+		seen[name] = true
+	}
+
+	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compute client: %w", err)
+	}
+	allPages, err := servers.List(computeClient, nil).AllPages(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list servers: %w", err)
+	}
+	serversList, err := servers.ExtractServers(allPages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract servers: %w", err)
+	}
+
+	byName := make(map[string][]servers.Server)
+	for _, server := range serversList {
+		byName[server.Name] = append(byName[server.Name], server)
+	}
+
+	var wrapped []WrapVM
+	for _, name := range names {
+		matches := byName[name]
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("server not found: %s", name)
+		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("multiple servers found with name: %s", name)
+		}
+		vm, err := discoverWrapVMFromServer(provider, name, &matches[0])
+		if err != nil {
+			return nil, err
+		}
+		wrapped = append(wrapped, *vm)
+	}
+	return wrapped, nil
+}
+
+func DiscoverWrapVM(provider *gophercloud.ProviderClient, name string) (*WrapVM, error) {
+	server, err := GetServerByName(provider, name)
+	if err != nil {
+		return nil, err
+	}
+	return discoverWrapVMFromServer(provider, name, server)
+}
+
+func discoverWrapVMFromServer(provider *gophercloud.ProviderClient, name string, server *servers.Server) (*WrapVM, error) {
+	if stackID := HeatStackIDFromMetadata(server.Metadata); stackID != "" {
+		stackName := server.Metadata["OS::stack_name"]
+		if stackName == "" {
+			stackName = stackID
+		}
+		return nil, fmt.Errorf("instance %s already belongs to Heat stack %s", name, stackName)
+	}
+
+	ports, err := GetPortsByDeviceID(provider, server.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("no Neutron ports attached to instance %s", name)
+	}
+
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].ID < ports[j].ID
+	})
+
+	portIDs := make([]string, 0, len(ports))
+	securityGroups := []string{}
+	for _, port := range ports {
+		portIDs = append(portIDs, port.ID)
+		if len(securityGroups) == 0 && len(port.SecurityGroups) > 0 {
+			securityGroups = append([]string(nil), port.SecurityGroups...)
+		}
+	}
+
+	attachments, err := GetServerVolumeAttachments(provider, server.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(attachments) == 0 {
+		return nil, fmt.Errorf("no volumes attached to instance %s", name)
+	}
+
+	bootable := make(map[string]string, len(attachments))
+	for _, att := range attachments {
+		vol, err := GetVolume(provider, att.VolumeID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get volume %s for instance %s: %w", att.VolumeID, name, err)
+		}
+		bootable[att.VolumeID] = vol.Bootable
+	}
+
+	bootVolumeID, dataVolumeIDs, err := SplitBootAndDataVolumes(attachments, bootable)
+	if err != nil {
+		return nil, err
+	}
+
+	flavor := ""
+	if id, ok := server.Flavor["id"].(string); ok {
+		flavor = id
+	}
+
+	return &WrapVM{
+		Name:           name,
+		InstanceID:     server.ID,
+		PortIDs:        portIDs,
+		BootVolumeID:   bootVolumeID,
+		DataVolumeIDs:  dataVolumeIDs,
+		Flavor:         flavor,
+		Network:        ports[0].NetworkID,
+		SecurityGroups: securityGroups,
+		Status:         server.Status,
+	}, nil
 }
 
 func CreateServer(provider *gophercloud.ProviderClient, args ServerArgs) (string, error) {

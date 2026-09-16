@@ -26,3 +26,19 @@ import_workloads_openstack_insecure: true
 These variables inherit from the shorter aliases `vmware_insecure` and `openstack_insecure` if those are set at a higher scope.
 
 > **Warning:** Disabling certificate verification removes protection against man-in-the-middle attacks. Use only in lab or trusted network environments.
+
+## Heat
+
+`use_heat: true` is the create path: NBDKit writes Cinder volumes, Heat creates ports and instances, volumes stay `external_id`.
+
+To wrap VMs that were already created with `create_server` (no Heat), run the standalone playbook once for the full VM list. Do not put wrap inside the per-VM `import_workloads` loop.
+
+```yaml
+- import_playbook: os_migrate.vmware_migration_kit.wrap_heat_stack
+  vars:
+    vms_list: ["rhel-1", "rhel-2"]
+    dst_cloud: "{{ dst_cloud }}"
+    heat_stack_name: os-migrate-wrapped
+```
+
+The wrap template references existing servers, ports, and volumes with `external_id` only. Re-running against the same `heat_stack_name` skips create if that stack is already COMPLETE.

@@ -240,6 +240,7 @@ test-ansible-sanity:
 	  --exclude plugins/modules/import_flavor \
 	  --exclude plugins/modules/create_heat_stack \
 	  --exclude plugins/modules/generate_heat_template \
+	  --exclude plugins/modules/discover_heat_wrap \
 	  --exclude plugins/modules/delete_flavor \
 	  --exclude plugins/modules/delete_port \
 	  --exclude plugins/modules/delete_server \

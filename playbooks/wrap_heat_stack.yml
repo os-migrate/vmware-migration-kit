@@ -1,0 +1,65 @@
+---
+# Wrap already-migrated Nova instances into a Heat stack using external_id
+# on volumes, ports, and instances. Uses stacks.Create(), not stacks.Adopt().
+#
+# Required vars: vms_list, dst_cloud
+# Optional: heat_stack_name (default os-migrate-wrapped),
+#           os_migrate_vmw_data_dir (default /opt/os-migrate),
+#           heat_auto_deploy (default true), heat_wrap_hosts (default localhost)
+- name: Wrap existing migrated instances into a Heat stack
+  hosts: "{{ heat_wrap_hosts | default('localhost') }}"
+  gather_facts: false
+  vars:
+    wrap_stack_name: "{{ heat_stack_name | default('os-migrate-wrapped') }}"
+    wrap_output_dir: "{{ os_migrate_vmw_data_dir | default('/opt/os-migrate') }}"
+  tasks:
+    - name: Require VM list and destination cloud for Heat wrap
+      ansible.builtin.assert:
+        that:
+          - vms_list is defined
+          - vms_list | length > 0
+          - dst_cloud is defined
+        fail_msg: "vms_list and dst_cloud are required"
+
+    - name: Set destination cloud for Heat wrap
+      ansible.builtin.set_fact:
+        wrap_cloud: "{{ dst_cloud | combine({'openstack_insecure': openstack_insecure | default(false) | bool}, recursive=True) }}"
+
+    - name: Discover existing instances, ports, and volumes
+      os_migrate.vmware_migration_kit.discover_heat_wrap:
+        cloud: "{{ wrap_cloud }}"
+        vm_names: "{{ vms_list }}"
+      register: wrap_discovered
+
+    - name: Generate wrap Heat template
+      os_migrate.vmware_migration_kit.generate_heat_template:
+        vms_data: "{{ wrap_discovered.vms_data }}"
+        stack_name: "{{ wrap_stack_name }}"
+        output_dir: "{{ wrap_output_dir }}"
+        wrap_existing: true
+      register: heat_template_generated
+
+    - name: Display generated wrap template location
+      ansible.builtin.debug:
+        msg: "Heat wrap template generated: {{ heat_template_generated.template_path }}"
+
+    - name: Create Heat stack wrapping existing resources
+      os_migrate.vmware_migration_kit.create_heat_stack:
+        cloud: "{{ wrap_cloud }}"
+        template_path: "{{ heat_template_generated.template_path }}"
+        stack_name: "{{ wrap_stack_name }}"
+        parameters: "{{ heat_template_generated.parameters }}"
+        wait: true
+        timeout: 600
+        output_dir: "{{ wrap_output_dir }}"
+        disable_rollback: true
+      register: heat_stack_created
+      when: heat_auto_deploy | default(true) | bool
+
+    - name: Display Heat wrap stack result
+      ansible.builtin.debug:
+        msg: |
+          Heat wrap stack: {{ heat_stack_created.stack.name }}
+          Stack ID: {{ heat_stack_created.stack.id }}
+          Status: {{ heat_stack_created.stack.status }}
+      when: heat_stack_created is defined and heat_stack_created.stack is defined
