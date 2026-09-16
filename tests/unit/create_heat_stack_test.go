@@ -118,3 +118,43 @@ func TestResponseInfoPathJSON(t *testing.T) {
 		t.Errorf("expected info_path omitted when empty, got %s", string(data))
 	}
 }
+
+func TestStackCreateDecision(t *testing.T) {
+	action, err := createheatstack.StackCreateDecision("")
+	if err != nil || action != "create" {
+		t.Fatalf("empty status should create, got action=%q err=%v", action, err)
+	}
+
+	action, err = createheatstack.StackCreateDecision("CREATE_COMPLETE")
+	if err != nil || action != "skip" {
+		t.Fatalf("CREATE_COMPLETE should skip, got action=%q err=%v", action, err)
+	}
+
+	action, err = createheatstack.StackCreateDecision("UPDATE_COMPLETE")
+	if err != nil || action != "skip" {
+		t.Fatalf("UPDATE_COMPLETE should skip, got action=%q err=%v", action, err)
+	}
+
+	action, err = createheatstack.StackCreateDecision("DELETE_COMPLETE")
+	if err != nil || action != "create" {
+		t.Fatalf("DELETE_COMPLETE should create, got action=%q err=%v", action, err)
+	}
+
+	if _, err = createheatstack.StackCreateDecision("CREATE_FAILED"); err == nil {
+		t.Fatal("CREATE_FAILED should error")
+	}
+	if _, err = createheatstack.StackCreateDecision("CREATE_IN_PROGRESS"); err == nil {
+		t.Fatal("CREATE_IN_PROGRESS should error")
+	}
+}
+
+func TestModuleArgsUnmarshalDisableRollback(t *testing.T) {
+	raw := `{"stack_name": "test-stack", "disable_rollback": true}`
+	var args createheatstack.ModuleArgs
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if args.DisableRollback == nil || !*args.DisableRollback {
+		t.Fatalf("expected disable_rollback true, got %#v", args.DisableRollback)
+	}
+}
