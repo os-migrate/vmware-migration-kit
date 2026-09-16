@@ -12,12 +12,14 @@ description:
   - "Generate a Heat orchestration template that references existing Cinder volumes and creates OpenStack instances."
   - "Cinder volumes are referenced as external resources (unmanaged by Heat)."
   - "Neutron ports and Nova instances are created and managed by Heat."
+  - "When wrap_existing is true, existing Nova servers, Neutron ports, and Cinder volumes are referenced with external_id only. Heat does not create or rebuild them."
 options:
   vms_data:
     description:
       - List of VM data dictionaries containing migration information.
       - Each VM must have name, boot_volume_id, flavor, network, and security_groups.
       - Optional data_volume_ids lists additional Cinder volumes to attach to the instance.
+      - For wrap_existing, each VM must also have instance_id and port_ids.
     required: true
     type: list
     elements: dict
@@ -31,6 +33,13 @@ options:
       - Directory where the Heat template will be saved.
     required: true
     type: str
+  wrap_existing:
+    description:
+      - Generate a wrap template that references already-migrated instances, ports, and volumes via external_id.
+      - Uses stacks.Create later; does not call stacks.Adopt.
+    required: false
+    type: bool
+    default: false
 """
 
 EXAMPLES = r"""
@@ -56,6 +65,18 @@ EXAMPLES = r"""
 - name: Display generated template path
   ansible.builtin.debug:
     msg: "Template generated at {{ heat_template_result.template_path }}"
+
+- name: Generate wrap template for already-migrated VMs
+  os_migrate.vmware_migration_kit.generate_heat_template:
+    wrap_existing: true
+    vms_data:
+      - name: rhel-1
+        instance_id: "server-uuid-1"
+        port_ids:
+          - "port-uuid-1"
+        boot_volume_id: "volume-uuid-1"
+    stack_name: "os-migrate-wrapped"
+    output_dir: "/opt/os-migrate"
 """
 
 RETURN = r"""
