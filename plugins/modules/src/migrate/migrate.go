@@ -125,8 +125,9 @@ type ModuleArgs struct {
 	HostPool          string
 	BootScript        string
 	ExtraOpts         string
-	VmwareInsecure    bool `json:"vmware_insecure"`
-	MultiDiskFS       bool `json:"multidiskfs"`
+	VmwareInsecure       bool   `json:"vmware_insecure"`
+	MultiDiskFS          bool   `json:"multidiskfs"`
+	CustomNbdkitPlugin   string `json:"custom_nbdkit_plugin"`
 }
 
 func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
@@ -552,6 +553,7 @@ func main() {
 	volumeName := moduleArgs.VolumeName
 	hostPool := moduleArgs.HostPool
 	multiDiskFS := moduleArgs.MultiDiskFS
+	customPlugin := ansible.DefaultIfEmpty(moduleArgs.CustomNbdkitPlugin, "")
 
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
@@ -643,15 +645,16 @@ func main() {
 		logger.Log.Infof("Migrating disk with key: %d", d)
 		VMMigration := MigrationConfig{
 			NbdkitConfig: &nbdkit.NbdkitConfig{
-				User:        user,
-				Password:    password,
-				Server:      server,
-				Libdir:      libdir,
-				VmName:      vmname,
-				Compression: compression,
-				UUID:        r,
-				UseSocks:    socks,
-				Insecure:    vmwareInsecure,
+				User:         user,
+				Password:     password,
+				Server:       server,
+				Libdir:       libdir,
+				VmName:       vmname,
+				Compression:  compression,
+				UUID:         r,
+				UseSocks:     socks,
+				Insecure:     vmwareInsecure,
+				CustomPlugin: customPlugin,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
 					SnapshotReference: types.ManagedObjectReference{},
