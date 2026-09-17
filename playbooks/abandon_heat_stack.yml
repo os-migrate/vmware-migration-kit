@@ -1,0 +1,43 @@
+---
+# Leave a create-mode use_heat stack without deleting Nova instances or
+# Neutron ports. Tries stacks.Abandon(); if enable_stack_abandon is off,
+# rewrites Heat-managed ports/instances to external_id then deletes the stack.
+#
+# Required vars: heat_stack_name, dst_cloud
+# Optional: os_migrate_vmw_data_dir (default /opt/os-migrate),
+#           heat_abandon_hosts (default localhost)
+- name: Abandon a Heat stack without deleting migrated VMs
+  hosts: "{{ heat_abandon_hosts | default('localhost') }}"
+  gather_facts: false
+  vars:
+    abandon_output_dir: "{{ os_migrate_vmw_data_dir | default('/opt/os-migrate') }}"
+  tasks:
+    - name: Require stack name and destination cloud for Heat abandon
+      ansible.builtin.assert:
+        that:
+          - heat_stack_name is defined
+          - heat_stack_name | length > 0
+          - dst_cloud is defined
+        fail_msg: "heat_stack_name and dst_cloud are required"
+
+    - name: Set destination cloud for Heat abandon
+      ansible.builtin.set_fact:
+        abandon_cloud: "{{ dst_cloud | combine({'openstack_insecure': openstack_insecure | default(false) | bool}, recursive=True) }}"
+
+    - name: Abandon Heat stack leaving instances and ports
+      os_migrate.vmware_migration_kit.abandon_heat_stack:
+        cloud: "{{ abandon_cloud }}"
+        stack_name: "{{ heat_stack_name }}"
+        wait: true
+        timeout: 600
+        output_dir: "{{ abandon_output_dir }}"
+      register: heat_stack_abandoned
+
+    - name: Display Heat abandon result
+      ansible.builtin.debug:
+        msg: |
+          Heat stack: {{ heat_stack_abandoned.stack.name }}
+          Stack ID: {{ heat_stack_abandoned.stack.id }}
+          Status: {{ heat_stack_abandoned.stack.status }}
+          Method: {{ heat_stack_abandoned.method }}
+      when: heat_stack_abandoned is defined and heat_stack_abandoned.stack is defined
