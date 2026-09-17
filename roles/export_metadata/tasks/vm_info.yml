@@ -1,5 +1,5 @@
 ---
-- name: Search VM by name
+- name: Search VM by name  # noqa: fqcn[canonical]
   vmware.vmware.guest_info:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
