@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"vmware-migration-kit/plugins/modules/src/abandon_heat_stack"
 	"vmware-migration-kit/plugins/modules/src/best_match_flavor"
 	"vmware-migration-kit/plugins/modules/src/create_heat_stack"
 	"vmware-migration-kit/plugins/modules/src/create_network_port"
@@ -44,6 +45,7 @@ import (
 )
 
 var dispatch = map[string]func(){
+	"abandon_heat_stack":     abandon_heat_stack.Run,
 	"best_match_flavor":      best_match_flavor.Run,
 	"create_heat_stack":      create_heat_stack.Run,
 	"create_network_port":    create_network_port.Run,
