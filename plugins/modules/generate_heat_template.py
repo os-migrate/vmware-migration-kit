@@ -12,7 +12,8 @@ description:
   - "Generate a Heat orchestration template that references existing Cinder volumes and creates OpenStack instances."
   - "Cinder volumes are referenced as external resources (unmanaged by Heat)."
   - "Neutron ports and Nova instances are created and managed by Heat."
-  - "When wrap_existing is true, existing Nova servers, Neutron ports, and Cinder volumes are referenced with external_id only. Heat does not create or rebuild them."
+  - "When wrap_existing is true, existing Nova servers, Neutron ports, and Cinder volumes are referenced with external_id only."
+  - "Heat does not create or rebuild them."
 options:
   vms_data:
     description:
