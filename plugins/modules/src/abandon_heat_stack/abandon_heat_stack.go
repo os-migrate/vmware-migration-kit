@@ -73,9 +73,9 @@ type ResourceRef struct {
 
 const (
 	abandonInfoFileName = "heat_stack_abandon.txt"
-	stackActionAbandon = "abandon"
-	stackActionSkip    = "skip"
-	methodAbandon      = "abandon"
+	stackActionAbandon  = "abandon"
+	stackActionSkip     = "skip"
+	methodAbandon       = "abandon"
 	methodFallback      = "fallback"
 	methodSkip          = "skip"
 )

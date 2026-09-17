@@ -325,7 +325,7 @@ func TestModuleArgsUnmarshalStackName(t *testing.T) {
 	if args.StackName != "os-migrate-1710000000" {
 		t.Errorf("expected stack_name, got %q", args.StackName)
 	}
-	if !args.Wait {
+	if args.Wait == nil || !*args.Wait {
 		t.Fatal("expected wait true")
 	}
 }
