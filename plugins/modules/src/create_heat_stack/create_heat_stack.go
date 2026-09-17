@@ -128,10 +128,10 @@ func StackCreateDecision(status string) (string, error) {
 		return stackActionCreate, nil
 	}
 	if strings.HasSuffix(status, "_FAILED") {
-		return "", fmt.Errorf("Heat stack exists in failed status: %s", status)
+		return "", fmt.Errorf("heat stack exists in failed status: %s", status)
 	}
 	if strings.HasSuffix(status, "_IN_PROGRESS") {
-		return "", fmt.Errorf("Heat stack is already in progress: %s", status)
+		return "", fmt.Errorf("heat stack is already in progress: %s", status)
 	}
 	if status == "DELETE_COMPLETE" {
 		return stackActionCreate, nil
@@ -139,7 +139,7 @@ func StackCreateDecision(status string) (string, error) {
 	if strings.HasSuffix(status, "_COMPLETE") {
 		return stackActionSkip, nil
 	}
-	return "", fmt.Errorf("Heat stack exists with unsupported status: %s", status)
+	return "", fmt.Errorf("heat stack exists with unsupported status: %s", status)
 }
 
 func FindExistingStack(ctx context.Context, client *gophercloud.ServiceClient, stackName string) (*stacks.RetrievedStack, error) {
