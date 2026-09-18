@@ -73,6 +73,26 @@ func GetNetwork(provider *gophercloud.ProviderClient, networkNameOrID string) (*
 	return &networkList[0], nil
 }
 
+func GetPortsByDeviceID(provider *gophercloud.ProviderClient, deviceID string) ([]ports.Port, error) {
+	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create network client: %w", err)
+	}
+
+	pages, err := ports.List(client, ports.ListOpts{DeviceID: deviceID}).AllPages(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ports for device %s: %w", deviceID, err)
+	}
+
+	portList, err := ports.ExtractPorts(pages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract ports for device %s: %w", deviceID, err)
+	}
+	return portList, nil
+}
+
 func GetSubnetIDFromNetwork(provider *gophercloud.ProviderClient, networkID string) ([]string, error) {
 	client, err := openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),

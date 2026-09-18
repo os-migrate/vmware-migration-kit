@@ -11,6 +11,7 @@ author: "OpenStack tenant migration tools (@os-migrate)"
 description:
   - "Create a Heat orchestration stack from a generated template."
   - "Optionally wait for stack creation to complete."
+  - "If a stack with the same name already exists in a COMPLETE status, the module skips create."
 options:
   cloud:
     description:
@@ -51,6 +52,12 @@ options:
       - When set, the file is written on the same host that runs the module, at the exact path specified.
     required: false
     type: str
+  disable_rollback:
+    description:
+      - If true, Heat does not delete stack resources when create fails.
+      - Wrap playbook sets this true. Omit for the default Heat behavior.
+    required: false
+    type: bool
 """
 
 EXAMPLES = r"""

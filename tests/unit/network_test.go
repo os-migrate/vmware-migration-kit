@@ -489,3 +489,44 @@ func TestDeletePortClientInitFailure(t *testing.T) {
 		t.Fatal("expected error but got nil")
 	}
 }
+
+func TestGetPortsByDeviceIDSuccess(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/v2.0/ports", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("Expected GET but got %s", r.Method)
+		}
+		if r.URL.Query().Get("device_id") != "server-1" {
+			t.Fatalf("expected device_id=server-1, got %q", r.URL.Query().Get("device_id"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"ports": [
+				{
+					"id": "port-aaa",
+					"name": "rhel-1-port",
+					"network_id": "net-001",
+					"device_id": "server-1",
+					"security_groups": ["sg-01"]
+				}
+			]
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	provider := &gophercloud.ProviderClient{TokenID: "dummy"}
+	provider.EndpointLocator = func(_ gophercloud.EndpointOpts) (string, error) {
+		return fake.ServiceClient().Endpoint, nil
+	}
+
+	ports, err := osm_os.GetPortsByDeviceID(provider, "server-1")
+	if err != nil {
+		t.Fatalf("GetPortsByDeviceID returned error: %v", err)
+	}
+	if len(ports) != 1 || ports[0].ID != "port-aaa" {
+		t.Fatalf("expected port-aaa, got %#v", ports)
+	}
+}
