@@ -44,7 +44,7 @@ argument_specs:
 
       esxi_hostname:
         type: str
-        required: true
+        required: false
         description: Hostname or IP of the ESXi host used for disk access (NFC/NBD on port 902).
 
       vmware_insecure:
@@ -117,6 +117,11 @@ argument_specs:
               Keystone API version. Must be an integer (3), not a string ("3").
               Passing a string will cause the Golang best_match_flavor and
               create_server modules to fail JSON parsing.
+          block_storage_api_version:
+            type: str
+            required: false
+            default: ""
+            description: Block storage API version.
           region_name:
             type: str
             required: false
