@@ -135,7 +135,7 @@ options:
     type: bool
     default: false
     required: false
-  customplugin:
+  custom_nbdkit_plugin:
     description:
       - Path to a third-party nbdkit plugin shared library (C(.so)) to use instead of the built-in C(vddk) plugin.
       - When set, the nbdkit command is built with the plugin path in place of C(vddk), and VDDK-specific options
