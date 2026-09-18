@@ -141,11 +141,11 @@ argument_specs:
             default: ""
             description: Path to a CA certificate bundle for TLS verification.
 
-      openstack_insecure:
-        type: bool
-        required: false
-        default: false
-        description: Skip TLS verification for OpenStack connections.
+          openstack_insecure:
+            type: bool
+            required: false
+            default: false
+            description: Skip TLS verification for OpenStack connections.
 
       # -----------------------------------------------------------------------
       # Network
