@@ -34,16 +34,17 @@ import (
 )
 
 type NbdkitConfig struct {
-	User        string
-	Password    string
-	Server      string
-	Libdir      string
-	VmName      string
-	Compression string
-	UUID        string
-	UseSocks    bool
-	Insecure    bool
-	VddkConfig  *vmware.VddkConfig
+	User         string
+	Password     string
+	Server       string
+	Libdir       string
+	VmName       string
+	Compression  string
+	UUID         string
+	UseSocks     bool
+	Insecure     bool
+	CustomPlugin string
+	VddkConfig   *vmware.VddkConfig
 }
 
 type NbdkitServer struct {
@@ -108,23 +109,40 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(
-		"nbdkit",
-		"--readonly",
-		"--exit-with-parent",
-		"--foreground",
-		"vddk",
-		fmt.Sprintf("server=%s", c.Server),
-		fmt.Sprintf("user=%s", c.User),
-		fmt.Sprintf("password=%s", c.Password),
-		fmt.Sprintf("thumbprint=%s", thumbprint),
-		fmt.Sprintf("libdir=%s", c.Libdir),
-		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		fmt.Sprintf("compression=%s", c.Compression),
-		"transports=file:nbdssl:nbd",
-		diskName,
-	)
+	var cmd *exec.Cmd
+	if c.CustomPlugin != "" {
+		cmd = exec.Command(
+			"nbdkit",
+			"--readonly",
+			"--exit-with-parent",
+			"--foreground",
+			c.CustomPlugin,
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+		)
+	} else {
+		cmd = exec.Command(
+			"nbdkit",
+			"--readonly",
+			"--exit-with-parent",
+			"--foreground",
+			"vddk",
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("libdir=%s", c.Libdir),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+			fmt.Sprintf("compression=%s", c.Compression),
+			"transports=file:nbdssl:nbd",
+			diskName,
+		)
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
@@ -159,24 +177,43 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	}
 	safeVmName := moduleutils.SafeVmName(c.VmName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
-	cmd := exec.Command(
-		"nbdkit",
-		"--readonly",
-		"--exit-with-parent",
-		"--foreground",
-		"--unix", socket,
-		"vddk",
-		fmt.Sprintf("server=%s", c.Server),
-		fmt.Sprintf("user=%s", c.User),
-		fmt.Sprintf("password=%s", c.Password),
-		fmt.Sprintf("thumbprint=%s", thumbprint),
-		fmt.Sprintf("libdir=%s", c.Libdir),
-		fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-		fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		fmt.Sprintf("compression=%s", c.Compression),
-		"transports=file:nbdssl:nbd",
-		diskName,
-	)
+
+	var cmd *exec.Cmd
+	if c.CustomPlugin != "" {
+		cmd = exec.Command(
+			"nbdkit",
+			"--readonly",
+			"--exit-with-parent",
+			"--foreground",
+			"--unix", socket,
+			c.CustomPlugin,
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+		)
+	} else {
+		cmd = exec.Command(
+			"nbdkit",
+			"--readonly",
+			"--exit-with-parent",
+			"--foreground",
+			"--unix", socket,
+			"vddk",
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("libdir=%s", c.Libdir),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+			fmt.Sprintf("compression=%s", c.Compression),
+			"transports=file:nbdssl:nbd",
+			diskName,
+		)
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {

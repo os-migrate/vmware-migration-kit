@@ -269,3 +269,14 @@ argument_specs:
         required: false
         default: false
         description: Copy clouds.yaml credentials to the conversion host instead of passing dst_cloud dict.
+
+      custom_nbdkit_plugin:
+        type: str
+        required: false
+        default: ""
+        description: >
+          Absolute path to a third-party nbdkit plugin shared library on the conversion host
+          (e.g. /home/cloud-user/plugins/nbdkit-nfc/nbdkit-nfc-plugin.so).
+          When set, nbdkit uses this plugin instead of vddk, and VDDK-specific options
+          (libdir, compression, transports, diskName) are omitted.
+          Leave empty (default) to use the standard vddk plugin.
