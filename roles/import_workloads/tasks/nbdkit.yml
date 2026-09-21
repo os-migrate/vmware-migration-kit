@@ -84,6 +84,7 @@
     libdir: "{{ import_workloads_libdir | default(omit) }}"
     volume_type_mapping: "{{ import_workloads_volume_type_mapping | default([]) }}"
     multidiskfs: "{{ import_workloads_multidiskfs | bool }}"
+    custom_nbdkit_plugin: "{{ import_workloads_custom_nbdkit_plugin | default('') }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true
