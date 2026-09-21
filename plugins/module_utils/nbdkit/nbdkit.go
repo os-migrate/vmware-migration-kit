@@ -33,6 +33,18 @@ import (
 	"vmware-migration-kit/plugins/module_utils/vmware"
 )
 
+func redactedCmd(cmd *exec.Cmd) string {
+	args := make([]string, len(cmd.Args))
+	for i, arg := range cmd.Args {
+		if strings.HasPrefix(arg, "password=") {
+			args[i] = "password=***"
+		} else {
+			args[i] = arg
+		}
+	}
+	return strings.Join(args, " ")
+}
+
 type NbdkitConfig struct {
 	User        string
 	Password    string
@@ -72,7 +84,7 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitSer
 		return nil, err
 	}
 	logger.Log.Infof("nbdkit started...")
-	logger.Log.Infof("Command: %v", cmd)
+	logger.Log.Infof("Command: %s", redactedCmd(cmd))
 	time.Sleep(100 * time.Millisecond)
 	err := WaitForNbdkit(socket, 30*time.Second)
 	if err != nil {
@@ -132,7 +144,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 		return nil, err
 	}
 	logger.Log.Infof("nbdkit started...")
-	logger.Log.Infof("Command: %v", cmd)
+	logger.Log.Infof("Command: %s", redactedCmd(cmd))
 
 	time.Sleep(100 * time.Millisecond)
 	err = WaitForNbdkitURI("localhost", "10809", 30*time.Second)
@@ -184,7 +196,7 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 		return nil, err
 	}
 	logger.Log.Infof("nbdkit started...")
-	logger.Log.Infof("Command: %v", cmd)
+	logger.Log.Infof("Command: %s", redactedCmd(cmd))
 
 	time.Sleep(100 * time.Millisecond)
 	err = WaitForNbdkit(socket, 30*time.Second)
