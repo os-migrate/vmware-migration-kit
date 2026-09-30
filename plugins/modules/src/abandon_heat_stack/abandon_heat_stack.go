@@ -487,6 +487,7 @@ func Run() {
 			},
 		}
 		exitJson(attachInfoFile(response, moduleArgs.OutputDir))
+		return
 	}
 
 	action, err := StackAbandonDecision(existing.Status)
@@ -505,6 +506,7 @@ func Run() {
 			},
 		}
 		exitJson(attachInfoFile(response, moduleArgs.OutputDir))
+		return
 	}
 
 	abandonErr := stacks.Abandon(ctx, heatClient, existing.Name, existing.ID).Err
@@ -524,6 +526,7 @@ func Run() {
 			},
 		}
 		exitJson(attachInfoFile(response, moduleArgs.OutputDir))
+		return
 	}
 
 	if err := fallbackRewriteAndDelete(ctx, heatClient, existing, moduleArgs.Timeout, wait, abandonErr); err != nil {

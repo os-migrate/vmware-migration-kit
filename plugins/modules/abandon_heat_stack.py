@@ -11,7 +11,9 @@ author: "OpenStack tenant migration tools (@os-migrate)"
 description:
   - "Remove a create-mode use_heat stack without deleting Nova instances or Neutron ports."
   - "Tries Heat stacks.Abandon first. After a successful Abandon the stack is gone and no extra wait is needed."
-  - "If Abandon is disabled (enable_stack_abandon off, typical on RHOS/PSI), rewrites Heat-managed OS::Nova::Server and OS::Neutron::Port resources to external_id using the stack's live logical names, then deletes the stack."
+  - "If Abandon is disabled (enable_stack_abandon off, typical on RHOS/PSI),"
+  - "rewrites Heat-managed OS::Nova::Server and OS::Neutron::Port resources to external_id."
+  - "The rewrite uses the stack's live logical names, then deletes the stack."
   - "Create-mode stacks are named os-migrate-<epoch>; this module cannot infer that name."
   - "Do not use this for wrap stacks. Deleting a wrap stack already leaves VMs in place."
 options:
