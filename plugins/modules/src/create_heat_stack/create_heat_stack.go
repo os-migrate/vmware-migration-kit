@@ -107,8 +107,10 @@ func waitForStackStatus(ctx context.Context, client *gophercloud.ServiceClient, 
 			return nil
 		}
 
-		// Check for failure states
-		if stack.Status == "CREATE_FAILED" || stack.Status == "UPDATE_FAILED" || stack.Status == "DELETE_FAILED" {
+		// Check for failure states. ROLLBACK_COMPLETE is a finished failed
+		// create/update with rollback, not success.
+		if stack.Status == "CREATE_FAILED" || stack.Status == "UPDATE_FAILED" || stack.Status == "DELETE_FAILED" ||
+			stack.Status == "ROLLBACK_COMPLETE" || stack.Status == "ROLLBACK_FAILED" {
 			return fmt.Errorf("stack reached failed status: %s - %s", stack.Status, stack.StatusReason)
 		}
 
@@ -123,6 +125,8 @@ const (
 
 // StackCreateDecision returns whether to create a new stack or reuse an existing
 // complete one. Failed or in-progress stacks are errors so wrap is not duplicated.
+// DELETE_COMPLETE and ROLLBACK_COMPLETE mean the previous create did not stick,
+// so a retry should create again.
 func StackCreateDecision(status string) (string, error) {
 	if status == "" {
 		return stackActionCreate, nil
@@ -133,13 +137,54 @@ func StackCreateDecision(status string) (string, error) {
 	if strings.HasSuffix(status, "_IN_PROGRESS") {
 		return "", fmt.Errorf("heat stack is already in progress: %s", status)
 	}
-	if status == "DELETE_COMPLETE" {
+	if status == "DELETE_COMPLETE" || status == "ROLLBACK_COMPLETE" {
 		return stackActionCreate, nil
 	}
 	if strings.HasSuffix(status, "_COMPLETE") {
 		return stackActionSkip, nil
 	}
 	return "", fmt.Errorf("heat stack exists with unsupported status: %s", status)
+}
+
+func waitForStackDeleted(ctx context.Context, client *gophercloud.ServiceClient, stackName, stackID string, timeout int) error {
+	timeoutDuration := time.Duration(timeout) * time.Second
+	startTime := time.Now()
+
+	for {
+		if time.Since(startTime) > timeoutDuration {
+			return fmt.Errorf("timeout waiting for stack to be deleted")
+		}
+
+		stack, err := stacks.Get(ctx, client, stackName, stackID).Extract()
+		if err != nil {
+			if gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
+				return nil
+			}
+			return fmt.Errorf("failed to get stack status: %w", err)
+		}
+
+		if stack.Status == "DELETE_COMPLETE" {
+			return nil
+		}
+		if stack.Status == "DELETE_FAILED" {
+			return fmt.Errorf("stack reached failed status: %s - %s", stack.Status, stack.StatusReason)
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+}
+
+// deleteExistingStack removes a leftover DELETE_COMPLETE/ROLLBACK_COMPLETE stack
+// so create can reuse the name. Heat still occupies the name after rollback.
+func deleteExistingStack(ctx context.Context, client *gophercloud.ServiceClient, stack *stacks.RetrievedStack, timeout int) error {
+	deleteResult := stacks.Delete(ctx, client, stack.Name, stack.ID)
+	if deleteResult.Err != nil && !gophercloud.ResponseCodeIs(deleteResult.Err, http.StatusNotFound) {
+		return fmt.Errorf("failed to delete leftover Heat stack %s (%s): %w", stack.Name, stack.Status, deleteResult.Err)
+	}
+	if gophercloud.ResponseCodeIs(deleteResult.Err, http.StatusNotFound) {
+		return nil
+	}
+	return waitForStackDeleted(ctx, client, stack.Name, stack.ID, timeout)
 }
 
 func FindExistingStack(ctx context.Context, client *gophercloud.ServiceClient, stackName string) (*stacks.RetrievedStack, error) {
@@ -225,6 +270,9 @@ func Run() {
 				response.InfoPath = infoPath
 			}
 			exitJson(response)
+		}
+		if err := deleteExistingStack(ctx, heatClient, existing, moduleArgs.Timeout); err != nil {
+			ansible.FailJson(ansible.Response{Msg: err.Error()})
 		}
 	}
 
