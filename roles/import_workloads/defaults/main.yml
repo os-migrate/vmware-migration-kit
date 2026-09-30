@@ -50,3 +50,5 @@ import_workloads_user_data: "{{ user_data | default(omit) }}"
 
 import_workloads_use_heat: "{{ use_heat | default(false) | bool }}"
 import_workloads_heat_auto_deploy: "{{ heat_auto_deploy | default(true) | bool }}"
+
+import_workloads_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
