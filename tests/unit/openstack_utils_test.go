@@ -1387,3 +1387,216 @@ func TestCreateVolumeFailure(t *testing.T) {
 		t.Fatal("expected error but got nil")
 	}
 }
+
+func TestHeatStackIDFromMetadata(t *testing.T) {
+	if got := osm_os.HeatStackIDFromMetadata(nil); got != "" {
+		t.Fatalf("expected empty id, got %q", got)
+	}
+	if got := osm_os.HeatStackIDFromMetadata(map[string]string{"OS::stack_id": "stack-1"}); got != "stack-1" {
+		t.Fatalf("expected OS::stack_id, got %q", got)
+	}
+	if got := osm_os.HeatStackIDFromMetadata(map[string]string{"metering.stack_id": "stack-2"}); got != "stack-2" {
+		t.Fatalf("expected metering.stack_id, got %q", got)
+	}
+}
+
+func TestSplitBootAndDataVolumes(t *testing.T) {
+	attachments := []osm_os.VolumeAttachment{
+		{VolumeID: "data-vol", Device: "/dev/vdb"},
+		{VolumeID: "boot-vol", Device: "/dev/vda"},
+	}
+	boot, data, err := osm_os.SplitBootAndDataVolumes(attachments, map[string]string{
+		"boot-vol": "true",
+		"data-vol": "false",
+	})
+	if err != nil {
+		t.Fatalf("SplitBootAndDataVolumes failed: %v", err)
+	}
+	if boot != "boot-vol" {
+		t.Fatalf("expected boot-vol, got %s", boot)
+	}
+	if len(data) != 1 || data[0] != "data-vol" {
+		t.Fatalf("expected data-vol, got %#v", data)
+	}
+
+	boot, data, err = osm_os.SplitBootAndDataVolumes(attachments, map[string]string{
+		"boot-vol": "false",
+		"data-vol": "false",
+	})
+	if err != nil {
+		t.Fatalf("device-order fallback failed: %v", err)
+	}
+	if boot != "boot-vol" {
+		t.Fatalf("expected /dev/vda as boot, got %s", boot)
+	}
+	if len(data) != 1 || data[0] != "data-vol" {
+		t.Fatalf("expected remaining data volume, got %#v", data)
+	}
+
+	if _, _, err = osm_os.SplitBootAndDataVolumes(nil, nil); err == nil {
+		t.Fatal("expected error for empty attachments")
+	}
+}
+
+func TestGetServerByNameExactMatch(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/servers/detail", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("Expected GET but got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"servers": [
+				{
+					"id": "server-bob",
+					"name": "bob",
+					"status": "ACTIVE",
+					"flavor": {"id": "flavor-1"},
+					"metadata": {}
+				},
+				{
+					"id": "server-bobb",
+					"name": "bobb",
+					"status": "ACTIVE",
+					"flavor": {"id": "flavor-1"},
+					"metadata": {}
+				}
+			]
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	server, err := osm_os.GetServerByName(createMockProvider(), "bob")
+	if err != nil {
+		t.Fatalf("GetServerByName returned error: %v", err)
+	}
+	if server.ID != "server-bob" {
+		t.Fatalf("expected exact name bob, got %s (%s)", server.Name, server.ID)
+	}
+}
+
+func TestGetServerByNameNotFound(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/servers/detail", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"servers": []}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	_, err := osm_os.GetServerByName(createMockProvider(), "missing")
+	if err == nil {
+		t.Fatal("expected not found error")
+	}
+}
+
+func TestDiscoverWrapVMsRejectsDuplicates(t *testing.T) {
+	_, err := osm_os.DiscoverWrapVMs(createMockProvider(), []string{"rhel-1", "rhel-1"})
+	if err == nil {
+		t.Fatal("expected duplicate name error")
+	}
+}
+
+func TestDiscoverWrapVMsRejectsExistingHeatStack(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/servers/detail", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"servers": [{
+				"id": "server-1",
+				"name": "rhel-1",
+				"status": "ACTIVE",
+				"flavor": {"id": "flavor-1"},
+				"metadata": {
+					"OS::stack_id": "stack-abc",
+					"OS::stack_name": "os-migrate-existing"
+				}
+			}]
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	_, err := osm_os.DiscoverWrapVMs(createMockProvider(), []string{"rhel-1"})
+	if err == nil {
+		t.Fatal("expected error when instance already belongs to a Heat stack")
+	}
+	if !strings.Contains(err.Error(), "already belongs to Heat stack") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDiscoverWrapVMsSuccess(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/servers/detail", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"servers": [{
+				"id": "server-1",
+				"name": "rhel-1",
+				"status": "ACTIVE",
+				"flavor": {"id": "flavor-1"},
+				"metadata": {}
+			}]
+		}`))
+	})
+	th.Mux.HandleFunc("/v2.0/ports", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"ports": [{
+				"id": "port-1",
+				"network_id": "net-1",
+				"device_id": "server-1",
+				"security_groups": ["sg-1"]
+			}]
+		}`))
+	})
+	th.Mux.HandleFunc("/servers/server-1/os-volume_attachments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"volumeAttachments": [{
+				"volumeId": "vol-boot",
+				"device": "/dev/vda"
+			}]
+		}`))
+	})
+	th.Mux.HandleFunc("/volumes/vol-boot", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"volume": {
+				"id": "vol-boot",
+				"name": "rhel-1-2000",
+				"status": "in-use",
+				"bootable": "true"
+			}
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	vms, err := osm_os.DiscoverWrapVMs(createMockProvider(), []string{"rhel-1"})
+	if err != nil {
+		t.Fatalf("DiscoverWrapVMs failed: %v", err)
+	}
+	if len(vms) != 1 {
+		t.Fatalf("expected 1 VM, got %d", len(vms))
+	}
+	if vms[0].InstanceID != "server-1" || vms[0].BootVolumeID != "vol-boot" {
+		t.Fatalf("unexpected wrap VM: %#v", vms[0])
+	}
+	if len(vms[0].PortIDs) != 1 || vms[0].PortIDs[0] != "port-1" {
+		t.Fatalf("expected port-1, got %#v", vms[0].PortIDs)
+	}
+}

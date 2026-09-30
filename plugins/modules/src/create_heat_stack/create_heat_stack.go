@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"vmware-migration-kit/plugins/module_utils/ansible"
@@ -35,13 +37,14 @@ import (
 
 // Ansible module args
 type ModuleArgs struct {
-	Cloud        osm_os.DstCloud        `json:"cloud"`
-	TemplatePath string                 `json:"template_path"`
-	StackName    string                 `json:"stack_name"`
-	Parameters   map[string]interface{} `json:"parameters"`
-	Wait         bool                   `json:"wait"`
-	Timeout      int                    `json:"timeout"`
-	OutputDir    string                 `json:"output_dir"`
+	Cloud           osm_os.DstCloud        `json:"cloud"`
+	TemplatePath    string                 `json:"template_path"`
+	StackName       string                 `json:"stack_name"`
+	Parameters      map[string]interface{} `json:"parameters"`
+	Wait            bool                   `json:"wait"`
+	Timeout         int                    `json:"timeout"`
+	OutputDir       string                 `json:"output_dir"`
+	DisableRollback *bool                  `json:"disable_rollback,omitempty"`
 }
 
 type StackInfo struct {
@@ -113,6 +116,43 @@ func waitForStackStatus(ctx context.Context, client *gophercloud.ServiceClient, 
 	}
 }
 
+const (
+	stackActionCreate = "create"
+	stackActionSkip   = "skip"
+)
+
+// StackCreateDecision returns whether to create a new stack or reuse an existing
+// complete one. Failed or in-progress stacks are errors so wrap is not duplicated.
+func StackCreateDecision(status string) (string, error) {
+	if status == "" {
+		return stackActionCreate, nil
+	}
+	if strings.HasSuffix(status, "_FAILED") {
+		return "", fmt.Errorf("heat stack exists in failed status: %s", status)
+	}
+	if strings.HasSuffix(status, "_IN_PROGRESS") {
+		return "", fmt.Errorf("heat stack is already in progress: %s", status)
+	}
+	if status == "DELETE_COMPLETE" {
+		return stackActionCreate, nil
+	}
+	if strings.HasSuffix(status, "_COMPLETE") {
+		return stackActionSkip, nil
+	}
+	return "", fmt.Errorf("heat stack exists with unsupported status: %s", status)
+}
+
+func FindExistingStack(ctx context.Context, client *gophercloud.ServiceClient, stackName string) (*stacks.RetrievedStack, error) {
+	stack, err := stacks.Find(ctx, client, stackName).Extract()
+	if err != nil {
+		if gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return stack, nil
+}
+
 func Run() {
 	if len(os.Args) != 2 {
 		ansible.FailJson(ansible.Response{Msg: "No argument file provided"})
@@ -158,6 +198,36 @@ func Run() {
 		ansible.FailJson(ansible.Response{Msg: "Failed to create Heat client: " + err.Error()})
 	}
 
+	existing, err := FindExistingStack(ctx, heatClient, moduleArgs.StackName)
+	if err != nil {
+		ansible.FailJson(ansible.Response{Msg: "Failed to look up existing Heat stack: " + err.Error()})
+	}
+	if existing != nil {
+		action, err := StackCreateDecision(existing.Status)
+		if err != nil {
+			ansible.FailJson(ansible.Response{Msg: err.Error()})
+		}
+		if action == stackActionSkip {
+			response := Response{
+				Changed: false,
+				Msg:     "Heat stack already exists",
+				Stack: StackInfo{
+					ID:     existing.ID,
+					Name:   existing.Name,
+					Status: existing.Status,
+				},
+			}
+			if moduleArgs.OutputDir != "" {
+				infoPath, err := WriteStackInfoFile(moduleArgs.OutputDir, response.Stack, moduleArgs.TemplatePath)
+				if err != nil {
+					ansible.FailJson(ansible.Response{Msg: "Failed to write stack info file: " + err.Error()})
+				}
+				response.InfoPath = infoPath
+			}
+			exitJson(response)
+		}
+	}
+
 	// Read template file
 	templateContent, err := os.ReadFile(moduleArgs.TemplatePath)
 	if err != nil {
@@ -185,6 +255,9 @@ func Run() {
 		TemplateOpts: template,
 		Parameters:   moduleArgs.Parameters,
 		Timeout:      moduleArgs.Timeout / 60, // Convert seconds to minutes
+	}
+	if moduleArgs.DisableRollback != nil {
+		createOpts.DisableRollback = moduleArgs.DisableRollback
 	}
 
 	createResult := stacks.Create(ctx, heatClient, createOpts)
