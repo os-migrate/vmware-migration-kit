@@ -135,6 +135,15 @@ options:
     type: bool
     default: false
     required: false
+  custom_nbdkit_plugin:
+    description:
+      - Path to a third-party nbdkit plugin shared library (C(.so)) to use instead of the built-in C(vddk) plugin.
+      - When set, the nbdkit command is built with the plugin path in place of C(vddk), and VDDK-specific options
+        (C(libdir), C(compression), C(transports)) are omitted.
+      - Leave empty (default) to use the standard VDDK plugin.
+    type: str
+    required: false
+    default: ""
   wait: # Common operational parameter for long tasks
     description: If C(true), the module will wait for the migration operation to complete before returning.
     type: bool

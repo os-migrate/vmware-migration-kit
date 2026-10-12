@@ -140,8 +140,16 @@ func TestStackCreateDecision(t *testing.T) {
 		t.Fatalf("DELETE_COMPLETE should create, got action=%q err=%v", action, err)
 	}
 
+	action, err = createheatstack.StackCreateDecision("ROLLBACK_COMPLETE")
+	if err != nil || action != "create" {
+		t.Fatalf("ROLLBACK_COMPLETE should create, got action=%q err=%v", action, err)
+	}
+
 	if _, err = createheatstack.StackCreateDecision("CREATE_FAILED"); err == nil {
 		t.Fatal("CREATE_FAILED should error")
+	}
+	if _, err = createheatstack.StackCreateDecision("ROLLBACK_FAILED"); err == nil {
+		t.Fatal("ROLLBACK_FAILED should error")
 	}
 	if _, err = createheatstack.StackCreateDecision("CREATE_IN_PROGRESS"); err == nil {
 		t.Fatal("CREATE_IN_PROGRESS should error")
