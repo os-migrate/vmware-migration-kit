@@ -50,7 +50,7 @@
         status_code: 202
       register: test_volume_02
 
-    - name: Wait for volume to become available
+    - name: Wait for TEST02 volume to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (test_volume_02.content | from_json).volume.id }}"
         method: GET
@@ -148,7 +148,7 @@
         status_code: 202
       register: test_volume_04
 
-    - name: Wait for volume to become available
+    - name: Wait for TEST04 volume to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (test_volume_04.content | from_json).volume.id }}"
         method: GET
@@ -216,7 +216,7 @@
         status_code: 202
       register: volume_05
 
-    - name: Wait for volume to become available
+    - name: Wait for TEST05 volume to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (volume_05.content | from_json).volume.id }}"
         method: GET

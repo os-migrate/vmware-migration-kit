@@ -46,7 +46,7 @@
         status_code: 202
       register: cross_val_vol
 
-    - name: Wait for volume to become available
+    - name: Wait for TEST01 volume to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (cross_val_vol.content | from_json).volume.id }}"
         method: GET
@@ -121,7 +121,7 @@
         status_code: 202
       register: persist_vol
 
-    - name: Wait for volume to become available
+    - name: Wait for TEST03 volume to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (persist_vol.content | from_json).volume.id }}"
         method: GET

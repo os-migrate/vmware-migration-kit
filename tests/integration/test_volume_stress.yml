@@ -79,7 +79,7 @@
       loop: "{{ range(1, 6) | list }}"
       register: multi_vols
 
-    - name: Wait for all volumes to become available
+    - name: Wait for TEST03 volumes to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
         method: GET
@@ -221,7 +221,7 @@
       loop: [1, 2, 3]
       register: seq_vols
 
-    - name: Wait for all volumes to become available
+    - name: Wait for TEST06 volumes to become available
       ansible.builtin.uri:
         url: "{{ fake_os_url }}/v3/demo/volumes/{{ (item.content | from_json).volume.id }}"
         method: GET
