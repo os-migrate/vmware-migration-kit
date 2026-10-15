@@ -454,14 +454,25 @@ func versionIsLower(cVersion, rVersion string) bool {
 }
 */
 
+// shellQuote wraps s in single quotes so it is passed to the shell as a single
+// argument, even when it contains spaces or other special characters. Any
+// embedded single quote is closed, escaped, and reopened so the result stays a
+// single shell token.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // buildV2VCommand constructs the virt-v2v-in-place command string.
+// Paths are shell-quoted so VM names (and therefore script/disk paths)
+// containing spaces are not split into multiple shell tokens when the command
+// is executed via "bash -c".
 func buildV2VCommand(path, rsPath, bsPath, extraOpts string, multiDisk bool) string {
 	opts := ""
 	if rsPath != "" {
-		opts = opts + " --run " + rsPath
+		opts = opts + " --run " + shellQuote(rsPath)
 	}
 	if bsPath != "" {
-		opts = opts + " --firstboot " + bsPath
+		opts = opts + " --firstboot " + shellQuote(bsPath)
 	}
 	if extraOpts != "" {
 		opts += " " + extraOpts
@@ -472,7 +483,7 @@ func buildV2VCommand(path, rsPath, bsPath, extraOpts string, multiDisk bool) str
 		inputOpt = "-i libvirtxml"
 	}
 
-	return "virt-v2v-in-place" + opts + " " + inputOpt + " " + path
+	return "virt-v2v-in-place" + opts + " " + inputOpt + " " + shellQuote(path)
 }
 
 func V2VConversion(path, rsPath, bsPath, extraOpts string, debug bool, multiDisk bool) error {
