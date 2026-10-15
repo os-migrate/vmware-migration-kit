@@ -1600,3 +1600,109 @@ func TestDiscoverWrapVMsSuccess(t *testing.T) {
 		t.Fatalf("expected port-1, got %#v", vms[0].PortIDs)
 	}
 }
+
+// GetVolumeInfoByID success: look up a volume by its UUID.
+func TestGetVolumeInfoByIDSuccess(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/volumes/vol-uuid-1", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("Expected GET but got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"volume": {
+				"id": "vol-uuid-1",
+				"name": "rhel-9.5-1-2000",
+				"status": "available",
+				"size": 30,
+				"bootable": "true",
+				"metadata": {"osm": "true"}
+			}
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	info, err := osm_os.GetVolumeInfoByID(createMockProvider(), "vol-uuid-1")
+	if err != nil {
+		t.Fatalf("GetVolumeInfoByID returned error: %v", err)
+	}
+	if info.ID != "vol-uuid-1" {
+		t.Errorf("expected ID 'vol-uuid-1', got %s", info.ID)
+	}
+	if info.Name != "rhel-9.5-1-2000" {
+		t.Errorf("expected name 'rhel-9.5-1-2000', got %s", info.Name)
+	}
+	if info.Bootable != "true" {
+		t.Errorf("expected bootable 'true', got %s", info.Bootable)
+	}
+}
+
+// GetVolumeInfoByID not found: the API returns 404.
+func TestGetVolumeInfoByIDNotFound(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/volumes/missing", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	_, err := osm_os.GetVolumeInfoByID(createMockProvider(), "missing")
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+}
+
+// GetVolumeInfoByID client init failure.
+func TestGetVolumeInfoByIDClientInitFailure(t *testing.T) {
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	_, err := osm_os.GetVolumeInfoByID(createFailingProvider(), "vol-uuid-1")
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+}
+
+// GetServer success: look up an instance by its UUID.
+func TestGetServerSuccess(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	th.Mux.HandleFunc("/servers/srv-abc", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("Expected GET but got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"server": {
+				"id": "srv-abc",
+				"name": "rhel-9.5-1",
+				"status": "ACTIVE"
+			}
+		}`))
+	})
+
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	server, err := osm_os.GetServer(createMockProvider(), "srv-abc")
+	if err != nil {
+		t.Fatalf("GetServer returned error: %v", err)
+	}
+	if server.ID != "srv-abc" {
+		t.Errorf("expected ID 'srv-abc', got %s", server.ID)
+	}
+	if server.Status != "ACTIVE" {
+		t.Errorf("expected status 'ACTIVE', got %s", server.Status)
+	}
+}
+
+// GetServer client init failure.
+func TestGetServerClientInitFailure(t *testing.T) {
+	_ = os.Setenv("OS_REGION_NAME", "RegionOne")
+	_, err := osm_os.GetServer(createFailingProvider(), "srv-abc")
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+}

@@ -28,6 +28,7 @@ import (
 type ModuleArgs struct {
 	Cloud osm_os.DstCloud `json:"cloud"`
 	Name  string          `json:"name"`
+	ID    string          `json:"id"`
 }
 
 type VolumeInfo struct {
@@ -104,10 +105,26 @@ func Run() {
 		FailJson(response)
 	}
 
-	sharedVolumeInfo, err := osm_os.GetVolumeInfo(provider, moduleArgs.Name)
-	if err != nil {
-		response.Msg = "Failed to get volume info for: " + moduleArgs.Name + " error: " + err.Error()
+	if moduleArgs.ID == "" && moduleArgs.Name == "" {
+		response.Msg = "Either 'id' or 'name' must be provided to look up a volume"
 		FailJson(response)
+	}
+
+	// Look up by UUID when provided (the volume name is not always known at the
+	// call site), otherwise fall back to looking up by name.
+	var sharedVolumeInfo *osm_os.VolumeInfo
+	if moduleArgs.ID != "" {
+		sharedVolumeInfo, err = osm_os.GetVolumeInfoByID(provider, moduleArgs.ID)
+		if err != nil {
+			response.Msg = "Failed to get volume info for id: " + moduleArgs.ID + " error: " + err.Error()
+			FailJson(response)
+		}
+	} else {
+		sharedVolumeInfo, err = osm_os.GetVolumeInfo(provider, moduleArgs.Name)
+		if err != nil {
+			response.Msg = "Failed to get volume info for: " + moduleArgs.Name + " error: " + err.Error()
+			FailJson(response)
+		}
 	}
 
 	// Convert shared VolumeInfo to local VolumeInfo type
