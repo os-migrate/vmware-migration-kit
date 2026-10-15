@@ -15,6 +15,7 @@ plugins/modules/import_flavor.py validate-modules:missing-gplv3-license
 plugins/modules/create_heat_stack.py validate-modules:missing-gplv3-license
 plugins/modules/generate_heat_template.py validate-modules:missing-gplv3-license
 plugins/modules/discover_heat_wrap.py validate-modules:missing-gplv3-license
+plugins/modules/abandon_heat_stack.py validate-modules:missing-gplv3-license
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:invalid-extension
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:missing-gplv3-license
 plugins/modules/src/best_match_flavor/best_match_flavor.go validate-modules:invalid-extension
@@ -37,6 +38,8 @@ plugins/modules/src/generate_heat_template/generate_heat_template.go validate-mo
 plugins/modules/src/generate_heat_template/generate_heat_template.go validate-modules:missing-gplv3-license
 plugins/modules/src/discover_heat_wrap/discover_heat_wrap.go validate-modules:invalid-extension
 plugins/modules/src/discover_heat_wrap/discover_heat_wrap.go validate-modules:missing-gplv3-license
+plugins/modules/src/abandon_heat_stack/abandon_heat_stack.go validate-modules:invalid-extension
+plugins/modules/src/abandon_heat_stack/abandon_heat_stack.go validate-modules:missing-gplv3-license
 plugins/modules/src/import_flavor/import_flavor.go validate-modules:invalid-extension
 plugins/modules/src/import_flavor/import_flavor.go validate-modules:missing-gplv3-license
 plugins/modules/src/migrate/migrate.go validate-modules:invalid-extension
