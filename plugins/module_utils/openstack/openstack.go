@@ -488,6 +488,21 @@ func GetServerVolumeAttachments(client *gophercloud.ProviderClient, serverID str
 	return attachments, nil
 }
 
+// GetServer retrieves a server (instance) by its UUID.
+func GetServer(provider *gophercloud.ProviderClient, serverID string) (*servers.Server, error) {
+	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compute client: %w", err)
+	}
+	server, err := servers.Get(context.TODO(), computeClient, serverID).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server %s: %w", serverID, err)
+	}
+	return server, nil
+}
+
 func GetServerByName(provider *gophercloud.ProviderClient, instanceName string) (*servers.Server, error) {
 	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
@@ -946,6 +961,28 @@ func GetVolumeInfo(provider *gophercloud.ProviderClient, volumeName string) (*Vo
 	}
 
 	volume := volumeList[0]
+	volumeInfo := &VolumeInfo{
+		ID:       volume.ID,
+		Name:     volume.Name,
+		Status:   volume.Status,
+		Size:     volume.Size,
+		Bootable: volume.Bootable,
+		Metadata: volume.Metadata,
+	}
+
+	return volumeInfo, nil
+}
+
+// GetVolumeInfoByID retrieves volume information by its UUID. This is useful
+// when the volume name is not known (for example the name is derived from the
+// VM name plus the disk key) but the volume UUID is available.
+func GetVolumeInfoByID(provider *gophercloud.ProviderClient, volumeID string) (*VolumeInfo, error) {
+	volume, err := GetVolume(provider, volumeID)
+	if err != nil {
+		logger.Log.Infof("Failed to get volume by ID %s: %v", volumeID, err)
+		return nil, err
+	}
+
 	volumeInfo := &VolumeInfo{
 		ID:       volume.ID,
 		Name:     volume.Name,

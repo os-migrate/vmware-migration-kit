@@ -22,7 +22,7 @@
 - name: Get volume information for Cinder boot
   os_migrate.vmware_migration_kit.volume_info:
     cloud: "{{ dst_cloud }}"
-    name: "{{ vm_name }}"
+    id: "{{ volume_uuid[0] }}"
   register: cinder_volume_result
   when: import_workloads_boot_from_cinder
 

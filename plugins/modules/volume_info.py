@@ -9,7 +9,8 @@ extends_documentation_fragment:
 version_added: "2.9.0"
 author: "OpenStack tenant migration tools (@os-migrate)"
 description:
-  - "Get volume information from OpenStack by name."
+  - "Get volume information from OpenStack by name or by UUID."
+  - "Either O(name) or O(id) must be provided. When O(id) is set it takes precedence."
 options:
   cloud:
     description:
@@ -35,15 +36,29 @@ options:
   name:
     description:
       - Name of the volume to get information for.
-    required: true
+      - Mutually exclusive with O(id); one of O(name) or O(id) is required.
+    required: false
+    type: str
+  id:
+    description:
+      - UUID of the volume to get information for.
+      - Useful when the volume name is not known but its UUID is.
+      - Mutually exclusive with O(name); one of O(name) or O(id) is required.
+    required: false
     type: str
 """
 
 EXAMPLES = r"""
-- name: Get volume information
+- name: Get volume information by name
   os_migrate.vmware_migration_kit.volume_info:
     cloud: source_cloud
     name: "my-volume"
+  register: volume_info
+
+- name: Get volume information by UUID
+  os_migrate.vmware_migration_kit.volume_info:
+    cloud: source_cloud
+    id: "11111111-2222-3333-4444-555555555555"
   register: volume_info
 """
 

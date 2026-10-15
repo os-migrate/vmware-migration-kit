@@ -94,6 +94,26 @@ func success(changed bool, id string) {
 	os.Exit(0)
 }
 
+// activeServerForVolume returns the ID of the instance the volume is attached
+// to when that instance exists and is ACTIVE, otherwise an empty string.
+func activeServerForVolume(provider *gophercloud.ProviderClient, volume *volumes.Volume) string {
+	for _, att := range volume.Attachments {
+		if att.ServerID == "" {
+			continue
+		}
+		server, err := osm_os.GetServer(provider, att.ServerID)
+		if err != nil {
+			logger.Log.Infof("Failed to get server %s attached to volume %s: %v", att.ServerID, volume.ID, err)
+			continue
+		}
+		if server.Status == "ACTIVE" {
+			return server.ID
+		}
+		logger.Log.Infof("Server %s attached to volume %s is not ACTIVE (status: %s)", server.ID, volume.ID, server.Status)
+	}
+	return ""
+}
+
 func Run() {
 	var response ansible.Response
 	if len(os.Args) != 2 {
@@ -147,9 +167,24 @@ func Run() {
 			ansible.FailJson(response)
 		}
 
+		// A boot volume that is already "in-use" has normally been attached to an
+		// instance by a previous (successful) run. Rather than failing, treat this
+		// as idempotent success when the attached instance still exists and is
+		// ACTIVE, returning that instance ID so downstream tasks keep working.
+		if volume.Status == "in-use" {
+			if existingID := activeServerForVolume(provider, volume); existingID != "" {
+				logger.Log.Infof("Boot volume %s is already attached to active instance %s, treating as success", volume.ID, existingID)
+				success(false, existingID)
+				return
+			}
+			logger.Log.Infof("Volume is in-use but not attached to an active instance")
+			response.Msg = "Volume is in-use but not attached to an active instance"
+			ansible.FailJson(response)
+		}
+
 		if volume.Status != "available" {
 			logger.Log.Infof("Volume is not available, current status: %s", volume.Status)
-			response.Msg = "Volume is not available"
+			response.Msg = "Volume is not available, current status: " + volume.Status
 			ansible.FailJson(response)
 		}
 
