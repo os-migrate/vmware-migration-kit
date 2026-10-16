@@ -184,7 +184,7 @@ func TestBuildNbdCopyCommand_NoSocketWithoutAssumeZero(t *testing.T) {
 // Test 11: buildV2VCommand with only path (minimal options) - single disk
 func TestBuildV2VCommand_MinimalOptions(t *testing.T) {
 	result := buildV2VCommand("/path/to/disk", "", "", "", false)
-	expected := "virt-v2v-in-place -i disk /path/to/disk"
+	expected := "virt-v2v-in-place -i disk '/path/to/disk'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
 	}
@@ -193,7 +193,7 @@ func TestBuildV2VCommand_MinimalOptions(t *testing.T) {
 // Test 12: buildV2VCommand with run script and boot script - single disk
 func TestBuildV2VCommand_WithScripts(t *testing.T) {
 	result := buildV2VCommand("/path/to/disk", "/run.sh", "/boot.sh", "", false)
-	expected := "virt-v2v-in-place --run /run.sh --firstboot /boot.sh -i disk /path/to/disk"
+	expected := "virt-v2v-in-place --run '/run.sh' --firstboot '/boot.sh' -i disk '/path/to/disk'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
 	}
@@ -202,7 +202,7 @@ func TestBuildV2VCommand_WithScripts(t *testing.T) {
 // Test 13: buildV2VCommand with extra options only - single disk
 func TestBuildV2VCommand_ExtraOptionsOnly(t *testing.T) {
 	result := buildV2VCommand("/path/to/disk", "", "", "--verbose", false)
-	expected := "virt-v2v-in-place --verbose -i disk /path/to/disk"
+	expected := "virt-v2v-in-place --verbose -i disk '/path/to/disk'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
 	}
@@ -211,7 +211,7 @@ func TestBuildV2VCommand_ExtraOptionsOnly(t *testing.T) {
 // Test 14: buildV2VCommand with all options - single disk
 func TestBuildV2VCommand_AllOptions(t *testing.T) {
 	result := buildV2VCommand("/path/to/disk", "/run.sh", "/boot.sh", "--verbose --debug", false)
-	expected := "virt-v2v-in-place --run /run.sh --firstboot /boot.sh --verbose --debug -i disk /path/to/disk"
+	expected := "virt-v2v-in-place --run '/run.sh' --firstboot '/boot.sh' --verbose --debug -i disk '/path/to/disk'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
 	}
@@ -220,7 +220,7 @@ func TestBuildV2VCommand_AllOptions(t *testing.T) {
 // Test 15: buildV2VCommand with multiDisk - minimal options
 func TestBuildV2VCommand_MultiDiskMinimal(t *testing.T) {
 	result := buildV2VCommand("/tmp/vm-domain.xml", "", "", "", true)
-	expected := "virt-v2v-in-place -i libvirtxml /tmp/vm-domain.xml"
+	expected := "virt-v2v-in-place -i libvirtxml '/tmp/vm-domain.xml'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
 	}
@@ -229,8 +229,34 @@ func TestBuildV2VCommand_MultiDiskMinimal(t *testing.T) {
 // Test 16: buildV2VCommand with multiDisk and all options
 func TestBuildV2VCommand_MultiDiskAllOptions(t *testing.T) {
 	result := buildV2VCommand("/tmp/vm-domain.xml", "/run.sh", "/boot.sh", "--verbose --debug", true)
-	expected := "virt-v2v-in-place --run /run.sh --firstboot /boot.sh --verbose --debug -i libvirtxml /tmp/vm-domain.xml"
+	expected := "virt-v2v-in-place --run '/run.sh' --firstboot '/boot.sh' --verbose --debug -i libvirtxml '/tmp/vm-domain.xml'"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 17: buildV2VCommand with spaces in the VM name / paths (issue #259).
+// The run-script and disk paths must be quoted as single shell tokens so that
+// bash does not split them when the command is executed via "bash -c".
+func TestBuildV2VCommand_PathsWithSpaces(t *testing.T) {
+	result := buildV2VCommand(
+		"/runner/os-migrate/WebApp v1.0/disk.img",
+		"/runner/os-migrate/WebApp v1.0/network_config.sh",
+		"",
+		"",
+		false,
+	)
+	expected := "virt-v2v-in-place --run '/runner/os-migrate/WebApp v1.0/network_config.sh' -i disk '/runner/os-migrate/WebApp v1.0/disk.img'"
+	if result != expected {
+		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 18: shellQuote escapes embedded single quotes safely.
+func TestShellQuote_EmbeddedSingleQuote(t *testing.T) {
+	result := shellQuote("/path/to/O'Brien VM/disk.img")
+	expected := `'/path/to/O'\''Brien VM/disk.img'`
+	if result != expected {
+		t.Fatalf("unexpected quote:\ngot:  %q\nwant: %q", result, expected)
 	}
 }
