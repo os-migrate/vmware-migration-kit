@@ -144,6 +144,20 @@ options:
     type: str
     required: false
     default: ""
+  nbdkit_options:
+    description:
+      - Optional dictionary of extra parameters appended to the C(nbdkit) server command as C(key=value) tokens.
+      - Useful to enable VDDK multi-connection, for example a dict with C(multiconn=true), C(sessions=8) and C(pipeline=16).
+      - Keys are rendered in sorted order. Empty by default, which leaves the command unchanged.
+    type: dict
+    required: false
+  nbdcopy_options:
+    description:
+      - Optional dictionary of extra flags appended to the C(nbdcopy) command as C(--key=value) tokens.
+      - For example a dict with C(connections=16) and C(requests=64).
+      - Keys are rendered in sorted order. Empty by default, which leaves the command unchanged.
+    type: dict
+    required: false
   wait: # Common operational parameter for long tasks
     description: If C(true), the module will wait for the migration operation to complete before returning.
     type: bool
@@ -181,6 +195,24 @@ EXAMPLES = r"""
     vmware_insecure: true
     wait: true
     timeout: 7200
+  register: migrate_vm_output
+
+- name: Migrate with multi-connection tuning enabled
+  os_migrate.vmware_migration_kit.migrate:
+    dst_cloud: "{{ my_dst_cloud_auth_details }}"
+    user: "{{ my_vcenter_username }}"
+    password: "{{ my_vcenter_password }}"
+    server: "{{ my_vcenter_hostname }}"
+    vmname: "{{ target_vm_name_to_migrate }}"
+    osmdatadir: "{{ os_migrate_data_directory_path }}"
+    vddkpath: "{{ global_vddk_path }}"
+    nbdkit_options:
+      multiconn: true
+      sessions: 8
+      pipeline: 16
+    nbdcopy_options:
+      connections: 16
+      requests: 64
   register: migrate_vm_output
 """
 
