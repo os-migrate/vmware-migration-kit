@@ -88,6 +88,7 @@ type MigrationConfig struct {
 	BootScript         string
 	ExtraOpts          string
 	CinderManageConfig *osm_os.CinderManageConfig
+	NbdcopyOptions     map[string]interface{}
 }
 
 // Datastore name to Volume type mapping
@@ -98,36 +99,38 @@ type VolumeTypeMapping struct {
 
 // Ansible
 type ModuleArgs struct {
-	DstCloud          osm_os.DstCloud `json:"dst_cloud"`
-	User              string
-	Password          string
-	Server            string
-	Libdir            string
-	VmName            string
-	VolumeAz          string
-	VolumeType        string
-	VolumeTypeMapping []VolumeTypeMapping `json:"volume_type_mapping"`
-	AssumeZero        bool
-	VddkPath          string
-	OSMDataDir        string
-	CBTSync           bool
-	CutOver           bool
-	SkipConversion    bool
-	ConvHostName      string
-	Compression       string
-	RunScript         string
-	UseSocks          bool
-	InstanceUUID      string
-	Debug             bool
-	LocalDiskPath     string
-	ExternalVolume    bool
-	VolumeName        string
-	HostPool          string
-	BootScript        string
-	ExtraOpts         string
-	VmwareInsecure       bool   `json:"vmware_insecure"`
-	MultiDiskFS          bool   `json:"multidiskfs"`
-	CustomNbdkitPlugin   string `json:"custom_nbdkit_plugin"`
+	DstCloud           osm_os.DstCloud `json:"dst_cloud"`
+	User               string
+	Password           string
+	Server             string
+	Libdir             string
+	VmName             string
+	VolumeAz           string
+	VolumeType         string
+	VolumeTypeMapping  []VolumeTypeMapping `json:"volume_type_mapping"`
+	AssumeZero         bool
+	VddkPath           string
+	OSMDataDir         string
+	CBTSync            bool
+	CutOver            bool
+	SkipConversion     bool
+	ConvHostName       string
+	Compression        string
+	RunScript          string
+	UseSocks           bool
+	InstanceUUID       string
+	Debug              bool
+	LocalDiskPath      string
+	ExternalVolume     bool
+	VolumeName         string
+	HostPool           string
+	BootScript         string
+	ExtraOpts          string
+	VmwareInsecure     bool                   `json:"vmware_insecure"`
+	MultiDiskFS        bool                   `json:"multidiskfs"`
+	CustomNbdkitPlugin string                 `json:"custom_nbdkit_plugin"`
+	NbdkitOptions      map[string]interface{} `json:"nbdkit_options"`
+	NbdcopyOptions     map[string]interface{} `json:"nbdcopy_options"`
 }
 
 func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
@@ -479,7 +482,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero)
+				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero, c.NbdcopyOptions)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					if err := nbdSrv.Stop(); err != nil {
@@ -554,6 +557,8 @@ func main() {
 	hostPool := moduleArgs.HostPool
 	multiDiskFS := moduleArgs.MultiDiskFS
 	customPlugin := ansible.DefaultIfEmpty(moduleArgs.CustomNbdkitPlugin, "")
+	nbdkitOptions := moduleArgs.NbdkitOptions
+	nbdcopyOptions := moduleArgs.NbdcopyOptions
 
 	// Handle logging
 	r, err := moduleutils.GenRandom(8)
@@ -655,6 +660,7 @@ func main() {
 				UseSocks:     socks,
 				Insecure:     vmwareInsecure,
 				CustomPlugin: customPlugin,
+				Options:      nbdkitOptions,
 				VddkConfig: &vmware.VddkConfig{
 					VirtualMachine:    vm,
 					SnapshotReference: types.ManagedObjectReference{},
@@ -665,22 +671,23 @@ func main() {
 				VolumeName: volumeName,
 				HostPool:   hostPool,
 			},
-			ManageExtVol:  externalVolume,
-			OSMDataDir:    osmdatadir,
-			OSClient:      provider,
-			CBTSync:       cbtsync,
-			CutOver:       cutover,
-			ConvHostName:  convHostName,
-			Compression:   compression,
-			RunScript:     runScript,
-			BootScript:    bootScript,
-			ExtraOpts:     extraOpts,
-			InstanceUUID:  instanceUUid,
-			Debug:         debug,
-			LocalDiskPath: localDisk,
-			CloudOpts:     moduleArgs.DstCloud,
-			VolumeType:    volType,
-			VolumeAz:      volAz,
+			ManageExtVol:   externalVolume,
+			OSMDataDir:     osmdatadir,
+			OSClient:       provider,
+			CBTSync:        cbtsync,
+			CutOver:        cutover,
+			ConvHostName:   convHostName,
+			Compression:    compression,
+			RunScript:      runScript,
+			BootScript:     bootScript,
+			ExtraOpts:      extraOpts,
+			InstanceUUID:   instanceUUid,
+			Debug:          debug,
+			LocalDiskPath:  localDisk,
+			CloudOpts:      moduleArgs.DstCloud,
+			VolumeType:     volType,
+			VolumeAz:       volAz,
+			NbdcopyOptions: nbdcopyOptions,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {

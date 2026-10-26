@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +34,44 @@ import (
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/vmware"
 )
+
+// formatOptValue renders an option value coming from an Ansible dict (decoded
+// from JSON) as a string. JSON numbers decode to float64, so whole numbers are
+// rendered without a trailing ".0".
+func formatOptValue(v interface{}) string {
+	switch val := v.(type) {
+	case float64:
+		if val == float64(int64(val)) {
+			return strconv.FormatInt(int64(val), 10)
+		}
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(val)
+	case string:
+		return val
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// renderOptions turns an option map into a sorted slice of "<prefix>key=value"
+// tokens. Keys are sorted so the resulting command is deterministic. It returns
+// nil when there are no options, so the feature stays off unless explicitly set.
+func renderOptions(opts map[string]interface{}, prefix string) []string {
+	if len(opts) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(opts))
+	for k := range opts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	tokens := make([]string, 0, len(keys))
+	for _, k := range keys {
+		tokens = append(tokens, fmt.Sprintf("%s%s=%s", prefix, k, formatOptValue(opts[k])))
+	}
+	return tokens
+}
 
 func redactedCmd(cmd *exec.Cmd) string {
 	args := make([]string, len(cmd.Args))
@@ -57,6 +97,11 @@ type NbdkitConfig struct {
 	Insecure     bool
 	CustomPlugin string
 	VddkConfig   *vmware.VddkConfig
+	// Options holds extra "key=value" parameters appended to the nbdkit command
+	// (for example to enable multi-connection: multiconn=true sessions=8
+	// pipeline=16). Empty by default so behaviour is unchanged unless the user
+	// explicitly sets them.
+	Options map[string]interface{}
 }
 
 type NbdkitServer struct {
@@ -68,16 +113,17 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitSer
 	path := path.Join(diskPath, diskName)
 	safeVmName := moduleutils.SafeVmName(c.VmName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
-	cmd := exec.Command(
-		"nbdkit",
+	args := []string{
 		"--readonly",
 		"--exit-with-parent",
 		"--foreground",
 		"--unix", socket,
 		"vddk",
 		fmt.Sprintf("libdir=%s", c.Libdir),
-		path,
-	)
+	}
+	args = append(args, renderOptions(c.Options, "")...)
+	args = append(args, path)
+	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
@@ -121,10 +167,9 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 		return nil, err
 	}
 
-	var cmd *exec.Cmd
+	var args []string
 	if c.CustomPlugin != "" {
-		cmd = exec.Command(
-			"nbdkit",
+		args = []string{
 			"--readonly",
 			"--exit-with-parent",
 			"--foreground",
@@ -135,10 +180,10 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("thumbprint=%s", thumbprint),
 			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
 			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		)
+		}
+		args = append(args, renderOptions(c.Options, "")...)
 	} else {
-		cmd = exec.Command(
-			"nbdkit",
+		args = []string{
 			"--readonly",
 			"--exit-with-parent",
 			"--foreground",
@@ -152,9 +197,11 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
 			fmt.Sprintf("compression=%s", c.Compression),
 			"transports=file:nbdssl:nbd",
-			diskName,
-		)
+		}
+		args = append(args, renderOptions(c.Options, "")...)
+		args = append(args, diskName)
 	}
+	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
@@ -190,10 +237,9 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	safeVmName := moduleutils.SafeVmName(c.VmName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
 
-	var cmd *exec.Cmd
+	var args []string
 	if c.CustomPlugin != "" {
-		cmd = exec.Command(
-			"nbdkit",
+		args = []string{
 			"--readonly",
 			"--exit-with-parent",
 			"--foreground",
@@ -205,10 +251,10 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("thumbprint=%s", thumbprint),
 			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
 			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		)
+		}
+		args = append(args, renderOptions(c.Options, "")...)
 	} else {
-		cmd = exec.Command(
-			"nbdkit",
+		args = []string{
 			"--readonly",
 			"--exit-with-parent",
 			"--foreground",
@@ -223,9 +269,11 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
 			fmt.Sprintf("compression=%s", c.Compression),
 			"transports=file:nbdssl:nbd",
-			diskName,
-		)
+		}
+		args = append(args, renderOptions(c.Options, "")...)
+		args = append(args, diskName)
 	}
+	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
@@ -321,8 +369,11 @@ func WaitForNbdkit(socket string, timeout time.Duration) error {
 	return fmt.Errorf("timed out waiting for nbdkit to be ready")
 }
 
-// buildNbdCopyCommand constructs the nbdcopy command string.
-func buildNbdCopyCommand(socket, device string, assumeZero bool) string {
+// buildNbdCopyCommand constructs the nbdcopy command string. extraOpts, when
+// provided, are rendered as "--key=value" flags (for example --connections=16
+// --requests=64) and inserted right after the nbdcopy binary. It is empty by
+// default, leaving the command unchanged unless the user explicitly sets them.
+func buildNbdCopyCommand(socket, device string, assumeZero bool, extraOpts map[string]interface{}) string {
 	var zeroArg string
 	if assumeZero {
 		zeroArg = " --destination-is-zero "
@@ -330,14 +381,19 @@ func buildNbdCopyCommand(socket, device string, assumeZero bool) string {
 		zeroArg = " "
 	}
 
-	if socket == "" {
-		return fmt.Sprintf("/usr/bin/nbdcopy nbd://localhost %s%s--progress", device, zeroArg)
+	extra := strings.Join(renderOptions(extraOpts, "--"), " ")
+	if extra != "" {
+		extra += " "
 	}
-	return fmt.Sprintf("/usr/bin/nbdcopy %s %s%s--progress", socket, device, zeroArg)
+
+	if socket == "" {
+		return fmt.Sprintf("/usr/bin/nbdcopy %snbd://localhost %s%s--progress", extra, device, zeroArg)
+	}
+	return fmt.Sprintf("/usr/bin/nbdcopy %s%s %s%s--progress", extra, socket, device, zeroArg)
 }
 
-func NbdCopy(socket, device string, assumeZero bool) error {
-	nbdcopy := buildNbdCopyCommand(socket, device, assumeZero)
+func NbdCopy(socket, device string, assumeZero bool, extraOpts map[string]interface{}) error {
+	nbdcopy := buildNbdCopyCommand(socket, device, assumeZero, extraOpts)
 	cmd := exec.Command("bash", "-c", nbdcopy)
 	logger.Log.Infof("Running nbdcopy: %v", cmd)
 	stdoutPipe, _ := cmd.StdoutPipe()

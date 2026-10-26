@@ -147,7 +147,7 @@ func TestGetSocketPath_WithSocket(t *testing.T) {
 
 // Test 7: buildNbdCopyCommand with socket and assumeZero=true
 func TestBuildNbdCopyCommand_SocketWithAssumeZero(t *testing.T) {
-	result := buildNbdCopyCommand("nbd+unix:///?socket=/tmp/test.sock", "/dev/vda", true)
+	result := buildNbdCopyCommand("nbd+unix:///?socket=/tmp/test.sock", "/dev/vda", true, nil)
 	expected := "/usr/bin/nbdcopy nbd+unix:///?socket=/tmp/test.sock /dev/vda --destination-is-zero --progress"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
@@ -156,7 +156,7 @@ func TestBuildNbdCopyCommand_SocketWithAssumeZero(t *testing.T) {
 
 // Test 8: buildNbdCopyCommand with socket and assumeZero=false
 func TestBuildNbdCopyCommand_SocketWithoutAssumeZero(t *testing.T) {
-	result := buildNbdCopyCommand("nbd+unix:///?socket=/tmp/test.sock", "/dev/vda", false)
+	result := buildNbdCopyCommand("nbd+unix:///?socket=/tmp/test.sock", "/dev/vda", false, nil)
 	expected := "/usr/bin/nbdcopy nbd+unix:///?socket=/tmp/test.sock /dev/vda --progress"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
@@ -165,7 +165,7 @@ func TestBuildNbdCopyCommand_SocketWithoutAssumeZero(t *testing.T) {
 
 // Test 9: buildNbdCopyCommand without socket and assumeZero=true
 func TestBuildNbdCopyCommand_NoSocketWithAssumeZero(t *testing.T) {
-	result := buildNbdCopyCommand("", "/dev/vda", true)
+	result := buildNbdCopyCommand("", "/dev/vda", true, nil)
 	expected := "/usr/bin/nbdcopy nbd://localhost /dev/vda --destination-is-zero --progress"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
@@ -174,10 +174,90 @@ func TestBuildNbdCopyCommand_NoSocketWithAssumeZero(t *testing.T) {
 
 // Test 10: buildNbdCopyCommand without socket and assumeZero=false
 func TestBuildNbdCopyCommand_NoSocketWithoutAssumeZero(t *testing.T) {
-	result := buildNbdCopyCommand("", "/dev/vda", false)
+	result := buildNbdCopyCommand("", "/dev/vda", false, nil)
 	expected := "/usr/bin/nbdcopy nbd://localhost /dev/vda --progress"
 	if result != expected {
 		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 10a: buildNbdCopyCommand with extra connection/request options.
+// Options are rendered as sorted --key=value flags right after the binary.
+func TestBuildNbdCopyCommand_WithOptions(t *testing.T) {
+	opts := map[string]interface{}{"connections": 16, "requests": 64}
+	result := buildNbdCopyCommand("nbd+unix:///?socket=/tmp/test.sock", "/dev/vda", true, opts)
+	expected := "/usr/bin/nbdcopy --connections=16 --requests=64 nbd+unix:///?socket=/tmp/test.sock /dev/vda --destination-is-zero --progress"
+	if result != expected {
+		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 10b: buildNbdCopyCommand with options and no socket.
+func TestBuildNbdCopyCommand_WithOptionsNoSocket(t *testing.T) {
+	opts := map[string]interface{}{"connections": 8}
+	result := buildNbdCopyCommand("", "/dev/vda", false, opts)
+	expected := "/usr/bin/nbdcopy --connections=8 nbd://localhost /dev/vda --progress"
+	if result != expected {
+		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 10c: buildNbdCopyCommand with an empty options map is identical to nil.
+func TestBuildNbdCopyCommand_EmptyOptions(t *testing.T) {
+	result := buildNbdCopyCommand("", "/dev/vda", false, map[string]interface{}{})
+	expected := "/usr/bin/nbdcopy nbd://localhost /dev/vda --progress"
+	if result != expected {
+		t.Fatalf("unexpected command:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// Test 10d: renderOptions sorts keys and formats int/bool/string values.
+func TestRenderOptions_SortedAndTyped(t *testing.T) {
+	opts := map[string]interface{}{
+		"multiconn": true,
+		"sessions":  8,
+		"pipeline":  16,
+		"name":      "vddk",
+	}
+	got := renderOptions(opts, "")
+	want := []string{"multiconn=true", "name=vddk", "pipeline=16", "sessions=8"}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected length:\ngot:  %#v\nwant: %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected token at %d:\ngot:  %q\nwant: %q", i, got[i], want[i])
+		}
+	}
+}
+
+// Test 10e: renderOptions returns nil for empty/nil input (feature stays off).
+func TestRenderOptions_EmptyIsNil(t *testing.T) {
+	if got := renderOptions(nil, ""); got != nil {
+		t.Fatalf("expected nil for nil input, got %#v", got)
+	}
+	if got := renderOptions(map[string]interface{}{}, "--"); got != nil {
+		t.Fatalf("expected nil for empty input, got %#v", got)
+	}
+}
+
+// Test 10f: formatOptValue renders JSON-decoded numbers (float64) as integers.
+func TestFormatOptValue_Types(t *testing.T) {
+	cases := []struct {
+		in   interface{}
+		want string
+	}{
+		{float64(16), "16"},
+		{float64(64), "64"},
+		{8, "8"},
+		{true, "true"},
+		{false, "false"},
+		{"fastlz", "fastlz"},
+	}
+	for _, c := range cases {
+		if got := formatOptValue(c.in); got != c.want {
+			t.Fatalf("formatOptValue(%#v) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }
 

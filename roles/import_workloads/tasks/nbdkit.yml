@@ -85,6 +85,8 @@
     volume_type_mapping: "{{ import_workloads_volume_type_mapping | default([]) }}"
     multidiskfs: "{{ import_workloads_multidiskfs | bool }}"
     custom_nbdkit_plugin: "{{ import_workloads_custom_nbdkit_plugin | default('') }}"
+    nbdkit_options: "{{ import_workloads_nbdkit_options | default(omit) }}"
+    nbdcopy_options: "{{ import_workloads_nbdcopy_options | default(omit) }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true

@@ -52,3 +52,19 @@ import_workloads_use_heat: "{{ use_heat | default(false) | bool }}"
 import_workloads_heat_auto_deploy: "{{ heat_auto_deploy | default(true) | bool }}"
 
 import_workloads_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
+
+# Extra performance options, disabled by default. Provide a dict to enable them;
+# each key/value is appended to the corresponding command.
+#
+# nbdkit server options are appended as "key=value" (VDDK multi-connection):
+#   import_workloads_nbdkit_options:
+#     multiconn: true
+#     sessions: 8
+#     pipeline: 16
+#
+# nbdcopy options are appended as "--key=value":
+#   import_workloads_nbdcopy_options:
+#     connections: 16
+#     requests: 64
+import_workloads_nbdkit_options: "{{ nbdkit_options | default({}) }}"
+import_workloads_nbdcopy_options: "{{ nbdcopy_options | default({}) }}"
