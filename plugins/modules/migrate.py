@@ -147,7 +147,10 @@ options:
   nbdkit_options:
     description:
       - Optional dictionary of extra parameters appended to the C(nbdkit) server command as C(key=value) tokens.
-      - Useful to enable VDDK multi-connection, for example a dict with C(multiconn=true), C(sessions=8) and C(pipeline=16).
+      - Useful to enable multi-connection, for example a dict with C(multiconn=true), C(sessions=8) and C(pipeline=16).
+      - Only applied when C(custom_nbdkit_plugin) is set. With the built-in vddk plugin these options are ignored.
+      - When set together with a custom plugin, the module waits a few seconds for the backend connection to open
+        before starting C(nbdcopy).
       - Keys are rendered in sorted order. Empty by default, which leaves the command unchanged.
     type: dict
     required: false
@@ -206,6 +209,8 @@ EXAMPLES = r"""
     vmname: "{{ target_vm_name_to_migrate }}"
     osmdatadir: "{{ os_migrate_data_directory_path }}"
     vddkpath: "{{ global_vddk_path }}"
+    # nbdkit_options are only honoured together with a custom nbdkit plugin.
+    custom_nbdkit_plugin: "/usr/lib64/nbdkit/plugins/nbdkit-custom-plugin.so"
     nbdkit_options:
       multiconn: true
       sessions: 8
