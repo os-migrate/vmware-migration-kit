@@ -99,9 +99,32 @@ type NbdkitConfig struct {
 	VddkConfig   *vmware.VddkConfig
 	// Options holds extra "key=value" parameters appended to the nbdkit command
 	// (for example to enable multi-connection: multiconn=true sessions=8
-	// pipeline=16). Empty by default so behaviour is unchanged unless the user
-	// explicitly sets them.
+	// pipeline=16). They are only applied when a CustomPlugin is in use; with the
+	// built-in vddk plugin they are ignored. Empty by default so behaviour is
+	// unchanged unless the user explicitly sets them.
 	Options map[string]interface{}
+}
+
+// customPluginConnDelay is how long to wait for a custom nbdkit plugin to open
+// its backend connection(s) before nbdcopy runs. With multi-connection options
+// enabled the plugin needs a few seconds to establish its sessions.
+const customPluginConnDelay = 10 * time.Second
+
+// usesPluginOptions reports whether extra nbdkit options are active. Options are
+// only honoured together with a custom nbdkit plugin; for the built-in vddk
+// plugin they are ignored.
+func (c *NbdkitConfig) usesPluginOptions() bool {
+	return c.CustomPlugin != "" && len(c.Options) > 0
+}
+
+// waitForPluginConnection gives a custom nbdkit plugin time to open its backend
+// connection(s) before nbdcopy starts. It is a no-op unless options are active.
+func (c *NbdkitConfig) waitForPluginConnection() {
+	if !c.usesPluginOptions() {
+		return
+	}
+	logger.Log.Infof("Custom nbdkit plugin options set, waiting %s for the backend connection to open...", customPluginConnDelay)
+	time.Sleep(customPluginConnDelay)
 }
 
 type NbdkitServer struct {
@@ -121,7 +144,8 @@ func (c *NbdkitConfig) RunNbdKitFromLocal(diskName, diskPath string) (*NbdkitSer
 		"vddk",
 		fmt.Sprintf("libdir=%s", c.Libdir),
 	}
-	args = append(args, renderOptions(c.Options, "")...)
+	// nbdkit options are only applied with a custom plugin, so the built-in vddk
+	// local path never appends them.
 	args = append(args, path)
 	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -198,7 +222,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("compression=%s", c.Compression),
 			"transports=file:nbdssl:nbd",
 		}
-		args = append(args, renderOptions(c.Options, "")...)
+		// Options are ignored for the built-in vddk plugin.
 		args = append(args, diskName)
 	}
 	cmd := exec.Command("nbdkit", args...)
@@ -222,6 +246,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 		}
 		return nil, err
 	}
+	c.waitForPluginConnection()
 
 	return &NbdkitServer{
 		cmd:    cmd,
@@ -270,7 +295,7 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 			fmt.Sprintf("compression=%s", c.Compression),
 			"transports=file:nbdssl:nbd",
 		}
-		args = append(args, renderOptions(c.Options, "")...)
+		// Options are ignored for the built-in vddk plugin.
 		args = append(args, diskName)
 	}
 	cmd := exec.Command("nbdkit", args...)
@@ -297,6 +322,7 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 		}
 		return nil, err
 	}
+	c.waitForPluginConnection()
 
 	return &NbdkitServer{
 		cmd:    cmd,

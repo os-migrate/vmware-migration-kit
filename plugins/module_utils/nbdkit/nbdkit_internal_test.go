@@ -241,6 +241,28 @@ func TestRenderOptions_EmptyIsNil(t *testing.T) {
 	}
 }
 
+// Test 10g: usesPluginOptions is true only with a custom plugin AND options.
+func TestUsesPluginOptions(t *testing.T) {
+	cases := []struct {
+		name   string
+		plugin string
+		opts   map[string]interface{}
+		want   bool
+	}{
+		{"custom plugin with options", "/path/plugin.so", map[string]interface{}{"multiconn": true}, true},
+		{"custom plugin without options", "/path/plugin.so", nil, false},
+		{"custom plugin with empty options", "/path/plugin.so", map[string]interface{}{}, false},
+		{"no plugin with options", "", map[string]interface{}{"multiconn": true}, false},
+		{"no plugin without options", "", nil, false},
+	}
+	for _, tc := range cases {
+		c := &NbdkitConfig{CustomPlugin: tc.plugin, Options: tc.opts}
+		if got := c.usesPluginOptions(); got != tc.want {
+			t.Fatalf("%s: usesPluginOptions() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 // Test 10f: formatOptValue renders JSON-decoded numbers (float64) as integers.
 func TestFormatOptValue_Types(t *testing.T) {
 	cases := []struct {

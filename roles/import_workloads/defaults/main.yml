@@ -56,13 +56,16 @@ import_workloads_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}
 # Extra performance options, disabled by default. Provide a dict to enable them;
 # each key/value is appended to the corresponding command.
 #
-# nbdkit server options are appended as "key=value" (VDDK multi-connection):
+# nbdkit server options are appended as "key=value" (multi-connection). They are
+# ONLY applied when import_workloads_custom_nbdkit_plugin is set; with the
+# built-in vddk plugin they are ignored. When enabled, the migration waits a few
+# seconds for the custom plugin's backend connection to open before nbdcopy:
 #   import_workloads_nbdkit_options:
 #     multiconn: true
 #     sessions: 8
 #     pipeline: 16
 #
-# nbdcopy options are appended as "--key=value":
+# nbdcopy options are appended as "--key=value" (independent of the plugin used):
 #   import_workloads_nbdcopy_options:
 #     connections: 16
 #     requests: 64
