@@ -46,20 +46,40 @@
     state: present
   when: os_migrate_virt_v2v|default(false)|bool
 
+# When a custom nbdkit plugin is used, the VMware VIX DiskLib (libdir) is not
+# required on the conversion host. In that case validate the custom plugin path
+# instead of the libdir path.
+- name: Check if the custom nbdkit plugin exists on the conversion host
+  ansible.builtin.stat:
+    path: "{{ conversion_host_custom_nbdkit_plugin }}"
+  register: custom_nbdkit_plugin_result
+  when: conversion_host_custom_nbdkit_plugin | length > 0
+
+- name: Fail if the custom nbdkit plugin does not exist on the conversion host
+  ansible.builtin.fail:
+    msg: "The custom nbdkit plugin {{ conversion_host_custom_nbdkit_plugin }} does not exist on the conversion host."
+  when:
+    - conversion_host_custom_nbdkit_plugin | length > 0
+    - not custom_nbdkit_plugin_result.stat.exists
+
 - name: Check if libdir is set and exists
   ansible.builtin.stat:
     path: "{{ conversion_host_vmware_lib_dir }}"
   register: libdir_result
   ignore_errors: true
+  when: conversion_host_custom_nbdkit_plugin | length == 0
 
 - name: Fail if libdir path does not exist on the conversion host
   ansible.builtin.fail:
-    msg: "The libdir {{ import_workloads_libdir }} does not exist on the conversion host."
-  when: not libdir_result.stat.exists
+    msg: "The libdir {{ conversion_host_vmware_lib_dir }} does not exist on the conversion host."
+  when:
+    - conversion_host_custom_nbdkit_plugin | length == 0
+    - not libdir_result.stat.exists
 
 - name: Set libdir fact
   ansible.builtin.set_fact:
     libdir: "{{ libdir_result.stat.path }}"
+  when: conversion_host_custom_nbdkit_plugin | length == 0
 
 - name: Check if virt-v2v-in-place exists in libexec
   ansible.builtin.stat:
