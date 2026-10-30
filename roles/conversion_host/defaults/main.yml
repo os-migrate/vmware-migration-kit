@@ -1,5 +1,8 @@
 conversion_host_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
 # Install VMware VIX DiskLib if not already installed, see documentation for details
 conversion_host_vmware_lib_dir: /usr/lib/vmware-vix-disklib
+# Path to a custom nbdkit plugin. When set, the VMware VIX DiskLib (libdir) check
+# is skipped and this plugin path is validated on the conversion host instead.
+conversion_host_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
 # Virtio-win package version
 conversion_host_virtio_version: "1.9.40"
