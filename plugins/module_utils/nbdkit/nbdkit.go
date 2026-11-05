@@ -173,7 +173,10 @@ func (c *NbdkitConfig) buildNbdkitArgs(thumbprint, diskName, socket string) []st
 		)
 		args = append(args, renderOptions(c.Options, "")...)
 	case c.CustomPlugin != "":
-		// Native custom plugin (e.g. go-nfc .so).
+		// Native custom plugin (e.g. go-nfc .so). The disk to export is passed via
+		// the nbdkit "file=" parameter (go-nfc has no positional magic config key),
+		// which is required so each disk of a multi-disk VM is exported correctly;
+		// without it every disk key would reuse the same command line.
 		args = append(args,
 			c.CustomPlugin,
 			fmt.Sprintf("server=%s", c.Server),
@@ -182,6 +185,7 @@ func (c *NbdkitConfig) buildNbdkitArgs(thumbprint, diskName, socket string) []st
 			fmt.Sprintf("thumbprint=%s", thumbprint),
 			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
 			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+			fmt.Sprintf("file=%s", diskName),
 		)
 		args = append(args, renderOptions(c.Options, "")...)
 	default:
