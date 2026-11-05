@@ -89,6 +89,12 @@ def open(readonly):
                 conn,
                 _params["disk"],
                 flags=vddk.VIXDISKLIB_FLAG_OPEN_READ_ONLY,
+                # Throughput is latency-bound over NFC: larger AIO extras move far
+                # more data per round-trip. ESXi 8 accepts up to 2 MiB (and rejects
+                # 16/32 MiB). Defaults here favour throughput; tune via plugin
+                # params (e.g. nbdkit_options aio_buffer_size / aio_buffer_count).
+                aio_buffer_size=int(_params.get("aio_buffer_size", 2097152)),
+                aio_buffer_count=int(_params.get("aio_buffer_count", 4)),
             )
         )
     except Exception:
