@@ -430,7 +430,8 @@ func TestBuildNbdkitArgs_NativeCustomPlugin(t *testing.T) {
 	got := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", ""), " ")
 	want := "--readonly --exit-with-parent --foreground " +
 		"/home/cloud-user/nbdkit-nfc-plugin.so server=vc user=u password=p " +
-		"thumbprint=THUMB vm=moref=vm-123 snapshot=snapshot-1 multiconn=true sessions=8"
+		"thumbprint=THUMB vm=moref=vm-123 snapshot=snapshot-1 " +
+		"file=[ds] vm/vm.vmdk multiconn=true sessions=8"
 	if got != want {
 		t.Fatalf("native plugin args:\ngot:  %q\nwant: %q", got, want)
 	}
@@ -460,5 +461,23 @@ func TestBuildNbdkitArgs_PythonPluginWithSocket(t *testing.T) {
 		"disk=[ds] vm/vm.vmdk size=10737418240 multiconn=true"
 	if got != want {
 		t.Fatalf("python plugin socket args:\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+// Multi-disk VMs: each disk key must produce a distinct file= so the native
+// custom plugin exports the correct disk (regression test for the bug where
+// diskName was dropped in the custom-plugin branch).
+func TestBuildNbdkitArgs_NativeCustomPluginPerDisk(t *testing.T) {
+	c := newTestNbdkitConfig("/home/cloud-user/nbdkit-nfc-plugin.so", nil)
+	a := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", ""), " ")
+	b := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm_1.vmdk", ""), " ")
+	if !strings.Contains(a, "file=[ds] vm/vm.vmdk") {
+		t.Fatalf("first disk missing file=: %q", a)
+	}
+	if !strings.Contains(b, "file=[ds] vm/vm_1.vmdk") {
+		t.Fatalf("second disk missing file=: %q", b)
+	}
+	if a == b {
+		t.Fatalf("expected distinct command lines per disk, both were: %q", a)
 	}
 }
