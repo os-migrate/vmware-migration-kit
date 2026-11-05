@@ -46,19 +46,83 @@
     state: present
   when: os_migrate_virt_v2v|default(false)|bool
 
-# When a custom nbdkit plugin is used, the VMware VIX DiskLib (libdir) is not
-# required on the conversion host. In that case validate the custom plugin path
-# instead of the libdir path.
+# OpenVixDiskLib: pure-Python VDDK replacement served through an nbdkit Python
+# plugin. Install the library (from GitHub if missing) and deploy the plugin.
+- name: Set up OpenVixDiskLib nbdkit plugin
+  when: conversion_host_use_openvixdisklib | bool
+  block:
+    - name: Install nbdkit and Python plugin packages for OpenVixDiskLib
+      ansible.builtin.dnf:
+        name:
+          - nbdkit
+          - nbdkit-python-plugin
+          - git
+          # Build deps for OpenVixDiskLib's pyfastlz C extension.
+          - gcc
+          - make
+          - python3-devel
+        state: present
+        use_backend: dnf4
+
+    - name: Determine the conversion host Python version for OpenVixDiskLib
+      ansible.builtin.command: >-
+        {{ ansible_python_interpreter | default('/usr/bin/python3') }}
+        -c 'import sys; print("%d.%d" % sys.version_info[:2])'
+      register: openvixdisklib_pyver
+      changed_when: false
+
+    - name: Fail early if the conversion host Python is too old for OpenVixDiskLib
+      ansible.builtin.fail:
+        msg: >-
+          OpenVixDiskLib requires Python >= 3.10, but this conversion host provides
+          Python {{ openvixdisklib_pyver.stdout }} and nbdkit-python-plugin is bound
+          to that interpreter. Use a conversion host based on CentOS Stream 10,
+          RHEL 10, or Fedora (Python 3.12), or fall back to the vddk / native
+          custom nbdkit plugin.
+      when: openvixdisklib_pyver.stdout is version('3.10', '<')
+
+    - name: Check whether OpenVixDiskLib is already installed
+      ansible.builtin.command: "{{ ansible_python_interpreter | default('/usr/bin/python3') }} -c 'import openvixdisklib'"
+      register: openvixdisklib_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install OpenVixDiskLib from GitHub when missing
+      ansible.builtin.pip:
+        name: "git+{{ conversion_host_openvixdisklib_repo }}@{{ conversion_host_openvixdisklib_version }}"
+        state: present
+      when: openvixdisklib_check.rc != 0
+
+    - name: Ensure the OpenVixDiskLib plugin directory exists
+      ansible.builtin.file:
+        path: "{{ conversion_host_openvixdisklib_plugin_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy the OpenVixDiskLib nbdkit plugin
+      ansible.builtin.copy:
+        src: openvixdisklib_nbdkit.py
+        dest: "{{ conversion_host_openvixdisklib_plugin_path }}"
+        mode: "0644"
+
+# The VMware VIX DiskLib (libdir) is only required for the built-in vddk plugin.
+# With a custom native plugin or OpenVixDiskLib it is not needed, so validate the
+# custom plugin path instead when one is set.
+# The native custom plugin is only validated when OpenVixDiskLib is not enabled,
+# since OpenVixDiskLib takes precedence over conversion_host_custom_nbdkit_plugin.
 - name: Check if the custom nbdkit plugin exists on the conversion host
   ansible.builtin.stat:
     path: "{{ conversion_host_custom_nbdkit_plugin }}"
   register: custom_nbdkit_plugin_result
-  when: conversion_host_custom_nbdkit_plugin | length > 0
+  when:
+    - not (conversion_host_use_openvixdisklib | bool)
+    - conversion_host_custom_nbdkit_plugin | length > 0
 
 - name: Fail if the custom nbdkit plugin does not exist on the conversion host
   ansible.builtin.fail:
     msg: "The custom nbdkit plugin {{ conversion_host_custom_nbdkit_plugin }} does not exist on the conversion host."
   when:
+    - not (conversion_host_use_openvixdisklib | bool)
     - conversion_host_custom_nbdkit_plugin | length > 0
     - not custom_nbdkit_plugin_result.stat.exists
 
@@ -67,19 +131,19 @@
     path: "{{ conversion_host_vmware_lib_dir }}"
   register: libdir_result
   ignore_errors: true
-  when: conversion_host_custom_nbdkit_plugin | length == 0
+  when: conversion_host_requires_vmware_libdir | bool
 
 - name: Fail if libdir path does not exist on the conversion host
   ansible.builtin.fail:
     msg: "The libdir {{ conversion_host_vmware_lib_dir }} does not exist on the conversion host."
   when:
-    - conversion_host_custom_nbdkit_plugin | length == 0
+    - conversion_host_requires_vmware_libdir | bool
     - not libdir_result.stat.exists
 
 - name: Set libdir fact
   ansible.builtin.set_fact:
     libdir: "{{ libdir_result.stat.path }}"
-  when: conversion_host_custom_nbdkit_plugin | length == 0
+  when: conversion_host_requires_vmware_libdir | bool
 
 - name: Check if virt-v2v-in-place exists in libexec
   ansible.builtin.stat:

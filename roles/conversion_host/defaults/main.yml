@@ -4,5 +4,21 @@ conversion_host_vmware_lib_dir: /usr/lib/vmware-vix-disklib
 # Path to a custom nbdkit plugin. When set, the VMware VIX DiskLib (libdir) check
 # is skipped and this plugin path is validated on the conversion host instead.
 conversion_host_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
+# OpenVixDiskLib: a pure-Python VDDK NBD-path replacement used as an nbdkit
+# Python plugin. When enabled, the library is installed on the conversion host
+# (pulled from GitHub if missing), the nbdkit Python plugin is deployed, and the
+# VMware VIX DiskLib (libdir) check is skipped.
+# Requires a conversion host with Python >= 3.10 AND an nbdkit-python-plugin
+# built against that interpreter (CentOS Stream 10, RHEL 10, or Fedora). CentOS
+# Stream 9 ships nbdkit-python-plugin linked to Python 3.9 and is not supported
+# for this plugin.
+conversion_host_use_openvixdisklib: "{{ use_openvixdisklib | default(false) | bool }}"
+conversion_host_openvixdisklib_plugin_path: "{{ openvixdisklib_plugin_path | default('/opt/os-migrate/openvixdisklib_nbdkit.py') }}"
+conversion_host_openvixdisklib_repo: "{{ openvixdisklib_repo | default('https://github.com/matbu/OpenVixDiskLib.git') }}"
+conversion_host_openvixdisklib_version: "{{ openvixdisklib_version | default('main') }}"
+# The VMware VIX DiskLib (libdir) is only required for the built-in vddk plugin.
+conversion_host_requires_vmware_libdir: >-
+  {{ (not (conversion_host_use_openvixdisklib | bool))
+     and (conversion_host_custom_nbdkit_plugin | length == 0) }}
 # Virtio-win package version
 conversion_host_virtio_version: "1.9.40"

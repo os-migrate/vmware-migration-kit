@@ -21,8 +21,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"vmware-migration-kit/plugins/module_utils/vmware"
+
+	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25/types"
 )
 
 // This file contains tests for the private functions in the nbdkit package.
@@ -360,5 +366,99 @@ func TestShellQuote_EmbeddedSingleQuote(t *testing.T) {
 	expected := `'/path/to/O'\''Brien VM/disk.img'`
 	if result != expected {
 		t.Fatalf("unexpected quote:\ngot:  %q\nwant: %q", result, expected)
+	}
+}
+
+// newTestNbdkitConfig builds a config with a VM reference usable in arg-assembly
+// tests without any live connection.
+func newTestNbdkitConfig(customPlugin string, opts map[string]interface{}) *NbdkitConfig {
+	vm := object.NewVirtualMachine(nil, types.ManagedObjectReference{
+		Type:  "VirtualMachine",
+		Value: "vm-123",
+	})
+	return &NbdkitConfig{
+		User:         "u",
+		Password:     "p",
+		Server:       "vc",
+		Libdir:       "/lib",
+		Compression:  "fastlz",
+		CustomPlugin: customPlugin,
+		DiskSize:     10737418240,
+		Options:      opts,
+		VddkConfig: &vmware.VddkConfig{
+			VirtualMachine:    vm,
+			SnapshotReference: types.ManagedObjectReference{Value: "snapshot-1"},
+		},
+	}
+}
+
+// usesPythonPlugin is true only for ".py" custom plugins.
+func TestUsesPythonPlugin(t *testing.T) {
+	cases := []struct {
+		plugin string
+		want   bool
+	}{
+		{"/opt/os-migrate/openvixdisklib_nbdkit.py", true},
+		{"/home/cloud-user/nbdkit-nfc-plugin.so", false},
+		{"", false},
+		{"vddk", false},
+	}
+	for _, tc := range cases {
+		c := &NbdkitConfig{CustomPlugin: tc.plugin}
+		if got := c.usesPythonPlugin(); got != tc.want {
+			t.Fatalf("usesPythonPlugin(%q) = %v, want %v", tc.plugin, got, tc.want)
+		}
+	}
+}
+
+// buildNbdkitArgs: built-in vddk plugin (no custom plugin), TCP mode.
+func TestBuildNbdkitArgs_Vddk(t *testing.T) {
+	c := newTestNbdkitConfig("", map[string]interface{}{"multiconn": true})
+	got := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", ""), " ")
+	want := "--readonly --exit-with-parent --foreground vddk server=vc user=u " +
+		"password=p thumbprint=THUMB libdir=/lib vm=moref=vm-123 snapshot=snapshot-1 " +
+		"compression=fastlz transports=file:nbdssl:nbd [ds] vm/vm.vmdk"
+	if got != want {
+		t.Fatalf("vddk args:\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+// buildNbdkitArgs: native custom plugin (.so), options appended, no disk/size.
+func TestBuildNbdkitArgs_NativeCustomPlugin(t *testing.T) {
+	c := newTestNbdkitConfig("/home/cloud-user/nbdkit-nfc-plugin.so",
+		map[string]interface{}{"multiconn": true, "sessions": 8})
+	got := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", ""), " ")
+	want := "--readonly --exit-with-parent --foreground " +
+		"/home/cloud-user/nbdkit-nfc-plugin.so server=vc user=u password=p " +
+		"thumbprint=THUMB vm=moref=vm-123 snapshot=snapshot-1 multiconn=true sessions=8"
+	if got != want {
+		t.Fatalf("native plugin args:\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+// buildNbdkitArgs: OpenVixDiskLib Python plugin passes python, disk and size.
+func TestBuildNbdkitArgs_PythonPlugin(t *testing.T) {
+	c := newTestNbdkitConfig("/opt/os-migrate/openvixdisklib_nbdkit.py", nil)
+	got := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", ""), " ")
+	want := "--readonly --exit-with-parent --foreground python " +
+		"/opt/os-migrate/openvixdisklib_nbdkit.py server=vc user=u password=p " +
+		"thumbprint=THUMB vm=moref=vm-123 snapshot=snapshot-1 " +
+		"disk=[ds] vm/vm.vmdk size=10737418240"
+	if got != want {
+		t.Fatalf("python plugin args:\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+// buildNbdkitArgs: Python plugin with options and a Unix socket.
+func TestBuildNbdkitArgs_PythonPluginWithSocket(t *testing.T) {
+	c := newTestNbdkitConfig("/opt/os-migrate/openvixdisklib_nbdkit.py",
+		map[string]interface{}{"multiconn": true})
+	got := strings.Join(c.buildNbdkitArgs("THUMB", "[ds] vm/vm.vmdk", "/tmp/x.sock"), " ")
+	want := "--readonly --exit-with-parent --foreground --unix /tmp/x.sock python " +
+		"/opt/os-migrate/openvixdisklib_nbdkit.py server=vc user=u password=p " +
+		"thumbprint=THUMB vm=moref=vm-123 snapshot=snapshot-1 " +
+		"disk=[ds] vm/vm.vmdk size=10737418240 multiconn=true"
+	if got != want {
+		t.Fatalf("python plugin socket args:\ngot:  %q\nwant: %q", got, want)
 	}
 }
