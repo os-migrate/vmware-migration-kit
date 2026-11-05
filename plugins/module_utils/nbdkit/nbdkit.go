@@ -97,12 +97,25 @@ type NbdkitConfig struct {
 	Insecure     bool
 	CustomPlugin string
 	VddkConfig   *vmware.VddkConfig
+	// DiskSize is the size of the disk being served, in bytes. It is only used
+	// by Python nbdkit plugins (see usesPythonPlugin), which cannot query the
+	// disk geometry themselves and therefore need the size passed explicitly.
+	DiskSize int64
 	// Options holds extra "key=value" parameters appended to the nbdkit command
 	// (for example to enable multi-connection: multiconn=true sessions=8
 	// pipeline=16). They are only applied when a CustomPlugin is in use; with the
 	// built-in vddk plugin they are ignored. Empty by default so behaviour is
 	// unchanged unless the user explicitly sets them.
 	Options map[string]interface{}
+}
+
+// usesPythonPlugin reports whether the configured custom plugin is an nbdkit
+// Python plugin (a ".py" script, such as the OpenVixDiskLib plugin). Python
+// plugins are invoked as "nbdkit python <script>" and need the disk path and
+// size passed explicitly, unlike native ".so" plugins or the built-in vddk
+// plugin.
+func (c *NbdkitConfig) usesPythonPlugin() bool {
+	return strings.HasSuffix(c.CustomPlugin, ".py")
 }
 
 // customPluginConnDelay is how long to wait for a custom nbdkit plugin to open
@@ -125,6 +138,69 @@ func (c *NbdkitConfig) waitForPluginConnection() {
 	}
 	logger.Log.Infof("Custom nbdkit plugin options set, waiting %s for the backend connection to open...", customPluginConnDelay)
 	time.Sleep(customPluginConnDelay)
+}
+
+// buildNbdkitArgs assembles the nbdkit arguments for the configured plugin:
+// an nbdkit Python plugin (e.g. OpenVixDiskLib), a native custom plugin
+// (e.g. go-nfc .so), or the built-in vddk plugin. When socket is non-empty the
+// server is bound to that Unix socket; otherwise it listens on the default TCP
+// port. User-supplied Options are appended for custom plugins only.
+func (c *NbdkitConfig) buildNbdkitArgs(thumbprint, diskName, socket string) []string {
+	args := []string{
+		"--readonly",
+		"--exit-with-parent",
+		"--foreground",
+	}
+	if socket != "" {
+		args = append(args, "--unix", socket)
+	}
+
+	switch {
+	case c.usesPythonPlugin():
+		// nbdkit Python plugin (e.g. OpenVixDiskLib). The plugin opens the VMDK
+		// by datastore path and needs the disk size passed explicitly because it
+		// cannot query the disk geometry itself.
+		args = append(args,
+			"python", c.CustomPlugin,
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+			fmt.Sprintf("disk=%s", diskName),
+			fmt.Sprintf("size=%d", c.DiskSize),
+		)
+		args = append(args, renderOptions(c.Options, "")...)
+	case c.CustomPlugin != "":
+		// Native custom plugin (e.g. go-nfc .so).
+		args = append(args,
+			c.CustomPlugin,
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+		)
+		args = append(args, renderOptions(c.Options, "")...)
+	default:
+		// Built-in vddk plugin. Options are ignored here.
+		args = append(args,
+			"vddk",
+			fmt.Sprintf("server=%s", c.Server),
+			fmt.Sprintf("user=%s", c.User),
+			fmt.Sprintf("password=%s", c.Password),
+			fmt.Sprintf("thumbprint=%s", thumbprint),
+			fmt.Sprintf("libdir=%s", c.Libdir),
+			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
+			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
+			fmt.Sprintf("compression=%s", c.Compression),
+			"transports=file:nbdssl:nbd",
+			diskName,
+		)
+	}
+	return args
 }
 
 type NbdkitServer struct {
@@ -191,40 +267,7 @@ func (c *NbdkitConfig) RunNbdKitURI(diskName string) (*NbdkitServer, error) {
 		return nil, err
 	}
 
-	var args []string
-	if c.CustomPlugin != "" {
-		args = []string{
-			"--readonly",
-			"--exit-with-parent",
-			"--foreground",
-			c.CustomPlugin,
-			fmt.Sprintf("server=%s", c.Server),
-			fmt.Sprintf("user=%s", c.User),
-			fmt.Sprintf("password=%s", c.Password),
-			fmt.Sprintf("thumbprint=%s", thumbprint),
-			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		}
-		args = append(args, renderOptions(c.Options, "")...)
-	} else {
-		args = []string{
-			"--readonly",
-			"--exit-with-parent",
-			"--foreground",
-			"vddk",
-			fmt.Sprintf("server=%s", c.Server),
-			fmt.Sprintf("user=%s", c.User),
-			fmt.Sprintf("password=%s", c.Password),
-			fmt.Sprintf("thumbprint=%s", thumbprint),
-			fmt.Sprintf("libdir=%s", c.Libdir),
-			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-			fmt.Sprintf("compression=%s", c.Compression),
-			"transports=file:nbdssl:nbd",
-		}
-		// Options are ignored for the built-in vddk plugin.
-		args = append(args, diskName)
-	}
+	args := c.buildNbdkitArgs(thumbprint, diskName, "")
 	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -262,42 +305,7 @@ func (c *NbdkitConfig) RunNbdKitSocks(diskName string) (*NbdkitServer, error) {
 	safeVmName := moduleutils.SafeVmName(c.VmName)
 	socket := fmt.Sprintf("/tmp/nbdkit-%s-%s.sock", safeVmName, c.UUID)
 
-	var args []string
-	if c.CustomPlugin != "" {
-		args = []string{
-			"--readonly",
-			"--exit-with-parent",
-			"--foreground",
-			"--unix", socket,
-			c.CustomPlugin,
-			fmt.Sprintf("server=%s", c.Server),
-			fmt.Sprintf("user=%s", c.User),
-			fmt.Sprintf("password=%s", c.Password),
-			fmt.Sprintf("thumbprint=%s", thumbprint),
-			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-		}
-		args = append(args, renderOptions(c.Options, "")...)
-	} else {
-		args = []string{
-			"--readonly",
-			"--exit-with-parent",
-			"--foreground",
-			"--unix", socket,
-			"vddk",
-			fmt.Sprintf("server=%s", c.Server),
-			fmt.Sprintf("user=%s", c.User),
-			fmt.Sprintf("password=%s", c.Password),
-			fmt.Sprintf("thumbprint=%s", thumbprint),
-			fmt.Sprintf("libdir=%s", c.Libdir),
-			fmt.Sprintf("vm=moref=%s", c.VddkConfig.VirtualMachine.Reference().Value),
-			fmt.Sprintf("snapshot=%s", c.VddkConfig.SnapshotReference.Value),
-			fmt.Sprintf("compression=%s", c.Compression),
-			"transports=file:nbdssl:nbd",
-		}
-		// Options are ignored for the built-in vddk plugin.
-		args = append(args, diskName)
-	}
+	args := c.buildNbdkitArgs(thumbprint, diskName, socket)
 	cmd := exec.Command("nbdkit", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

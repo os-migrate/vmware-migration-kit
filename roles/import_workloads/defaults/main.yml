@@ -53,6 +53,21 @@ import_workloads_heat_auto_deploy: "{{ heat_auto_deploy | default(true) | bool }
 
 import_workloads_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
 
+# OpenVixDiskLib: pure-Python VDDK replacement served as an nbdkit Python plugin.
+# When enabled, the migrate module is pointed at the deployed ".py" plugin (which
+# the Go module runs as "nbdkit python <plugin>"); this takes precedence over
+# import_workloads_custom_nbdkit_plugin. The library is installed by the
+# conversion_host role.
+import_workloads_use_openvixdisklib: "{{ use_openvixdisklib | default(false) | bool }}"
+import_workloads_openvixdisklib_plugin_path: "{{ openvixdisklib_plugin_path | default('/opt/os-migrate/openvixdisklib_nbdkit.py') }}"
+# Effective nbdkit plugin passed to the migrate module: the OpenVixDiskLib Python
+# plugin when enabled, otherwise the configured custom native plugin (or empty
+# for the built-in vddk plugin).
+import_workloads_effective_nbdkit_plugin: >-
+  {{ import_workloads_openvixdisklib_plugin_path
+     if (import_workloads_use_openvixdisklib | bool)
+     else import_workloads_custom_nbdkit_plugin }}
+
 # Extra performance options, disabled by default. Provide a dict to enable them;
 # each key/value is appended to the corresponding command.
 #

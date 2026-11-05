@@ -437,6 +437,10 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			backing := disk.Backing.(types.BaseVirtualDeviceFileBackingInfo)
 			info := backing.GetVirtualDeviceFileBackingInfo()
 
+			// Python nbdkit plugins (e.g. OpenVixDiskLib) cannot query the disk
+			// geometry, so pass the capacity explicitly.
+			c.NbdkitConfig.DiskSize = disk.CapacityInBytes
+
 			var nbdSrv *nbdkit.NbdkitServer
 			if c.LocalDiskPath != "" {
 				logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
