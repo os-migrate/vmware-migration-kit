@@ -14,7 +14,7 @@ conversion_host_custom_nbdkit_plugin: "{{ custom_nbdkit_plugin | default('') }}"
 # for this plugin.
 conversion_host_use_openvixdisklib: "{{ use_openvixdisklib | default(false) | bool }}"
 conversion_host_openvixdisklib_plugin_path: "{{ openvixdisklib_plugin_path | default('/opt/os-migrate/openvixdisklib_nbdkit.py') }}"
-conversion_host_openvixdisklib_repo: "{{ openvixdisklib_repo | default('https://github.com/matbu/OpenVixDiskLib.git') }}"
+conversion_host_openvixdisklib_repo: "{{ openvixdisklib_repo | default('https://github.com/cloudbase/OpenVixDiskLib.git') }}"
 conversion_host_openvixdisklib_version: "{{ openvixdisklib_version | default('main') }}"
 # The VMware VIX DiskLib (libdir) is only required for the built-in vddk plugin.
 conversion_host_requires_vmware_libdir: >-
