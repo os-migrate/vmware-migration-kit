@@ -246,3 +246,20 @@ Minor release which removes unused import_image module and fix AEE push
 ## v2.2.7
 
 - Clean sanity tests for prod only
+
+## v2.3.0
+
+- Add custom nbdkit plugin support to bypass the VMware VDDK plugin
+- Expose nbdkit and nbdcopy multi-connection options (sessions/pipeline/multiconn, connections/requests) via dict variables
+- Skip the VMware VIX DiskLib (libdir) check on the conversion host when a custom nbdkit plugin is used
+- Wait for the custom nbdkit plugin backend connection to open before starting nbdcopy
+- Fix shell quoting so VM names containing spaces no longer break virt-v2v-in-place
+- Look up the Cinder boot volume by UUID and treat an in-use boot volume on an active instance as success
+- Wrap migrated instances in a Heat stack, with adopt/abandon support for migration rollbacks
+- Retry instance creation on rollback status codes
+- Discover all disk keys from disk_info for data_volume_ids
+- Remove vCenter credentials from the migration log file
+- Move openstack_insecure under dst_cloud, make esxi_hostname optional and add block_storage_api_version
+- Add argument_specs for the prelude role and the custom plugin option
+- Update sanity tests for ansible-core 2.18 and 2.19 and fix non-unique task names for ansible-lint
+- Switch builds to the os-migrate CentOS builder container image
