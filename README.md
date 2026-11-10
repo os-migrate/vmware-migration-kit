@@ -24,9 +24,49 @@ The Ansible collection provides different steps to scale your migration from VMW
 
 ## Requirements
 
-This section list the required minimum versions of Ansible and Python, and any Python or external collection dependencies.
-- ansible `>=` 2.16.0
-- python `>=` 3.0
+This section lists the minimum Ansible and Python versions, the external collection and Python
+dependencies, and the tools needed on the migration (conversion) hosts.
+
+### Ansible and Python (control node / execution environment)
+
+- ansible-core `>=` 2.16.0
+- Python `>=` 3.10 (the minimum controller Python version for ansible-core 2.16). Python 3.12 is
+  tested and used in the provided execution environment (`aee/`).
+
+### Ansible collection dependencies
+
+These are declared in `galaxy.yml` and installed automatically by `ansible-galaxy collection install`:
+
+- `vmware.vmware` `>=` 2.8.0
+- `vmware.vmware_rest` `>=` 4.10.0
+
+### Python dependencies (control node / execution environment)
+
+- `pyVmomi` and `requests` (required by the `vmware.vmware` and `vmware.vmware_rest` collections)
+- `PyYAML` (provided with ansible-core)
+
+### Migration (conversion) host requirements
+
+The conversion host is the OpenStack instance that runs the disk transfer and conversion. The
+`conversion_host` role installs most of the packages below, but the host must be able to reach
+the package repositories it uses.
+
+- Operating system: CentOS Stream 9/10, RHEL 9.5+ / RHEL 10, or Fedora. BTRFS guest file systems
+  require a Fedora conversion host.
+- Python 3 on the conversion host (managed node). Python `>=` 3.10 is required when using the
+  OpenVixDiskLib nbdkit plugin (CentOS Stream 10, RHEL 10 or Fedora).
+- `nbdkit`, `virt-v2v` (including `virt-v2v-in-place`), `libvirt`, `qemu-kvm`, `python3-pip`, `wget`
+- `virtio-win` `>=` 1.9.40 for Windows guests. It is not installed by the role and must be
+  provided by the user.
+- One of the following nbdkit disk access backends:
+  - the VMware Virtual Disk Development Kit (VDDK / VIX DiskLib). Download it from VMware and
+    install it in `/usr/lib/vmware-vix-disklib` (configurable with `conversion_host_vmware_lib_dir`).
+    It is not redistributed with this collection.
+  - OpenVixDiskLib (`use_openvixdisklib: true`). It needs `nbdkit-python-plugin`, `git`, `gcc`,
+    `make` and `python3-devel`, which the role installs, and network access to GitHub.
+  - a custom nbdkit plugin (`custom_nbdkit_plugin`).
+- Network access from the conversion host to vCenter (443/TCP), the ESXi hosts (902/TCP) and the
+  OpenStack APIs.
 
 
 ## Installation

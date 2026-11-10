@@ -295,7 +295,7 @@ The authoritative version is in `galaxy.yml`. When updating:
 
 ### Ansible Collection Dependencies (galaxy.yml)
 
-- `vmware.vmware` >= 2.7.0
+- `vmware.vmware` >= 2.8.0
 - `vmware.vmware_rest` >= 4.10.0
 
 ### Conversion Host Runtime

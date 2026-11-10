@@ -225,8 +225,8 @@ make test-golangci-lint    # Go code quality
 
 **Ansible Collections:**
 - `community.vmware` >= 1.0.0
-- `vmware.vmware` >= 2.4.0
-- `vmware.vmware_rest` >= 4.9.0
+- `vmware.vmware` >= 2.8.0
+- `vmware.vmware_rest` >= 4.10.0
 - `openstack.cloud` >= 2.0.0 (legacy, being phased out)
 - `os_migrate.os_migrate` >= 0.0.1
 
