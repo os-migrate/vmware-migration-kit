@@ -1,6 +1,6 @@
 collections:
   - name: vmware.vmware
-    version: 2.7.0
+    version: 2.8.0
   - name: vmware.vmware_rest
     version: 4.10.0
   - name: os_migrate.vmware_migration_kit
