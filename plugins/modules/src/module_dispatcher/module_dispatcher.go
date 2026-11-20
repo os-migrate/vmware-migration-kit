@@ -40,6 +40,7 @@ import (
 	"vmware-migration-kit/plugins/modules/src/flavor_info"
 	"vmware-migration-kit/plugins/modules/src/generate_heat_template"
 	"vmware-migration-kit/plugins/modules/src/import_flavor"
+	"vmware-migration-kit/plugins/modules/src/proxy_precheck"
 	"vmware-migration-kit/plugins/modules/src/volume_info"
 	"vmware-migration-kit/plugins/modules/src/volume_metadata_info"
 )
@@ -58,6 +59,7 @@ var dispatch = map[string]func(){
 	"flavor_info":            flavor_info.Run,
 	"generate_heat_template": generate_heat_template.Run,
 	"import_flavor":          import_flavor.Run,
+	"proxy_precheck":         proxy_precheck.Run,
 	"volume_info":            volume_info.Run,
 	"volume_metadata_info":   volume_metadata_info.Run,
 }

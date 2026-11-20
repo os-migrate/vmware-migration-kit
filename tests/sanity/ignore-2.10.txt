@@ -18,3 +18,4 @@ plugins/modules/discover_heat_wrap.py validate-modules:missing-gplv3-license
 plugins/modules/abandon_heat_stack.py validate-modules:missing-gplv3-license
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:invalid-extension
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:python-syntax-error
+plugins/modules/proxy_precheck.py validate-modules:missing-gplv3-license

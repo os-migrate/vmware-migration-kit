@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
@@ -30,10 +31,12 @@ import (
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/nbdkit"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
+	"vmware-migration-kit/plugins/module_utils/proxy"
 	"vmware-migration-kit/plugins/module_utils/vmware"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -89,6 +92,9 @@ type MigrationConfig struct {
 	ExtraOpts          string
 	CinderManageConfig *osm_os.CinderManageConfig
 	NbdcopyOptions     map[string]interface{}
+	// Proxy is set when transport is "proxy": the snapshot disk is exported by
+	// nbdkit on a proxy VM in vSphere instead of nbdkit+VDDK on this host.
+	Proxy *proxy.Proxy
 }
 
 // Datastore name to Volume type mapping
@@ -131,6 +137,15 @@ type ModuleArgs struct {
 	CustomNbdkitPlugin string                 `json:"custom_nbdkit_plugin"`
 	NbdkitOptions      map[string]interface{} `json:"nbdkit_options"`
 	NbdcopyOptions     map[string]interface{} `json:"nbdcopy_options"`
+	// Disk transport: "vddk" (default, nbdkit+VDDK on the conversion host) or
+	// "proxy" (snapshot disk hot-added to a proxy VM and exported by nbdkit).
+	Transport            string `json:"transport"`
+	ProxyVmName          string `json:"proxy_vm_name"`
+	ProxyVmIp            string `json:"proxy_vm_ip"`
+	ProxyVmGuestUsername string `json:"proxy_vm_guest_username"`
+	ProxyVmGuestPassword string `json:"proxy_vm_guest_password"`
+	NbdPortMin           int    `json:"nbd_port_min"`
+	NbdPortMax           int    `json:"nbd_port_max"`
 }
 
 func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
@@ -320,6 +335,14 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			return "", err
 		}
 	}
+	// Proxy transport: detach any disk of this VM left attached to the proxy by
+	// a crashed run, it would block the removal of the snapshot.
+	if c.Proxy != nil {
+		if err := c.Proxy.CleanupStale(ctx, c.NbdkitConfig.VddkConfig.VirtualMachine); err != nil {
+			logger.Log.Infof("Failed to clean up stale proxy attachments: %v", err)
+			return "", err
+		}
+	}
 	// Create snapshot
 	err = c.NbdkitConfig.VddkConfig.CreateSnapshot(ctx)
 	if err != nil {
@@ -441,25 +464,46 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			// geometry, so pass the capacity explicitly.
 			c.NbdkitConfig.DiskSize = disk.CapacityInBytes
 
-			var nbdSrv *nbdkit.NbdkitServer
-			if c.LocalDiskPath != "" {
-				logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
-				nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(
-					strings.TrimSpace(strings.SplitN(info.FileName, " ", 2)[1]), c.LocalDiskPath)
+			// sock is the NBD endpoint consumed by nbdcopy / SyncChangedDiskData:
+			// a local socket or nbd://localhost (VDDK), or nbd://<proxy>:<port>.
+			var sock string
+			// stopNbd stops the NBD source; also used on the nbdcopy error path.
+			var stopNbd func() error
+			if c.Proxy != nil {
+				// Hot-add the snapshot disk to the proxy VM and export it with
+				// nbdkit there. Closed (nbdkit stopped, disk detached keeping
+				// files) by the defer below, which runs before the snapshot
+				// removal registered earlier.
+				logger.Log.Infof("Using proxy transport: proxy VM %s", c.Proxy.Config.VMName)
+				exp, err := c.Proxy.Export(ctx, disk)
+				if err != nil {
+					logger.Log.Infof("Failed to export disk through the proxy VM: %v", err)
+					return "", err
+				}
+				sock = exp.URI()
+				stopNbd = func() error { return exp.Close(ctx) }
 			} else {
-				nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
+				var nbdSrv *nbdkit.NbdkitServer
+				if c.LocalDiskPath != "" {
+					logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
+					nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(
+						strings.TrimSpace(strings.SplitN(info.FileName, " ", 2)[1]), c.LocalDiskPath)
+				} else {
+					nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
+				}
+				// Check the error before using nbdSrv: it is nil when nbdkit failed to start.
+				if err != nil {
+					logger.Log.Infof("Failed to run nbdkit: %v", err)
+					return "", err
+				}
+				sock = nbdSrv.GetSocketPath()
+				stopNbd = nbdSrv.Stop
 			}
-			sock := nbdSrv.GetSocketPath()
 			defer func() {
-				if err := nbdSrv.Stop(); err != nil {
-					logger.Log.Infof("Failed to stop NBD server: %v", err)
+				if err := stopNbd(); err != nil {
+					logger.Log.Infof("Failed to stop NBD source: %v", err)
 				}
 			}()
-
-			if err != nil {
-				logger.Log.Infof("Failed to run nbdkit: %v", err)
-				return "", err
-			}
 
 			if syncVol {
 				// Check change id
@@ -489,8 +533,8 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero, c.NbdcopyOptions)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
-					if err := nbdSrv.Stop(); err != nil {
-						logger.Log.Infof("Failed to stop NBD server during error handling: %v", err)
+					if err := stopNbd(); err != nil {
+						logger.Log.Infof("Failed to stop NBD source during error handling: %v", err)
 					}
 					return "", err
 				}
@@ -511,6 +555,36 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	}
 	logger.Log.Infof("Disk copied and converted successfully: %s", devPath)
 	return volume.ID, nil
+}
+
+// newProxy sets up the proxy VM for the proxy transport. The proxy is looked
+// up in the datacenter of the source VM (taken from its inventory path).
+func newProxy(ctx context.Context, c *vim25.Client, vmInventoryPath string, a ModuleArgs) (*proxy.Proxy, error) {
+	finder := find.NewFinder(c, true)
+	dc, err := finder.DatacenterOrDefault(ctx, datacenterPath(vmInventoryPath))
+	if err != nil {
+		return nil, fmt.Errorf("cannot find the datacenter of %s: %w", vmInventoryPath, err)
+	}
+	finder.SetDatacenter(dc)
+	return proxy.New(ctx, c, finder, proxy.Config{
+		VMName:        a.ProxyVmName,
+		Address:       a.ProxyVmIp,
+		PortMin:       a.NbdPortMin,
+		PortMax:       a.NbdPortMax,
+		GuestUser:     a.ProxyVmGuestUsername,
+		GuestPassword: a.ProxyVmGuestPassword,
+	})
+}
+
+// datacenterPath returns the datacenter part of a VM inventory path:
+// "/DC/vm/folder/name" -> "/DC", "/Folder/DC/vm/name" -> "/Folder/DC".
+// It returns "" (default datacenter) when the path has no "/vm/" element.
+func datacenterPath(inventoryPath string) string {
+	p := path.Clean("/" + inventoryPath)
+	if i := strings.Index(p, "/vm/"); i > 0 {
+		return p[:i]
+	}
+	return ""
 }
 
 func main() {
@@ -595,6 +669,28 @@ func main() {
 	if err != nil {
 		logger.Log.Infof("Failed to check vCenter connectivity: %v", err)
 		response.Msg = "Failed to check vCenter connectivity: " + err.Error()
+		ansible.FailJson(response)
+	}
+
+	// Disk transport
+	var px *proxy.Proxy
+	switch transport := ansible.DefaultIfEmpty(moduleArgs.Transport, "vddk"); transport {
+	case "vddk":
+	case "proxy":
+		if localDisk != "" {
+			response.Msg = "localdiskpath cannot be used with the proxy transport"
+			ansible.FailJson(response)
+		}
+		px, err = newProxy(ctx, c.Client, vm.InventoryPath, moduleArgs)
+		if err != nil {
+			logger.Log.Infof("Failed to set up the proxy VM: %v", err)
+			response.Msg = "Failed to set up the proxy VM: " + err.Error() + ". Check logs: " + LogFile
+			ansible.FailJson(response)
+		}
+		logger.Log.Infof("Proxy transport: proxy VM %s at %s, NBD ports %d-%d",
+			px.Config.VMName, px.Config.Address, px.Config.PortMin, px.Config.PortMax)
+	default:
+		response.Msg = "Unknown transport " + transport + " (expected vddk or proxy)"
 		ansible.FailJson(response)
 	}
 
@@ -692,6 +788,7 @@ func main() {
 			VolumeType:     volType,
 			VolumeAz:       volAz,
 			NbdcopyOptions: nbdcopyOptions,
+			Proxy:          px,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {

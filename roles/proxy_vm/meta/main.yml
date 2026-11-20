@@ -1,0 +1,15 @@
+galaxy_info:
+  author: OpenStack tenant migration tools (os-migrate)
+  description: >-
+    Checks (and later deploys) the proxy VM used by the proxy disk transport: a Linux VM in vSphere
+    that hot-adds the snapshot disks of the VMs to migrate and exports them with nbdkit.
+  license: Apache-2.0
+  min_ansible_version: "2.12"
+  galaxy_tags:
+    - vmware
+    - openstack
+    - migration
+    - nbdkit
+    - proxy
+
+dependencies: []

@@ -4,6 +4,10 @@
 - name: Run setup requirements
   import_playbook: setup_requirements.yml
 
+- name: Check the proxy VM (proxy disk transport)
+  import_playbook: proxy_precheck.yml
+  when: (import_workloads_transport | default(transport | default('vddk'))) == 'proxy'
+
 - name: Make sure already deployed conversion host is set up correctly
   import_playbook: conversion_host_content.yml
 

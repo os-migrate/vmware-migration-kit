@@ -1,0 +1,11 @@
+# Check that the proxy VM (proxy disk transport) is ready and can access the
+# VMs of vms_list. Runs on the conversion host, which is the host that will
+# connect to nbdkit on the proxy.
+- name: Proxy VM pre-checks
+  hosts: conversion_host
+  gather_facts: false
+  tasks:
+    - name: Run the proxy VM pre-checks
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.proxy_vm
+        tasks_from: precheck.yml
