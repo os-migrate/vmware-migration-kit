@@ -161,6 +161,53 @@ options:
       - Keys are rendered in sorted order. Empty by default, which leaves the command unchanged.
     type: dict
     required: false
+  transport:
+    description:
+      - Disk transport used to read the source disks.
+      - C(vddk) runs nbdkit with the VDDK plugin on the conversion host, which reads the disks from ESXi.
+      - C(proxy) hot-adds the snapshot disk (read-only, independent-nonpersistent) to the proxy VM C(proxy_vm_name)
+        running in vSphere and exports it with nbdkit to the conversion host. No VDDK, NFC or SSH to ESXi is used;
+        the proxy is driven with the vSphere API (reconfigure and guest operations).
+      - Check the proxy setup first with the C(proxy_precheck) module.
+    type: str
+    choices: [vddk, proxy]
+    default: vddk
+    required: false
+  proxy_vm_name:
+    description:
+      - Name or inventory path of the proxy VM, looked up in the datacenter of the source VM.
+      - Required when C(transport=proxy).
+    type: str
+    required: false
+  proxy_vm_ip:
+    description:
+      - IP address of the proxy VM used to reach nbdkit. It must be an address of the proxy itself.
+      - Defaults to the IP address reported by VMware Tools.
+    type: str
+    required: false
+  proxy_vm_guest_username:
+    description:
+      - Guest OS user for vSphere guest operations on the proxy VM, with passwordless sudo.
+      - Required when C(transport=proxy).
+    type: str
+    required: false
+  proxy_vm_guest_password:
+    description:
+      - Password of C(proxy_vm_guest_username). vSphere guest operations only support password authentication.
+      - Required when C(transport=proxy).
+    type: str
+    required: false
+  nbd_port_min:
+    description:
+      - First NBD port opened on the proxy VM. Each SCSI slot of the proxy uses its own port.
+    type: int
+    default: 10809
+    required: false
+  nbd_port_max:
+    description:
+      - Last NBD port opened on the proxy VM. Defaults to C(nbd_port_min) + 63.
+    type: int
+    required: false
   wait: # Common operational parameter for long tasks
     description: If C(true), the module will wait for the migration operation to complete before returning.
     type: bool

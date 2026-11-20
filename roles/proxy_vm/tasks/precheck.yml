@@ -1,0 +1,50 @@
+# Runs on the conversion host: the network check must start from the host
+# that will connect to nbdkit on the proxy.
+
+- name: Check the proxy VM settings are defined
+  ansible.builtin.assert:
+    that:
+      - proxy_vm_name | length > 0
+      - proxy_vm_guest_username | length > 0
+      - proxy_vm_guest_password | length > 0
+      - vcenter_hostname is defined
+      - vcenter_username is defined
+      - vcenter_password is defined
+    fail_msg: >-
+      proxy_vm_name, proxy_vm_guest_username, proxy_vm_guest_password and the
+      vcenter_* credentials are required for the proxy transport.
+    quiet: true
+
+# failed_when: false so that every check result is displayed below before
+# failing. Note: it also overrides the "failed" key of the result, so the
+# final decision uses the module's summary instead.
+- name: Check the proxy VM and the VMs to migrate
+  os_migrate.vmware_migration_kit.proxy_precheck:
+    server: "{{ vcenter_hostname }}"
+    user: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    vmware_insecure: "{{ proxy_vm_vmware_insecure | bool }}"
+    datacenter: "{{ vcenter_datacenter | default(omit) }}"
+    proxy_vm_name: "{{ proxy_vm_name }}"
+    proxy_vm_ip: "{{ proxy_vm_ip | default(omit, true) }}"
+    proxy_vm_guest_username: "{{ proxy_vm_guest_username }}"
+    proxy_vm_guest_password: "{{ proxy_vm_guest_password }}"
+    nbd_port_min: "{{ proxy_vm_nbd_port_min | int }}"
+    nbd_port_max: "{{ proxy_vm_nbd_port_max | int }}"
+    vms_list: "{{ proxy_vm_vms_list }}"
+    cbt_sync: "{{ proxy_vm_cbt_sync | bool }}"
+    check_network: "{{ proxy_vm_check_network | bool }}"
+  register: proxy_vm_precheck
+  failed_when: false
+
+- name: Show the proxy VM pre-check results
+  ansible.builtin.debug:
+    msg: "{{ item.status | upper }}  {{ item.name }}  [{{ item.target }}]  {{ item.msg }}"
+  loop: "{{ proxy_vm_precheck.checks | default([]) }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.target }}"
+
+- name: Fail if the proxy VM is not ready
+  ansible.builtin.fail:
+    msg: "{{ proxy_vm_precheck.msg | default('proxy_precheck module failed') }}"
+  when: (proxy_vm_precheck.summary.fail | default(1) | int) > 0

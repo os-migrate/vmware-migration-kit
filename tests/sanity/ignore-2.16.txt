@@ -50,3 +50,6 @@ plugins/modules/src/volume_info/volume_info.go validate-modules:python-syntax-er
 plugins/modules/src/volume_metadata_info/volume_metadata_info.go validate-modules:python-syntax-error
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:invalid-extension
 plugins/modules/src/module_dispatcher/module_dispatcher.go validate-modules:python-syntax-error
+plugins/modules/proxy_precheck.py validate-modules:missing-gplv3-license
+plugins/modules/src/proxy_precheck/proxy_precheck.go validate-modules:invalid-extension
+plugins/modules/src/proxy_precheck/proxy_precheck.go validate-modules:python-syntax-error

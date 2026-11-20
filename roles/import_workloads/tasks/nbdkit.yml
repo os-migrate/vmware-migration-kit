@@ -87,6 +87,13 @@
     custom_nbdkit_plugin: "{{ import_workloads_effective_nbdkit_plugin | trim }}"
     nbdkit_options: "{{ import_workloads_nbdkit_options | default(omit) }}"
     nbdcopy_options: "{{ import_workloads_nbdcopy_options | default(omit) }}"
+    transport: "{{ import_workloads_transport }}"
+    proxy_vm_name: "{{ import_workloads_proxy_vm_name if import_workloads_transport == 'proxy' else omit }}"
+    proxy_vm_ip: "{{ import_workloads_proxy_vm_ip if (import_workloads_transport == 'proxy' and import_workloads_proxy_vm_ip | length > 0) else omit }}"
+    proxy_vm_guest_username: "{{ import_workloads_proxy_vm_guest_username if import_workloads_transport == 'proxy' else omit }}"
+    proxy_vm_guest_password: "{{ import_workloads_proxy_vm_guest_password if import_workloads_transport == 'proxy' else omit }}"
+    nbd_port_min: "{{ import_workloads_proxy_vm_nbd_port_min | int if import_workloads_transport == 'proxy' else omit }}"
+    nbd_port_max: "{{ import_workloads_proxy_vm_nbd_port_max | int if import_workloads_transport == 'proxy' else omit }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true

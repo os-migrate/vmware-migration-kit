@@ -1,0 +1,2 @@
+- name: Run the proxy VM pre-checks
+  ansible.builtin.include_tasks: precheck.yml

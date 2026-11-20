@@ -1,0 +1,35 @@
+# Proxy VM used by the proxy disk transport: a Linux VM running in vSphere
+# that hot-adds the snapshot disks of the VMs to migrate (read-only) and
+# exports them with nbdkit to the conversion host.
+
+# Name (or inventory path) and IP address of the proxy VM.
+# proxy_vm_ip is the address the conversion host uses to reach nbdkit; it must
+# be an address of the proxy itself. Empty: IP reported by VMware Tools.
+proxy_vm_name: ""
+proxy_vm_ip: ""
+
+# Guest OS credentials for vSphere guest operations (the only control channel
+# used by the migration). vSphere guest operations only accept a password.
+# The user needs passwordless sudo. Keep the password in your secrets file.
+proxy_vm_guest_username: cloud-user
+proxy_vm_guest_password: ""
+
+# SSH access to the proxy, like the conversion host (Ansible provisioning and
+# debugging only; not used by the migration itself).
+# TODO: when the collection builds and deploys its own proxy OVA, inject
+# proxy_vm_ssh_public_key into it.
+proxy_vm_ssh_user: cloud-user
+proxy_vm_ssh_private_key_file: ""
+proxy_vm_ssh_public_key: ""
+
+# NBD port range opened on the proxy firewall for the conversion host.
+# One port per SCSI slot: 64 ports = 4 controllers x 16 slots. To migrate more
+# disks in parallel, use several proxy VMs.
+proxy_vm_nbd_port_min: 10809
+proxy_vm_nbd_port_max: "{{ proxy_vm_nbd_port_min | int + 63 }}"
+
+# Pre-check settings.
+proxy_vm_vms_list: "{{ vms_list | default([]) }}"
+proxy_vm_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
+proxy_vm_vmware_insecure: "{{ vmware_insecure | default(false) | bool }}"
+proxy_vm_check_network: true
