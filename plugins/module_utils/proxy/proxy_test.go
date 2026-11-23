@@ -173,6 +173,22 @@ func TestExportScript(t *testing.T) {
 	}
 }
 
+func TestDatacenterPath(t *testing.T) {
+	cases := map[string]string{
+		"/Eco-Datacenter/vm/rhos-migrations/rhel-9.4-1": "/Eco-Datacenter",
+		"/Folder/DC/vm/name":                            "/Folder/DC",
+		"/ha-datacenter/vm//my-vm":                      "/ha-datacenter", // default vddkpath + "/" + name
+		"Eco-Datacenter/vm/x":                           "/Eco-Datacenter",
+		"my-vm":                                         "",
+		"":                                              "",
+	}
+	for in, want := range cases {
+		if got := datacenterPath(in); got != want {
+			t.Errorf("datacenterPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestConfigDefaults(t *testing.T) {
 	c, err := Config{VMName: "p", GuestUser: "u", GuestPassword: "x"}.withDefaults()
 	if err != nil || c.PortMin != 10809 || c.PortMax != 10872 {
@@ -401,6 +417,23 @@ func TestSimDetachRefusesPersistentDisk(t *testing.T) {
 		devices, _ := p.VM.Device(ctx)
 		if len(disksByFile(devices, fileName)) != 1 {
 			t.Fatal("proxy disk must still be attached")
+		}
+	})
+}
+
+func TestSimNewInDatacenterOf(t *testing.T) {
+	simulator.Test(func(ctx context.Context, c *vim25.Client) {
+		cfg := Config{VMName: "DC0_H0_VM0", Address: "127.0.0.1", GuestUser: "u", GuestPassword: "p"}
+		// Inventory path of the VM being migrated, in the same datacenter.
+		p, err := NewInDatacenterOf(ctx, c, "/DC0/vm/DC0_H0_VM1", cfg)
+		if err != nil {
+			t.Fatalf("NewInDatacenterOf: %v", err)
+		}
+		if p.VM.Reference().Value == "" || p.Config.PortMin != DefaultPortMin {
+			t.Fatalf("unexpected proxy %+v", p.Config)
+		}
+		if _, err := NewInDatacenterOf(ctx, c, "/nope/vm/x", cfg); err == nil {
+			t.Fatal("unknown datacenter must fail")
 		}
 	})
 }

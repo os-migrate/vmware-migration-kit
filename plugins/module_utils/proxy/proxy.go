@@ -29,6 +29,8 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -115,4 +117,27 @@ func New(ctx context.Context, c *vim25.Client, finder *find.Finder, cfg Config) 
 		Config: cfg,
 		Guest:  NewGuestOps(c, vm, cfg.GuestUser, cfg.GuestPassword),
 	}, nil
+}
+
+// NewInDatacenterOf prepares the proxy VM, looking it up in the datacenter of
+// the given VM inventory path (the VM being migrated).
+func NewInDatacenterOf(ctx context.Context, c *vim25.Client, vmInventoryPath string, cfg Config) (*Proxy, error) {
+	finder := find.NewFinder(c, true)
+	dc, err := finder.DatacenterOrDefault(ctx, datacenterPath(vmInventoryPath))
+	if err != nil {
+		return nil, fmt.Errorf("cannot find the datacenter of %s: %w", vmInventoryPath, err)
+	}
+	finder.SetDatacenter(dc)
+	return New(ctx, c, finder, cfg)
+}
+
+// datacenterPath returns the datacenter part of a VM inventory path:
+// "/DC/vm/folder/name" -> "/DC", "/Folder/DC/vm/name" -> "/Folder/DC".
+// It returns "" (default datacenter) when the path has no "/vm/" element.
+func datacenterPath(inventoryPath string) string {
+	p := path.Clean("/" + inventoryPath)
+	if i := strings.Index(p, "/vm/"); i > 0 {
+		return p[:i]
+	}
+	return ""
 }

@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	moduleutils "vmware-migration-kit/plugins/module_utils"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/vmware/govmomi/find"
-	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -557,36 +555,6 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 	return volume.ID, nil
 }
 
-// newProxy sets up the proxy VM for the proxy transport. The proxy is looked
-// up in the datacenter of the source VM (taken from its inventory path).
-func newProxy(ctx context.Context, c *vim25.Client, vmInventoryPath string, a ModuleArgs) (*proxy.Proxy, error) {
-	finder := find.NewFinder(c, true)
-	dc, err := finder.DatacenterOrDefault(ctx, datacenterPath(vmInventoryPath))
-	if err != nil {
-		return nil, fmt.Errorf("cannot find the datacenter of %s: %w", vmInventoryPath, err)
-	}
-	finder.SetDatacenter(dc)
-	return proxy.New(ctx, c, finder, proxy.Config{
-		VMName:        a.ProxyVmName,
-		Address:       a.ProxyVmIp,
-		PortMin:       a.NbdPortMin,
-		PortMax:       a.NbdPortMax,
-		GuestUser:     a.ProxyVmGuestUsername,
-		GuestPassword: a.ProxyVmGuestPassword,
-	})
-}
-
-// datacenterPath returns the datacenter part of a VM inventory path:
-// "/DC/vm/folder/name" -> "/DC", "/Folder/DC/vm/name" -> "/Folder/DC".
-// It returns "" (default datacenter) when the path has no "/vm/" element.
-func datacenterPath(inventoryPath string) string {
-	p := path.Clean("/" + inventoryPath)
-	if i := strings.Index(p, "/vm/"); i > 0 {
-		return p[:i]
-	}
-	return ""
-}
-
 func main() {
 	var response ansible.Response
 	if len(os.Args) != 2 {
@@ -681,7 +649,14 @@ func main() {
 			response.Msg = "localdiskpath cannot be used with the proxy transport"
 			ansible.FailJson(response)
 		}
-		px, err = newProxy(ctx, c.Client, vm.InventoryPath, moduleArgs)
+		px, err = proxy.NewInDatacenterOf(ctx, c.Client, vm.InventoryPath, proxy.Config{
+			VMName:        moduleArgs.ProxyVmName,
+			Address:       moduleArgs.ProxyVmIp,
+			PortMin:       moduleArgs.NbdPortMin,
+			PortMax:       moduleArgs.NbdPortMax,
+			GuestUser:     moduleArgs.ProxyVmGuestUsername,
+			GuestPassword: moduleArgs.ProxyVmGuestPassword,
+		})
 		if err != nil {
 			logger.Log.Infof("Failed to set up the proxy VM: %v", err)
 			response.Msg = "Failed to set up the proxy VM: " + err.Error() + ". Check logs: " + LogFile
