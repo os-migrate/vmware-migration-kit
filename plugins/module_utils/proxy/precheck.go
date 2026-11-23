@@ -225,7 +225,9 @@ func (p *Proxy) checkNetwork(r *Report) {
 	switch {
 	case err != nil:
 		r.add("nbd_exports", target, StatusWarn,
-			"the service answers but does not serve the proxy disk %s: check it runs with dir=/dev/disk/by-id (%v)", wwn, err)
+			"the service answers but does not serve the proxy disk %s: check it runs with dir=/dev/disk/by-id, "+
+				"and that disk.EnableUUID=TRUE has been applied (a power cycle is needed) so the guest has "+
+				"/dev/disk/by-id/wwn-* links (%v)", wwn, err)
 	case !info.ReadOnly:
 		r.add("nbd_exports", target, StatusFail,
 			"export %s is writable: the nbdkit service of the proxy must run with --readonly", wwn)

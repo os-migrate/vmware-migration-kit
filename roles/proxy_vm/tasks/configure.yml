@@ -16,6 +16,79 @@
       addresses, as the proxy sees them) are required to configure the proxy.
     quiet: true
 
+# disk.EnableUUID=TRUE makes vSphere expose each disk as
+# /dev/disk/by-id/wwn-0x<disk uuid>, which is how a hot-added disk is named and
+# found. Checking the proxy's own disks is the reliable way to know whether it
+# is in effect: the setting only applies after a power cycle.
+- name: Look for by-id disk links in the proxy
+  ansible.builtin.find:
+    paths: /dev/disk/by-id
+    patterns: "wwn-0x*"
+    file_type: link
+  register: proxy_vm_wwn_links
+
+- name: Enable disk UUIDs on the proxy VM
+  when: proxy_vm_wwn_links.matched | int == 0
+  block:
+    - name: Set disk.EnableUUID=TRUE on the proxy VM
+      delegate_to: localhost
+      become: false
+      vmware.vmware.vm_advanced_settings:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
+        datacenter: "{{ vcenter_datacenter | default(omit) }}"
+        name: "{{ proxy_vm_name }}"
+        settings:
+          disk.EnableUUID: "TRUE"
+        state: present
+
+    - name: Fail if the proxy VM may not be power cycled
+      ansible.builtin.fail:
+        msg: >-
+          disk.EnableUUID was just set on {{ proxy_vm_name }} but only takes
+          effect after a power cycle, and proxy_vm_allow_power_cycle is false.
+          Power the VM off and on, then run this again.
+      when: not (proxy_vm_allow_power_cycle | bool)
+
+    - name: Shut the proxy VM down
+      delegate_to: localhost
+      become: false
+      vmware.vmware.vm_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
+        datacenter: "{{ vcenter_datacenter | default(omit) }}"
+        name: "{{ proxy_vm_name }}"
+        state: shutdown-guest
+
+    - name: Power the proxy VM back on
+      delegate_to: localhost
+      become: false
+      vmware.vmware.vm_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
+        datacenter: "{{ vcenter_datacenter | default(omit) }}"
+        name: "{{ proxy_vm_name }}"
+        state: powered-on
+
+    - name: Wait for the proxy VM to come back
+      ansible.builtin.wait_for_connection:
+        delay: 15
+        timeout: 300
+
+    - name: Check the by-id disk links are there now
+      ansible.builtin.find:
+        paths: /dev/disk/by-id
+        patterns: "wwn-0x*"
+        file_type: link
+      register: proxy_vm_wwn_links_after
+      failed_when: proxy_vm_wwn_links_after.matched | int == 0
+
 - name: Install nbdkit and its file plugin
   become: true
   ansible.builtin.package:
@@ -93,80 +166,27 @@
       when: proxy_vm_firewalld.rc != 0
 
 - name: Check the nbdkit service is listening
-  ansible.builtin.wait_for:
-    host: "{{ proxy_vm_bind_address if proxy_vm_bind_address != '0.0.0.0' else '127.0.0.1' }}"
-    port: "{{ proxy_vm_nbd_port | int }}"
-    timeout: 30
-
-# disk.EnableUUID=TRUE makes vSphere expose each disk as
-# /dev/disk/by-id/wwn-0x<disk uuid>, which is how a hot-added disk is named and
-# found. Checking the proxy's own disks is the reliable way to know whether it
-# is in effect: the setting only applies after a power cycle.
-- name: Look for by-id disk links in the proxy
-  ansible.builtin.find:
-    paths: /dev/disk/by-id
-    patterns: "wwn-0x*"
-    file_type: link
-  register: proxy_vm_wwn_links
-
-- name: Enable disk UUIDs on the proxy VM
-  when: proxy_vm_wwn_links.matched | int == 0
   block:
-    - name: Set disk.EnableUUID=TRUE on the proxy VM
-      delegate_to: localhost
-      become: false
-      vmware.vmware.vm_advanced_settings:
-        hostname: "{{ vcenter_hostname }}"
-        username: "{{ vcenter_username }}"
-        password: "{{ vcenter_password }}"
-        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
-        datacenter: "{{ vcenter_datacenter | default(omit) }}"
-        name: "{{ proxy_vm_name }}"
-        settings:
-          disk.EnableUUID: "TRUE"
-        state: present
+    - name: Wait for the NBD port
+      ansible.builtin.wait_for:
+        host: "{{ proxy_vm_bind_address if proxy_vm_bind_address != '0.0.0.0' else '127.0.0.1' }}"
+        port: "{{ proxy_vm_nbd_port | int }}"
+        timeout: 30
+  rescue:
+    - name: Collect why the service did not come up
+      become: true
+      ansible.builtin.command: journalctl -u osm-nbdkit --no-pager --lines 15
+      register: proxy_vm_service_log
+      changed_when: false
+      failed_when: false
 
-    - name: Fail if the proxy VM may not be power cycled
+    - name: Fail with the service log
       ansible.builtin.fail:
-        msg: >-
-          disk.EnableUUID was just set on {{ proxy_vm_name }} but only takes
-          effect after a power cycle, and proxy_vm_allow_power_cycle is false.
-          Power the VM off and on, then run this again.
-      when: not (proxy_vm_allow_power_cycle | bool)
+        msg: |
+          The nbdkit service is not listening on
+          {{ proxy_vm_bind_address }}:{{ proxy_vm_nbd_port }}. Last log lines:
 
-    - name: Shut the proxy VM down
-      delegate_to: localhost
-      become: false
-      vmware.vmware.vm_powerstate:
-        hostname: "{{ vcenter_hostname }}"
-        username: "{{ vcenter_username }}"
-        password: "{{ vcenter_password }}"
-        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
-        datacenter: "{{ vcenter_datacenter | default(omit) }}"
-        name: "{{ proxy_vm_name }}"
-        state: shutdown-guest
+          {{ proxy_vm_service_log.stdout }}
 
-    - name: Power the proxy VM back on
-      delegate_to: localhost
-      become: false
-      vmware.vmware.vm_powerstate:
-        hostname: "{{ vcenter_hostname }}"
-        username: "{{ vcenter_username }}"
-        password: "{{ vcenter_password }}"
-        validate_certs: "{{ not (proxy_vm_vmware_insecure | bool) }}"
-        datacenter: "{{ vcenter_datacenter | default(omit) }}"
-        name: "{{ proxy_vm_name }}"
-        state: powered-on
-
-    - name: Wait for the proxy VM to come back
-      ansible.builtin.wait_for_connection:
-        delay: 15
-        timeout: 300
-
-    - name: Check the by-id disk links are there now
-      ansible.builtin.find:
-        paths: /dev/disk/by-id
-        patterns: "wwn-0x*"
-        file_type: link
-      register: proxy_vm_wwn_links_after
-      failed_when: proxy_vm_wwn_links_after.matched | int == 0
+          Common causes: OSM_NBD_ADDRESS is not an address of this VM, or the
+          port is already taken.

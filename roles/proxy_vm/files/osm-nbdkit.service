@@ -13,6 +13,12 @@ Wants=network-online.target
 # --readonly is what keeps the exports read-only; never remove it.
 # Restrict the port to the conversion host(s) in the firewall: every disk
 # attached to this VM, including its own, is readable through it.
+# nbdkit resolves dir= at startup and refuses to start if it is missing.
+# udev only creates /dev/disk/by-id once some disk has a link there, so on a
+# VM whose disks have no UUID yet (disk.EnableUUID not applied) the directory
+# does not exist at all. Create it so the service comes up and simply serves
+# nothing until disks appear.
+ExecStartPre=/usr/bin/mkdir -p /dev/disk/by-id
 ExecStart=/usr/sbin/nbdkit --foreground --readonly \
     --port ${OSM_NBD_PORT} --ipaddr ${OSM_NBD_ADDRESS} \
     file dir=/dev/disk/by-id
