@@ -174,6 +174,7 @@ func waitForStackDeleted(ctx context.Context, client *gophercloud.ServiceClient,
 	}
 }
 
+// TODO: verbose, can be moved to single-use file for abandon specific operations.
 // deleteExistingStack removes a leftover DELETE_COMPLETE/ROLLBACK_COMPLETE stack
 // so create can reuse the name. Heat still occupies the name after rollback.
 func deleteExistingStack(ctx context.Context, client *gophercloud.ServiceClient, stack *stacks.RetrievedStack, timeout int) error {
