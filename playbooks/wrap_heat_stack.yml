@@ -1,11 +1,3 @@
----
-# Wrap already-migrated Nova instances into a Heat stack using external_id
-# on volumes, ports, and instances. Uses stacks.Create(), not stacks.Adopt().
-#
-# Required vars: vms_list, dst_cloud
-# Optional: heat_stack_name (default os-migrate-wrapped),
-#           os_migrate_vmw_data_dir (default /opt/os-migrate),
-#           heat_auto_deploy (default true), heat_wrap_hosts (default localhost)
 - name: Wrap existing migrated instances into a Heat stack
   hosts: "{{ heat_wrap_hosts | default('localhost') }}"
   gather_facts: false
