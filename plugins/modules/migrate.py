@@ -166,8 +166,10 @@ options:
       - Disk transport used to read the source disks.
       - C(vddk) runs nbdkit with the VDDK plugin on the conversion host, which reads the disks from ESXi.
       - C(proxy) hot-adds the snapshot disk (read-only, independent-nonpersistent) to the proxy VM C(proxy_vm_name)
-        running in vSphere and exports it with nbdkit to the conversion host. No VDDK, NFC or SSH to ESXi is used;
-        the proxy is driven with the vSphere API (reconfigure and guest operations).
+        running in vSphere, and reads it from the nbdkit service already running there. No VDDK, NFC or SSH is used,
+        and nothing is executed inside the proxy VM, so it needs no credentials.
+      - The proxy VM must permanently run C(nbdkit --readonly --port 10809 file dir=/dev/disk/by-id) and have
+        C(disk.EnableUUID=TRUE), so each hot-added disk is served under the export name of its by-id link.
       - Check the proxy setup first with the C(proxy_precheck) module.
     type: str
     choices: [vddk, proxy]
@@ -185,28 +187,12 @@ options:
       - Defaults to the IP address reported by VMware Tools.
     type: str
     required: false
-  proxy_vm_guest_username:
+  nbd_port:
     description:
-      - Guest OS user for vSphere guest operations on the proxy VM, with passwordless sudo.
-      - Required when C(transport=proxy).
-    type: str
-    required: false
-  proxy_vm_guest_password:
-    description:
-      - Password of C(proxy_vm_guest_username). vSphere guest operations only support password authentication.
-      - Required when C(transport=proxy).
-    type: str
-    required: false
-  nbd_port_min:
-    description:
-      - First NBD port opened on the proxy VM. Each SCSI slot of the proxy uses its own port.
+      - Port of the nbdkit service of the proxy VM. A single port serves every disk, they are told apart by
+        NBD export name.
     type: int
     default: 10809
-    required: false
-  nbd_port_max:
-    description:
-      - Last NBD port opened on the proxy VM. Defaults to C(nbd_port_min) + 63.
-    type: int
     required: false
   wait: # Common operational parameter for long tasks
     description: If C(true), the module will wait for the migration operation to complete before returning.

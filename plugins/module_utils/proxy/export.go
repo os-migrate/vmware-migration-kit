@@ -34,82 +34,41 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-// Exit codes of the export script run in the proxy guest.
-const (
-	exitDeviceNotFound = 10
-	exitSizeMismatch   = 11
-	exitNotReadOnly    = 12
-	exitNbdkitFailed   = 13
-	exitNoNbdkit       = 14
-)
+// nbdWaitTimeout is how long a hot-added disk may take to show up in the
+// proxy (SCSI rescan + udev) and become servable by nbdkit. Variable so the
+// tests do not have to wait for it.
+var nbdWaitTimeout = 60 * time.Second
 
-var exportExitMsg = map[int32]string{
-	exitDeviceNotFound: "attached disk did not show up in the proxy (check disk.EnableUUID=TRUE)",
-	exitSizeMismatch:   "block device size differs from the disk capacity",
-	exitNotReadOnly:    "could not set the block device read-only",
-	exitNbdkitFailed:   "nbdkit failed to start (port in use or firewall/SELinux issue)",
-	exitNoNbdkit:       "nbdkit is not installed in the proxy",
-	1:                  "sudo failed (the guest user needs passwordless sudo)",
-}
-
-const (
-	guestScriptTimeout = 2 * time.Minute
-	nbdWaitTimeout     = 30 * time.Second
-)
-
-// Export is a snapshot disk exported by nbdkit on the proxy VM.
+// Export is a snapshot disk attached to the proxy VM and served, read-only,
+// by the nbdkit service of the proxy under the export name of its by-id link.
 type Export struct {
-	p        *Proxy
+	p *Proxy
+	// FileName is the datastore path of the exported disk, e.g.
+	// "[ds1] vm/vm.vmdk". Used to detach exactly this disk.
 	FileName string
-	WWN      string
-	Port     int
+	// Name is the NBD export name: the by-id link of the disk in the proxy,
+	// "wwn-0x<disk uuid>".
+	Name string
+	// Capacity is the expected size in bytes, to be checked by the caller
+	// against the size advertised by the NBD server.
+	Capacity int64
 	closed   bool
 }
 
-// URI is the NBD URI to give to nbdcopy / libnbd.
+// URI is the NBD URI to give to nbdcopy or libnbd.
 func (e *Export) URI() string {
-	return fmt.Sprintf("nbd://%s", net.JoinHostPort(e.p.Config.Address, strconv.Itoa(e.Port)))
+	return fmt.Sprintf("nbd://%s/%s", net.JoinHostPort(e.p.Config.Address, strconv.Itoa(e.p.Config.Port)), e.Name)
 }
 
-func pidFile(wwn string) string { return "/run/osm-nbdkit-" + wwn + ".pid" }
-
-// exportScript waits for the hot-added disk, forces it read-only, checks its
-// size and starts nbdkit on it. nbdkit binds the port before going to the
-// background, so a 0 exit code means the export is listening.
-func exportScript(wwn string, capacity int64, address string, port int) string {
-	return fmt.Sprintf(`W=/dev/disk/by-id/%[1]s
-command -v nbdkit >/dev/null 2>&1 || exit %[5]d
-udevadm settle 2>/dev/null || true
-i=0
-while [ ! -e "$W" ]; do i=$((i+1)); [ $i -gt 60 ] && exit %[6]d; sleep 1; done
-D=$(readlink -f "$W")
-blockdev --setro "$D" || exit %[7]d
-for p in "$D"[0-9]*; do [ -e "$p" ] && blockdev --setro "$p"; done
-[ "$(blockdev --getro "$D")" = 1 ] || exit %[7]d
-[ "$(blockdev --getsize64 "$D")" = "%[2]d" ] || exit %[8]d
-nbdkit --readonly --port %[3]d --ipaddr %[4]s --pidfile %[9]s file "$W" || exit %[10]d
-`, wwn, capacity, port, address, exitNoNbdkit, exitDeviceNotFound, exitNotReadOnly, exitSizeMismatch, pidFile(wwn), exitNbdkitFailed)
-}
-
-// stopScript stops nbdkit for a disk and removes the SCSI device from the
-// guest before vSphere detaches it (clean hot-remove).
-func stopScript(wwn string) string {
-	return fmt.Sprintf(`P=%[2]s
-if [ -f "$P" ]; then
-  pid=$(cat "$P"); kill "$pid" 2>/dev/null
-  i=0; while kill -0 "$pid" 2>/dev/null && [ $i -lt 50 ]; do i=$((i+1)); sleep 0.2; done
-  rm -f "$P"
-fi
-W=/dev/disk/by-id/%[1]s
-if [ -e "$W" ]; then echo 1 > "/sys/block/$(basename "$(readlink -f "$W")")/device/delete"; fi
-exit 0
-`, wwn, pidFile(wwn))
-}
-
-// Export hot-adds the snapshot disk to the proxy and exports it read-only with
-// nbdkit. snapshotDisk must come from the source VM snapshot configuration
+// Export hot-adds the snapshot disk to the proxy VM, read-only, and returns
+// the NBD export the conversion host can read it from. snapshotDisk must come
+// from the source VM snapshot configuration
 // (snapshot.config.hardware.device): its backing file is the frozen
 // point-in-time disk, the snapshot chain is handled by vSphere.
+//
+// Nothing is executed in the proxy: the nbdkit service running there serves
+// the new disk as soon as the guest kernel exposes it, because the file plugin
+// resolves the export name at connection time.
 //
 // The caller must Close the export BEFORE removing the snapshot.
 func (p *Proxy) Export(ctx context.Context, snapshotDisk *types.VirtualDisk) (*Export, error) {
@@ -122,54 +81,42 @@ func (p *Proxy) Export(ctx context.Context, snapshotDisk *types.VirtualDisk) (*E
 		return nil, err
 	}
 	_, uuid, _ := diskBacking(disk)
-	exp := &Export{p: p, FileName: fileName, WWN: WWNFromUUID(uuid), Port: s.Port}
+	exp := &Export{p: p, FileName: fileName, Capacity: snapshotDisk.CapacityInBytes}
 	if uuid == "" {
-		return nil, errors.Join(fmt.Errorf("attached disk %s has no UUID", fileName), exp.Close(ctx))
+		return nil, errors.Join(
+			fmt.Errorf("attached disk %s has no UUID: is disk.EnableUUID=TRUE on proxy VM %s?", fileName, p.Config.VMName),
+			exp.Close(ctx))
 	}
+	exp.Name = WWNFromUUID(uuid)
+	logger.Log.Infof("Disk %s attached to proxy %s on SCSI %d:%d, waiting for export %s",
+		fileName, p.Config.VMName, s.Bus, s.Unit, exp.Name)
 
-	code, err := p.Guest.Run(ctx, exportScript(exp.WWN, snapshotDisk.CapacityInBytes, p.Config.Address, exp.Port), true, guestScriptTimeout)
-	if err == nil && code != 0 {
-		msg, ok := exportExitMsg[code]
-		if !ok {
-			msg = "unexpected error"
-		}
-		err = fmt.Errorf("export script failed with exit code %d: %s", code, msg)
-	}
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to export %s on proxy: %w", fileName, err), exp.Close(ctx))
-	}
-	if err := WaitNBD(ctx, p.Config.Address, exp.Port, nbdWaitTimeout); err != nil {
+	// The disk appears in the proxy asynchronously (SCSI hot-add + udev), so
+	// wait for the export itself, not just for the server. This also checks
+	// client-side that it is read-only and has the expected size, which rules
+	// out a stale or wrong device.
+	if err := WaitExport(ctx, p.Config.Address, p.Config.Port, exp.Name, exp.Capacity, nbdWaitTimeout); err != nil {
 		return nil, errors.Join(err, exp.Close(ctx))
 	}
 	logger.Log.Infof("Disk %s exported at %s", fileName, exp.URI())
 	return exp, nil
 }
 
-// Close stops nbdkit and detaches the disk from the proxy, keeping files.
-// It is safe to call several times.
+// Close detaches the disk from the proxy VM, keeping its files. It is safe to
+// call several times. Nothing has to be stopped in the proxy: the nbdkit
+// service opens the disk only while a client is connected.
 func (e *Export) Close(ctx context.Context) error {
 	if e.closed {
 		return nil
 	}
-	var errs []error
-	if e.WWN != "wwn-0x" {
-		code, err := e.p.Guest.Run(ctx, stopScript(e.WWN), true, guestScriptTimeout)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to stop nbdkit on proxy: %w", err))
-		} else if code != 0 {
-			errs = append(errs, fmt.Errorf("stop script failed with exit code %d", code))
-		}
-	}
-	if err := e.p.detach(ctx, e.FileName); err != nil {
-		errs = append(errs, err)
-	}
+	err := e.p.detach(ctx, e.FileName)
 	e.closed = true
-	return errors.Join(errs...)
+	return err
 }
 
 // CleanupStale detaches (keeping files) any disk left attached to the proxy
 // that belongs to srcVM's disk chain, e.g. after a crashed migration. A
-// leftover attachment would block the snapshot removal on the source VM.
+// leftover attachment would block the removal of the snapshot.
 func (p *Proxy) CleanupStale(ctx context.Context, srcVM *object.VirtualMachine) error {
 	var o mo.VirtualMachine
 	if err := srcVM.Properties(ctx, srcVM.Reference(), []string{"layoutEx.file"}, &o); err != nil {
@@ -190,12 +137,12 @@ func (p *Proxy) CleanupStale(ctx context.Context, srcVM *object.VirtualMachine) 
 	var errs []error
 	for _, d := range devices.SelectByType((*types.VirtualDisk)(nil)) {
 		disk := d.(*types.VirtualDisk)
-		fileName, uuid, mode := diskBacking(disk)
+		fileName, _, mode := diskBacking(disk)
 		if !srcFiles[fileName] || mode != string(types.VirtualDiskModeIndependent_nonpersistent) {
 			continue
 		}
 		logger.Log.Warnf("Found stale proxy attachment of %s, cleaning up", fileName)
-		exp := &Export{p: p, FileName: fileName, WWN: WWNFromUUID(uuid)}
+		exp := &Export{p: p, FileName: fileName}
 		if err := exp.Close(ctx); err != nil {
 			errs = append(errs, err)
 		}
@@ -206,7 +153,9 @@ func (p *Proxy) CleanupStale(ctx context.Context, srcVM *object.VirtualMachine) 
 // nbdMagic is what an NBD newstyle server sends first: "NBDMAGIC" + "IHAVEOPT".
 var nbdMagic = []byte("NBDMAGICIHAVEOPT")
 
-// ProbeNBD connects to address:port and checks the NBD server greeting.
+// ProbeNBD connects to address:port and checks the NBD server greeting. It
+// says the nbdkit service of the proxy is running and reachable; the export
+// itself is checked by the caller when it connects (size and read-only).
 func ProbeNBD(address string, port int, timeout time.Duration) error {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, strconv.Itoa(port)), timeout)
 	if err != nil {
@@ -226,7 +175,7 @@ func ProbeNBD(address string, port int, timeout time.Duration) error {
 	return nil
 }
 
-// WaitNBD waits until an NBD server answers on address:port.
+// WaitNBD waits until the nbdkit service of the proxy answers.
 func WaitNBD(ctx context.Context, address string, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -235,7 +184,8 @@ func WaitNBD(ctx context.Context, address string, port int, timeout time.Duratio
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("NBD server %s:%d not reachable from this host: %w", address, port, err)
+			return fmt.Errorf("NBD server %s:%d not reachable from this host "+
+				"(is the nbdkit service running on the proxy and the port open for this host?): %w", address, port, err)
 		}
 		select {
 		case <-ctx.Done():

@@ -8,25 +8,48 @@
 proxy_vm_name: ""
 proxy_vm_ip: ""
 
-# Guest OS credentials for vSphere guest operations (the only control channel
-# used by the migration). vSphere guest operations only accept a password.
-# The user needs passwordless sudo. Keep the password in your secrets file.
-proxy_vm_guest_username: cloud-user
-proxy_vm_guest_password: ""
+# No credentials for the proxy VM are needed: a migration never executes
+# anything inside it. The proxy permanently runs
+#
+#   nbdkit --readonly --port 10809 file dir=/dev/disk/by-id
+#
+# as a service, and a migration only uses the vSphere API (attach/detach) plus
+# a TCP connection to that service. See the README to set it up.
 
-# SSH access to the proxy, like the conversion host (Ansible provisioning and
-# debugging only; not used by the migration itself).
+# SSH access to the proxy (provisioning and debugging only; not used by a
+# migration).
 # TODO: when the collection builds and deploys its own proxy OVA, inject
-# proxy_vm_ssh_public_key into it.
+# proxy_vm_ssh_public_key into it and ship the nbdkit service in the image.
 proxy_vm_ssh_user: cloud-user
 proxy_vm_ssh_private_key_file: ""
 proxy_vm_ssh_public_key: ""
 
-# NBD port range opened on the proxy firewall for the conversion host.
-# One port per SCSI slot: 64 ports = 4 controllers x 16 slots. To migrate more
-# disks in parallel, use several proxy VMs.
-proxy_vm_nbd_port_min: 10809
-proxy_vm_nbd_port_max: "{{ proxy_vm_nbd_port_min | int + 63 }}"
+# Port of the nbdkit service of the proxy, opened in the proxy firewall for
+# the conversion host only. A single port serves every disk: they are told
+# apart by NBD export name.
+proxy_vm_nbd_port: 10809
+
+# --- configure.yml only (turning a blank VM into a proxy) ------------------
+
+# Packages providing nbdkit and its "file" plugin (Fedora, CentOS Stream, RHEL).
+proxy_vm_packages:
+  - nbdkit
+  - nbdkit-basic-plugins
+
+# Address nbdkit binds to. Default: the address the conversion host uses.
+# 0.0.0.0 binds everywhere, which only makes sense with a strict firewall.
+proxy_vm_bind_address: "{{ proxy_vm_ip | default(ansible_default_ipv4.address, true) }}"
+
+# Addresses allowed to reach the NBD port, as the PROXY sees them: with NAT
+# between the clouds this is the translated address, not the address the
+# conversion host sees on itself. Find it by connecting from the conversion
+# host and reading "ss -tn" on the proxy.
+proxy_vm_allowed_sources: []
+proxy_vm_configure_firewall: true
+
+# disk.EnableUUID only takes effect after a power cycle. Set to true to let
+# the role shut the proxy down and start it again when needed.
+proxy_vm_allow_power_cycle: false
 
 # Pre-check settings.
 proxy_vm_vms_list: "{{ vms_list | default([]) }}"

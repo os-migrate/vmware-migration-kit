@@ -5,18 +5,18 @@ module: proxy_precheck
 short_description: Checks that a proxy VM is ready for the proxy disk transport.
 description:
   - With the proxy transport, the snapshot disks of the VMs to migrate are hot-added (read-only) to a Linux proxy VM
-    running in vSphere and exported with nbdkit to the conversion host. No VDDK, NFC or SSH to ESXi is used.
-  - This module checks, through the vSphere API only, that the proxy VM exists, is powered on, runs VMware Tools,
-    has C(disk.EnableUUID=TRUE) and a SCSI controller with free slots.
-  - It checks with vSphere guest operations that the guest credentials work, that the guest user has passwordless
-    sudo, and that nbdkit and its file plugin are installed in the proxy.
-  - It starts a temporary nbdkit on the first and last port of the NBD port range and checks that the host running
-    the module (the conversion host) can reach it, which validates routing, NAT and the proxy firewall.
+    running in vSphere, and read from the nbdkit service already running there. No VDDK, NFC or SSH is used, and
+    nothing is executed inside the proxy VM, so it needs no credentials.
+  - This module checks, through the vSphere API, that the proxy VM exists, is powered on, has C(disk.EnableUUID=TRUE)
+    and a SCSI controller with free slots.
+  - It connects to the nbdkit service of the proxy from the host running the module (the conversion host), which
+    validates routing, NAT and the proxy firewall, and asks it for one of the proxy's own disks to confirm it serves
+    C(dir=/dev/disk/by-id) read-only.
   - For every VM in C(vms_list), it checks that the VM exists, is not the proxy, and that each disk can be hot-added
     to the proxy (datastore accessible from the proxy ESXi host, not an independent disk or a physical-mode RDM, no
     disk UUID shared with the proxy). It warns when CBT is disabled and C(cbt_sync) is requested.
-  - The module does not change anything, except starting and stopping the temporary nbdkit test servers.
-  - It must run on the conversion host, the host that will connect to nbdkit on the proxy.
+  - The module changes nothing, on either side.
+  - It must run on the conversion host, the host that will read from the proxy.
 author: "OpenStack tenant migration tools (@os-migrate)"
 version_added: "2.4.0"
 options:
@@ -55,26 +55,12 @@ options:
         itself (nbdkit binds to it).
       - Defaults to the IP address reported by VMware Tools.
     type: str
-  proxy_vm_guest_username:
+  nbd_port:
     description:
-      - Guest OS user for vSphere guest operations. The user needs passwordless sudo on the proxy.
-    type: str
-    required: true
-  proxy_vm_guest_password:
-    description:
-      - Password of C(proxy_vm_guest_username). vSphere guest operations only support password authentication.
-    type: str
-    required: true
-  nbd_port_min:
-    description:
-      - First NBD port of the proxy. Each SCSI slot of the proxy uses its own port.
+      - Port of the nbdkit service of the proxy. A single port serves every disk, they are told apart by NBD export
+        name, so parallel migrations need no coordination.
     type: int
     default: 10809
-  nbd_port_max:
-    description:
-      - Last NBD port of the proxy. Defaults to C(nbd_port_min) + 63 (4 SCSI controllers x 16 slots). To migrate more
-        disks in parallel, use several proxy VMs.
-    type: int
   vms_list:
     description:
       - Names or inventory paths of the VMs to migrate.
@@ -88,12 +74,12 @@ options:
     default: false
   check_network:
     description:
-      - Start a temporary nbdkit on the proxy and check that this host can reach it.
+      - Connect to the nbdkit service of the proxy to check this host can reach it.
     type: bool
     default: true
 requirements:
-  - VMware Tools running in the proxy VM, nbdkit and nbdkit-basic-plugins installed in the proxy VM.
-  - vCenter privileges for guest operations on the proxy VM.
+  - The proxy VM runs C(nbdkit --readonly --port 10809 file dir=/dev/disk/by-id) as a service, with the port open
+    for the conversion host, and has C(disk.EnableUUID=TRUE).
 """
 
 EXAMPLES = r"""
@@ -106,10 +92,7 @@ EXAMPLES = r"""
     datacenter: "{{ vcenter_datacenter }}"
     proxy_vm_name: proxy-vm
     proxy_vm_ip: 10.0.0.55
-    proxy_vm_guest_username: cloud-user
-    proxy_vm_guest_password: "{{ proxy_vm_guest_password }}"
-    nbd_port_min: 10809
-    nbd_port_max: 10872
+    nbd_port: 10809
     vms_list:
       - rhel-9-vm
       - windows-2022-vm
@@ -161,9 +144,9 @@ facts:
     host: esxi01.example.com
     power_state: poweredOn
     datastores: [datastore1]
+    proxy_disk_wwns: ["wwn-0x6000c291f0c8470c061c1a10d75fcf14"]
     free_slots: 14
-    port_min: 10809
-    port_max: 10872
+    port: 10809
 summary:
   description: Number of checks per status.
   returned: on success

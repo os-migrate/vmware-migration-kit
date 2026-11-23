@@ -19,6 +19,9 @@ package proxy
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -95,43 +98,23 @@ func diskAt(ctrl, unit int32, file string) *types.VirtualDisk {
 	}}
 }
 
-func TestPortFor(t *testing.T) {
-	cases := []struct {
-		bus, unit int32
-		want      int
-	}{{0, 0, 10809}, {0, 15, 10824}, {1, 0, 10825}, {3, 15, 10872}}
-	for _, c := range cases {
-		if got := portFor(10809, c.bus, c.unit); got != c.want {
-			t.Errorf("portFor(bus %d, unit %d) = %d, want %d", c.bus, c.unit, got, c.want)
-		}
-	}
-	if portFor(DefaultPortMin, 3, 15) != DefaultPortMin+PortsPerProxy-1 {
-		t.Error("the last slot must map to the last port of a 64-port range")
-	}
-}
-
 func TestFreeSlots(t *testing.T) {
 	devices := object.VirtualDeviceList{scsi(1000, 0), scsi(1001, 1), diskAt(1000, 0, "os.vmdk")}
 
-	slots := freeSlots(devices, 10809, 10872)
+	slots := freeSlots(devices)
 	// 2 controllers x 16 units - 2 controller units (7) - 1 OS disk
 	if len(slots) != 29 {
 		t.Fatalf("expected 29 free slots, got %d", len(slots))
 	}
-	if s := slots[0]; s.Bus != 0 || s.Unit != 1 || s.Port != 10810 {
-		t.Fatalf("first free slot should be 0:1 port 10810, got %+v", s)
+	if s := slots[0]; s.Bus != 0 || s.Unit != 1 {
+		t.Fatalf("first free slot should be 0:1, got %+v", s)
 	}
 	for _, s := range slots {
 		if s.Unit == 7 {
 			t.Fatalf("unit 7 is the controller itself, must not be used: %+v", s)
 		}
 	}
-	// Port range smaller than the slots: only slots whose port fits are returned.
-	slots = freeSlots(devices, 10809, 10812)
-	if len(slots) != 3 { // units 1,2,3 of bus 0
-		t.Fatalf("expected 3 slots within 10809-10812, got %d", len(slots))
-	}
-	if len(freeSlots(object.VirtualDeviceList{diskAt(200, 0, "ide.vmdk")}, 10809, 10872)) != 0 {
+	if len(freeSlots(object.VirtualDeviceList{diskAt(200, 0, "ide.vmdk")})) != 0 {
 		t.Fatal("no SCSI controller must mean no slot")
 	}
 }
@@ -142,34 +125,6 @@ func TestWWNFromUUID(t *testing.T) {
 	got := WWNFromUUID("6000C293-43fb-7db7-9ba0-c86bceb5c325")
 	if got != "wwn-0x6000c29343fb7db79ba0c86bceb5c325" { // value verified on the PoC proxy
 		t.Fatalf("got %s", got)
-	}
-}
-
-func TestGuestProgramSpec(t *testing.T) {
-	s := guestProgramSpec("echo 'a b'", true)
-	if s.ProgramPath != "/usr/bin/sudo" || s.Arguments != `-n /bin/sh -c 'echo '\''a b'\'''` {
-		t.Fatalf("unexpected root spec %+v", s)
-	}
-	s = guestProgramSpec("exit 0", false)
-	if s.ProgramPath != "/bin/sh" || s.Arguments != "-c 'exit 0'" {
-		t.Fatalf("unexpected user spec %+v", s)
-	}
-}
-
-func TestExportScript(t *testing.T) {
-	s := exportScript("wwn-0xabc", 21474836480, "10.0.0.5", 10810)
-	for _, want := range []string{
-		"W=/dev/disk/by-id/wwn-0xabc",
-		`blockdev --setro "$D"`,
-		`= "21474836480" ] || exit 11`,
-		"nbdkit --readonly --port 10810 --ipaddr 10.0.0.5 --pidfile /run/osm-nbdkit-wwn-0xabc.pid file",
-	} {
-		if !strings.Contains(s, want) {
-			t.Errorf("export script missing %q:\n%s", want, s)
-		}
-	}
-	if !strings.Contains(stopScript("wwn-0xabc"), "/device/delete") {
-		t.Error("stop script must hot-remove the SCSI device in the guest")
 	}
 }
 
@@ -190,26 +145,28 @@ func TestDatacenterPath(t *testing.T) {
 }
 
 func TestConfigDefaults(t *testing.T) {
-	c, err := Config{VMName: "p", GuestUser: "u", GuestPassword: "x"}.withDefaults()
-	if err != nil || c.PortMin != 10809 || c.PortMax != 10872 {
+	c, err := Config{VMName: "p"}.withDefaults()
+	if err != nil || c.Port != DefaultPort {
 		t.Fatalf("unexpected defaults %+v %v", c, err)
 	}
-	if _, err := (Config{VMName: "p"}).withDefaults(); err == nil {
-		t.Fatal("guest credentials must be required")
+	if _, err := (Config{}).withDefaults(); err == nil {
+		t.Fatal("the proxy VM name must be required")
 	}
-	if _, err := (Config{VMName: "p", GuestUser: "u", GuestPassword: "x", PortMin: 2000, PortMax: 1000}).withDefaults(); err == nil {
-		t.Fatal("inverted port range must be rejected")
+	if _, err := (Config{VMName: "p", Port: 70000}).withDefaults(); err == nil {
+		t.Fatal("an invalid port must be rejected")
 	}
 }
 
-// ---------------------------------------------------------------- NBD probe
+// ---------------------------------------------------------------- NBD client
 
-// fakeNBD listens on 127.0.0.1:port and sends greeting to every client.
-func fakeNBD(t *testing.T, port int, greeting string) func() {
+// fakeNBD is a minimal NBD newstyle server used to exercise the handshake
+// client. exports returns the size and read-only flag of a name, or found
+// false to answer NBD_REP_ERR_UNKNOWN.
+func fakeNBD(t *testing.T, exports func(name string) (uint64, bool, bool)) (addr string, port int, stop func()) {
 	t.Helper()
-	l, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Skipf("cannot listen on port %d: %v", port, err)
+		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -220,70 +177,150 @@ func fakeNBD(t *testing.T, port int, greeting string) func() {
 			if err != nil {
 				return
 			}
-			_, _ = c.Write([]byte(greeting))
-			_ = c.Close()
+			go serveFakeNBD(c, exports)
 		}
 	}()
-	return func() { _ = l.Close(); wg.Wait() }
+	a := l.Addr().(*net.TCPAddr)
+	return a.IP.String(), a.Port, func() { _ = l.Close(); wg.Wait() }
 }
 
-func freePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+func serveFakeNBD(c net.Conn, exports func(string) (uint64, bool, bool)) {
+	defer func() { _ = c.Close() }()
+	reply := func(option, repType uint32, payload []byte) error {
+		buf := binary.BigEndian.AppendUint64(nil, nbdReplyMagic)
+		buf = binary.BigEndian.AppendUint32(buf, option)
+		buf = binary.BigEndian.AppendUint32(buf, repType)
+		buf = binary.BigEndian.AppendUint32(buf, uint32(len(payload)))
+		_, err := c.Write(append(buf, payload...))
+		return err
 	}
-	port := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
-	return port
+	if _, err := c.Write(append(append([]byte{}, nbdMagic...), 0, 1)); err != nil {
+		return
+	}
+	var clientFlags uint32
+	if err := binary.Read(c, binary.BigEndian, &clientFlags); err != nil {
+		return
+	}
+	for {
+		header := make([]byte, 16)
+		if _, err := io.ReadFull(c, header); err != nil {
+			return
+		}
+		option := binary.BigEndian.Uint32(header[8:12])
+		data := make([]byte, binary.BigEndian.Uint32(header[12:16]))
+		if _, err := io.ReadFull(c, data); err != nil {
+			return
+		}
+		if option == nbdOptAbort {
+			return
+		}
+		if option != nbdOptInfo || len(data) < 4 {
+			_ = reply(option, nbdRepError+1, nil)
+			continue
+		}
+		name := string(data[4 : 4+binary.BigEndian.Uint32(data[:4])])
+		size, readOnly, found := exports(name)
+		if !found {
+			_ = reply(option, nbdRepErrUnknown, []byte("no such export"))
+			continue
+		}
+		var flags uint16
+		if readOnly {
+			flags |= nbdFlagReadOnly
+		}
+		info := binary.BigEndian.AppendUint16(nil, nbdInfoExport)
+		info = binary.BigEndian.AppendUint64(info, size)
+		info = binary.BigEndian.AppendUint16(info, flags)
+		if reply(option, nbdRepInfo, info) != nil || reply(option, nbdRepAck, nil) != nil {
+			return
+		}
+	}
+}
+
+// oneExport serves a single read-only export of the given name and size.
+func oneExport(name string, size uint64) func(string) (uint64, bool, bool) {
+	return func(n string) (uint64, bool, bool) {
+		if n != name {
+			return 0, false, false
+		}
+		return size, true, true
+	}
+}
+
+func TestQueryExport(t *testing.T) {
+	addr, port, stop := fakeNBD(t, oneExport("wwn-0xabc", 21474836480))
+	defer stop()
+
+	info, err := QueryExport(addr, port, "wwn-0xabc", 5*time.Second)
+	if err != nil {
+		t.Fatalf("QueryExport: %v", err)
+	}
+	if info.Size != 21474836480 || !info.ReadOnly {
+		t.Fatalf("unexpected export info %+v", info)
+	}
+	if _, err := QueryExport(addr, port, "wwn-0xmissing", 5*time.Second); !errors.Is(err, ErrExportNotFound) {
+		t.Fatalf("missing export should give ErrExportNotFound, got %v", err)
+	}
+}
+
+func TestWaitExportChecksSizeAndReadOnly(t *testing.T) {
+	ctx := context.Background()
+
+	addr, port, stop := fakeNBD(t, oneExport("wwn-0xabc", 100))
+	if err := WaitExport(ctx, addr, port, "wwn-0xabc", 100, 2*time.Second); err != nil {
+		t.Fatalf("matching export rejected: %v", err)
+	}
+	// A different size means a stale or wrong device in the proxy.
+	err := WaitExport(ctx, addr, port, "wwn-0xabc", 200, 2*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "wrong or stale device") {
+		t.Fatalf("size mismatch not caught: %v", err)
+	}
+	// A missing export is retried, then reported as "did not appear".
+	err = WaitExport(ctx, addr, port, "wwn-0xnope", 100, 2*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "did not appear") {
+		t.Fatalf("missing export not reported: %v", err)
+	}
+	stop()
+
+	// A writable export must be refused: the service must run --readonly.
+	addr, port, stop = fakeNBD(t, func(string) (uint64, bool, bool) { return 100, false, true })
+	defer stop()
+	err = WaitExport(ctx, addr, port, "wwn-0xabc", 100, 2*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "writable") {
+		t.Fatalf("writable export not refused: %v", err)
+	}
 }
 
 func TestProbeNBD(t *testing.T) {
-	port := freePort(t)
-	stop := fakeNBD(t, port, "NBDMAGICIHAVEOPT\x00\x03")
-	if err := ProbeNBD("127.0.0.1", port, 2*time.Second); err != nil {
+	addr, port, stop := fakeNBD(t, oneExport("x", 1))
+	if err := ProbeNBD(addr, port, 2*time.Second); err != nil {
 		t.Fatalf("valid greeting rejected: %v", err)
 	}
 	stop()
 
-	port = freePort(t)
-	stop = fakeNBD(t, port, "SSH-2.0-OpenSSH_9\r\n")
-	defer stop()
-	if err := ProbeNBD("127.0.0.1", port, 2*time.Second); err == nil {
-		t.Fatal("non-NBD greeting accepted")
+	// A non-NBD server must not be mistaken for one.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := ProbeNBD("127.0.0.1", freePort(t), time.Second); err == nil {
-		t.Fatal("closed port accepted")
+	defer func() { _ = l.Close() }()
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			_, _ = c.Write([]byte("SSH-2.0-OpenSSH_9\r\n"))
+			_ = c.Close()
+		}
+	}()
+	a := l.Addr().(*net.TCPAddr)
+	if err := ProbeNBD(a.IP.String(), a.Port, 2*time.Second); err == nil {
+		t.Fatal("non-NBD greeting accepted")
 	}
 }
 
 // ---------------------------------------------------------------- vcsim
 
-// fakeGuest records the scripts and returns the configured exit codes.
-type fakeGuest struct {
-	mu      sync.Mutex
-	scripts []string
-	codes   []int32 // returned in order, then 0
-	authErr error
-}
-
-func (f *fakeGuest) Validate(context.Context) error { return f.authErr }
-
-func (f *fakeGuest) Run(_ context.Context, script string, _ bool, _ time.Duration) (int32, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.scripts = append(f.scripts, script)
-	if len(f.codes) > 0 {
-		c := f.codes[0]
-		f.codes = f.codes[1:]
-		return c, nil
-	}
-	return 0, nil
-}
-
-// simSetup returns a proxy on DC0_H0_VM0 (with a pvscsi controller added) and
-// the source VM DC0_H0_VM1 with a snapshot.
-func simSetup(ctx context.Context, t *testing.T, c *vim25.Client, guest GuestRunner, portMin int) (*Proxy, *object.VirtualMachine, *find.Finder) {
+// simSetup returns a proxy on DC0_H0_VM0 (with a pvscsi controller added),
+// pointed at the given NBD endpoint, and the source VM DC0_H0_VM1.
+func simSetup(ctx context.Context, t *testing.T, c *vim25.Client, addr string, port int) (*Proxy, *object.VirtualMachine, *find.Finder) {
 	t.Helper()
 	finder := find.NewFinder(c, true)
 	dc, err := finder.DefaultDatacenter(ctx)
@@ -310,11 +347,11 @@ func simSetup(ctx context.Context, t *testing.T, c *vim25.Client, guest GuestRun
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Config{VMName: "DC0_H0_VM0", Address: "127.0.0.1", PortMin: portMin, GuestUser: "u", GuestPassword: "p"}.withDefaults()
+	cfg, err := Config{VMName: "DC0_H0_VM0", Address: addr, Port: port}.withDefaults()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Proxy{Client: c, VM: pvm, Config: cfg, Guest: guest}, src, finder
+	return &Proxy{Client: c, VM: pvm, Config: cfg}, src, finder
 }
 
 func firstDisk(ctx context.Context, t *testing.T, vm *object.VirtualMachine) *types.VirtualDisk {
@@ -332,26 +369,25 @@ func firstDisk(ctx context.Context, t *testing.T, vm *object.VirtualMachine) *ty
 
 func TestSimExportAttachAndDetach(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
-		guest := &fakeGuest{}
-		portMin := freePort(t)
-		p, src, _ := simSetup(ctx, t, c, guest, portMin)
-		srcDisk := firstDisk(ctx, t, src)
-		fileName, _, _ := diskBacking(srcDisk)
-
-		// The export port is the first free slot of the new pvscsi controller.
-		devices, _ := p.VM.Device(ctx)
-		want := freeSlots(devices, p.Config.PortMin, p.Config.PortMax)[0]
-		stop := fakeNBD(t, want.Port, "NBDMAGICIHAVEOPT")
+		// Serve any export name: the UUID the simulator gives the attached
+		// disk is only known after the attach.
+		var served string
+		addr, port, stop := fakeNBD(t, func(n string) (uint64, bool, bool) {
+			served = n
+			return 10737418240, true, true
+		})
 		defer stop()
+
+		p, src, _ := simSetup(ctx, t, c, addr, port)
+		srcDisk := firstDisk(ctx, t, src)
+		srcDisk.CapacityInBytes = 10737418240
+		fileName, _, _ := diskBacking(srcDisk)
 
 		exp, err := p.Export(ctx, srcDisk)
 		if err != nil {
 			t.Fatalf("Export: %v", err)
 		}
-		if exp.Port != want.Port || !strings.HasPrefix(exp.URI(), "nbd://127.0.0.1:") {
-			t.Fatalf("unexpected export %s (want port %d)", exp.URI(), want.Port)
-		}
-		devices, _ = p.VM.Device(ctx)
+		devices, _ := p.VM.Device(ctx)
 		attached := disksByFile(devices, fileName)
 		if len(attached) != 1 {
 			t.Fatalf("expected the source disk attached once to the proxy, got %d", len(attached))
@@ -359,8 +395,13 @@ func TestSimExportAttachAndDetach(t *testing.T) {
 		if _, _, mode := diskBacking(attached[0]); mode != string(types.VirtualDiskModeIndependent_nonpersistent) {
 			t.Fatalf("attached disk mode %q", mode)
 		}
-		if len(guest.scripts) != 1 || !strings.Contains(guest.scripts[0], "nbdkit --readonly --port "+strconv.Itoa(want.Port)) {
-			t.Fatalf("export script not run as expected: %v", guest.scripts)
+		// The export name must be the by-id name of the attached disk.
+		_, uuid, _ := diskBacking(attached[0])
+		if exp.Name != WWNFromUUID(uuid) || served != exp.Name {
+			t.Fatalf("export name %q, served %q, disk uuid %q", exp.Name, served, uuid)
+		}
+		if want := "nbd://" + net.JoinHostPort(addr, strconv.Itoa(port)) + "/" + exp.Name; exp.URI() != want {
+			t.Fatalf("URI %q, want %q", exp.URI(), want)
 		}
 
 		// A second export of the same disk is refused.
@@ -378,9 +419,6 @@ func TestSimExportAttachAndDetach(t *testing.T) {
 		if len(disksByFile(devices, fileName)) != 0 {
 			t.Fatal("disk still attached after Close")
 		}
-		if !strings.Contains(guest.scripts[len(guest.scripts)-1], "/device/delete") {
-			t.Fatal("Close must run the stop script in the guest")
-		}
 		// The source VM still has its disk (files kept).
 		if f, _, _ := diskBacking(firstDisk(ctx, t, src)); f != fileName {
 			t.Fatalf("source disk changed: %s", f)
@@ -388,27 +426,34 @@ func TestSimExportAttachAndDetach(t *testing.T) {
 	})
 }
 
-func TestSimExportFailureDetaches(t *testing.T) {
+func TestSimExportDetachesWhenExportNeverAppears(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
-		guest := &fakeGuest{codes: []int32{exitSizeMismatch}}
-		p, src, _ := simSetup(ctx, t, c, guest, freePort(t))
+		// Server up, but it never serves the disk (as if it had not shown up
+		// in the proxy): Export must fail and leave nothing attached.
+		addr, port, stop := fakeNBD(t, func(string) (uint64, bool, bool) { return 0, false, false })
+		defer stop()
+
+		p, src, _ := simSetup(ctx, t, c, addr, port)
 		srcDisk := firstDisk(ctx, t, src)
 		fileName, _, _ := diskBacking(srcDisk)
 
-		_, err := p.Export(ctx, srcDisk)
-		if err == nil || !strings.Contains(err.Error(), "size differs") {
-			t.Fatalf("expected size mismatch error, got %v", err)
+		old := nbdWaitTimeout
+		nbdWaitTimeout = 2 * time.Second
+		defer func() { nbdWaitTimeout = old }()
+
+		if _, err := p.Export(ctx, srcDisk); err == nil || !strings.Contains(err.Error(), "did not appear") {
+			t.Fatalf("expected a timeout error, got %v", err)
 		}
 		devices, _ := p.VM.Device(ctx)
 		if len(disksByFile(devices, fileName)) != 0 {
-			t.Fatal("disk must be detached when the export fails")
+			t.Fatal("disk must be detached when the export never appears")
 		}
 	})
 }
 
 func TestSimDetachRefusesPersistentDisk(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
-		p, _, _ := simSetup(ctx, t, c, &fakeGuest{}, freePort(t))
+		p, _, _ := simSetup(ctx, t, c, "127.0.0.1", 10809)
 		own := firstDisk(ctx, t, p.VM) // the proxy's own (persistent) disk
 		fileName, _, _ := diskBacking(own)
 		if err := p.detach(ctx, fileName); err == nil {
@@ -423,13 +468,12 @@ func TestSimDetachRefusesPersistentDisk(t *testing.T) {
 
 func TestSimNewInDatacenterOf(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
-		cfg := Config{VMName: "DC0_H0_VM0", Address: "127.0.0.1", GuestUser: "u", GuestPassword: "p"}
-		// Inventory path of the VM being migrated, in the same datacenter.
+		cfg := Config{VMName: "DC0_H0_VM0", Address: "127.0.0.1"}
 		p, err := NewInDatacenterOf(ctx, c, "/DC0/vm/DC0_H0_VM1", cfg)
 		if err != nil {
 			t.Fatalf("NewInDatacenterOf: %v", err)
 		}
-		if p.VM.Reference().Value == "" || p.Config.PortMin != DefaultPortMin {
+		if p.VM.Reference().Value == "" || p.Config.Port != DefaultPort {
 			t.Fatalf("unexpected proxy %+v", p.Config)
 		}
 		if _, err := NewInDatacenterOf(ctx, c, "/nope/vm/x", cfg); err == nil {
@@ -438,10 +482,14 @@ func TestSimNewInDatacenterOf(t *testing.T) {
 	})
 }
 
-func TestSimPrecheckSourceVMs(t *testing.T) {
+func TestSimPrecheck(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
-		p, _, finder := simSetup(ctx, t, c, &fakeGuest{}, 10809)
-		r := Precheck(ctx, finder, p, PrecheckOptions{VMs: []string{"DC0_H0_VM1", "DC0_H0_VM0", "nope"}, CBTSync: true})
+		addr, port, stop := fakeNBD(t, func(string) (uint64, bool, bool) { return 1 << 30, true, true })
+		defer stop()
+		p, _, finder := simSetup(ctx, t, c, addr, port)
+		r := Precheck(ctx, finder, p, PrecheckOptions{
+			VMs: []string{"DC0_H0_VM1", "DC0_H0_VM0", "nope"}, CBTSync: true, CheckNetwork: true,
+		})
 
 		get := func(name, target string) *Check {
 			for i := range r.Checks {
@@ -450,6 +498,9 @@ func TestSimPrecheckSourceVMs(t *testing.T) {
 				}
 			}
 			return nil
+		}
+		if ch := get("nbd_service", addr); ch == nil || ch.Status != StatusOK {
+			t.Errorf("reachable nbdkit service should pass: %+v", ch)
 		}
 		if ch := get("vm_disk_datastore", "DC0_H0_VM1"); ch == nil || ch.Status != StatusOK {
 			t.Errorf("source disk datastore should be accessible from the proxy host: %+v", ch)
@@ -463,11 +514,11 @@ func TestSimPrecheckSourceVMs(t *testing.T) {
 		if ch := get("vm_found", "nope"); ch == nil || ch.Status != StatusFail {
 			t.Errorf("missing VM must fail: %+v", ch)
 		}
-		if ch := get("proxy_scsi", "DC0_H0_VM0"); ch == nil || ch.Status != StatusOK {
-			t.Errorf("proxy with pvscsi should pass the SCSI check: %+v", ch)
-		}
 		if ch := get("proxy_enable_uuid", "DC0_H0_VM0"); ch == nil || ch.Status != StatusFail {
 			t.Errorf("disk.EnableUUID not set must fail: %+v", ch)
+		}
+		if ch := get("proxy_tools", "DC0_H0_VM0"); ch == nil || ch.Status == StatusFail {
+			t.Errorf("VMware Tools must not be fatal any more: %+v", ch)
 		}
 		if !r.Failed {
 			t.Error("report must be failed")

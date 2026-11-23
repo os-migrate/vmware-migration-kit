@@ -90,13 +90,13 @@
     transport: "{{ import_workloads_transport }}"
     proxy_vm_name: "{{ import_workloads_proxy_vm_name if import_workloads_transport == 'proxy' else omit }}"
     proxy_vm_ip: "{{ import_workloads_proxy_vm_ip if (import_workloads_transport == 'proxy' and import_workloads_proxy_vm_ip | length > 0) else omit }}"
-    proxy_vm_guest_username: "{{ import_workloads_proxy_vm_guest_username if import_workloads_transport == 'proxy' else omit }}"
-    proxy_vm_guest_password: "{{ import_workloads_proxy_vm_guest_password if import_workloads_transport == 'proxy' else omit }}"
-    nbd_port_min: "{{ import_workloads_proxy_vm_nbd_port_min | int if import_workloads_transport == 'proxy' else omit }}"
-    nbd_port_max: "{{ import_workloads_proxy_vm_nbd_port_max | int if import_workloads_transport == 'proxy' else omit }}"
+    nbd_port: "{{ import_workloads_proxy_vm_nbd_port | int if import_workloads_transport == 'proxy' else omit }}"
     # convhostname: "{{ conv_host_name }} | default(omit) }}"
   register: migrate_output
   ignore_errors: true
+  # Hides the vCenter password from the task log; the module still writes its
+  # own log file, which is pulled on failure.
+  no_log: "{{ not (import_workloads_debug | bool) }}"
 
 - name: Pull migration log
   ansible.builtin.fetch:

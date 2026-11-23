@@ -137,13 +137,10 @@ type ModuleArgs struct {
 	NbdcopyOptions     map[string]interface{} `json:"nbdcopy_options"`
 	// Disk transport: "vddk" (default, nbdkit+VDDK on the conversion host) or
 	// "proxy" (snapshot disk hot-added to a proxy VM and exported by nbdkit).
-	Transport            string `json:"transport"`
-	ProxyVmName          string `json:"proxy_vm_name"`
-	ProxyVmIp            string `json:"proxy_vm_ip"`
-	ProxyVmGuestUsername string `json:"proxy_vm_guest_username"`
-	ProxyVmGuestPassword string `json:"proxy_vm_guest_password"`
-	NbdPortMin           int    `json:"nbd_port_min"`
-	NbdPortMax           int    `json:"nbd_port_max"`
+	Transport   string `json:"transport"`
+	ProxyVmName string `json:"proxy_vm_name"`
+	ProxyVmIp   string `json:"proxy_vm_ip"`
+	NbdPort     int    `json:"nbd_port"`
 }
 
 func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
@@ -330,14 +327,6 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		err = c.NbdkitConfig.VddkConfig.PowerOffVM(ctx)
 		if err != nil {
 			logger.Log.Infof("Failed to power off vm %v", err)
-			return "", err
-		}
-	}
-	// Proxy transport: detach any disk of this VM left attached to the proxy by
-	// a crashed run, it would block the removal of the snapshot.
-	if c.Proxy != nil {
-		if err := c.Proxy.CleanupStale(ctx, c.NbdkitConfig.VddkConfig.VirtualMachine); err != nil {
-			logger.Log.Infof("Failed to clean up stale proxy attachments: %v", err)
 			return "", err
 		}
 	}
@@ -650,20 +639,27 @@ func main() {
 			ansible.FailJson(response)
 		}
 		px, err = proxy.NewInDatacenterOf(ctx, c.Client, vm.InventoryPath, proxy.Config{
-			VMName:        moduleArgs.ProxyVmName,
-			Address:       moduleArgs.ProxyVmIp,
-			PortMin:       moduleArgs.NbdPortMin,
-			PortMax:       moduleArgs.NbdPortMax,
-			GuestUser:     moduleArgs.ProxyVmGuestUsername,
-			GuestPassword: moduleArgs.ProxyVmGuestPassword,
+			VMName:  moduleArgs.ProxyVmName,
+			Address: moduleArgs.ProxyVmIp,
+			Port:    moduleArgs.NbdPort,
 		})
 		if err != nil {
 			logger.Log.Infof("Failed to set up the proxy VM: %v", err)
 			response.Msg = "Failed to set up the proxy VM: " + err.Error() + ". Check logs: " + LogFile
 			ansible.FailJson(response)
 		}
-		logger.Log.Infof("Proxy transport: proxy VM %s at %s, NBD ports %d-%d",
-			px.Config.VMName, px.Config.Address, px.Config.PortMin, px.Config.PortMax)
+		logger.Log.Infof("Proxy transport: proxy VM %s, nbdkit service at %s:%d",
+			px.Config.VMName, px.Config.Address, px.Config.Port)
+		// Detach anything this VM left attached to the proxy in a crashed run,
+		// it would block the removal of the snapshot. Done once here rather
+		// than per disk: the disks of a VM are migrated one after the other,
+		// and cleaning up between two of them could detach a disk another run
+		// of the same VM is reading.
+		if err := px.CleanupStale(ctx, vm); err != nil {
+			logger.Log.Infof("Failed to clean up stale proxy attachments: %v", err)
+			response.Msg = "Failed to clean up stale proxy attachments: " + err.Error() + ". Check logs: " + LogFile
+			ansible.FailJson(response)
+		}
 	default:
 		response.Msg = "Unknown transport " + transport + " (expected vddk or proxy)"
 		ansible.FailJson(response)

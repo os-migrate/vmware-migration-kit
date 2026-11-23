@@ -16,9 +16,9 @@
  */
 
 // proxy_precheck checks that a proxy VM can be used for the proxy transport:
-// the proxy exists and is correctly configured, guest operations work, the
-// conversion host can reach nbdkit on the proxy, and every VM to migrate has
-// disks the proxy can hot-add.
+// the proxy exists and is correctly configured, the conversion host can reach
+// the nbdkit service running on the proxy, and every VM to migrate has disks
+// the proxy can hot-add. Nothing is executed inside the proxy VM.
 package proxy_precheck
 
 import (
@@ -38,20 +38,17 @@ import (
 
 // ModuleArgs are the Ansible module arguments.
 type ModuleArgs struct {
-	User                 string   `json:"user"`
-	Password             string   `json:"password"`
-	Server               string   `json:"server"`
-	VmwareInsecure       bool     `json:"vmware_insecure"`
-	Datacenter           string   `json:"datacenter"`
-	ProxyVmName          string   `json:"proxy_vm_name"`
-	ProxyVmIp            string   `json:"proxy_vm_ip"`
-	ProxyVmGuestUsername string   `json:"proxy_vm_guest_username"`
-	ProxyVmGuestPassword string   `json:"proxy_vm_guest_password"`
-	NbdPortMin           int      `json:"nbd_port_min"`
-	NbdPortMax           int      `json:"nbd_port_max"`
-	VmsList              []string `json:"vms_list"`
-	CBTSync              bool     `json:"cbt_sync"`
-	CheckNetwork         *bool    `json:"check_network"`
+	User           string   `json:"user"`
+	Password       string   `json:"password"`
+	Server         string   `json:"server"`
+	VmwareInsecure bool     `json:"vmware_insecure"`
+	Datacenter     string   `json:"datacenter"`
+	ProxyVmName    string   `json:"proxy_vm_name"`
+	ProxyVmIp      string   `json:"proxy_vm_ip"`
+	NbdPort        int      `json:"nbd_port"`
+	VmsList        []string `json:"vms_list"`
+	CBTSync        bool     `json:"cbt_sync"`
+	CheckNetwork   *bool    `json:"check_network"`
 }
 
 // Response is the Ansible module result.
@@ -122,7 +119,6 @@ func Run() {
 	}
 	for field, v := range map[string]string{
 		"server": a.Server, "user": a.User, "password": a.Password, "proxy_vm_name": a.ProxyVmName,
-		"proxy_vm_guest_username": a.ProxyVmGuestUsername, "proxy_vm_guest_password": a.ProxyVmGuestPassword,
 	} {
 		if v == "" {
 			fail(field + " is required")
@@ -147,12 +143,9 @@ func Run() {
 	finder.SetDatacenter(dc)
 
 	p, err := proxy.New(ctx, c.Client, finder, proxy.Config{
-		VMName:        a.ProxyVmName,
-		Address:       a.ProxyVmIp,
-		PortMin:       a.NbdPortMin,
-		PortMax:       a.NbdPortMax,
-		GuestUser:     a.ProxyVmGuestUsername,
-		GuestPassword: a.ProxyVmGuestPassword,
+		VMName:  a.ProxyVmName,
+		Address: a.ProxyVmIp,
+		Port:    a.NbdPort,
 	})
 	if err != nil {
 		fail(err.Error())

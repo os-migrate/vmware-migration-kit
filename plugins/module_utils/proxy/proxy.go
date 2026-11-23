@@ -17,9 +17,21 @@
 
 // Package proxy implements the "proxy VM" transport: the snapshot disk of a
 // source VM is hot-added (read-only, independent-nonpersistent) to a Linux
-// proxy VM running in vSphere, and exported with nbdkit over TCP. The proxy is
-// driven only through the vSphere API (ReconfigVM + guest operations): no SSH
-// to ESXi, no VDDK, no NFC.
+// proxy VM running in vSphere, and read over TCP from an nbdkit server already
+// running there.
+//
+// Nothing is ever executed inside the proxy VM. It permanently runs
+//
+//	nbdkit --readonly --port 10809 file dir=/dev/disk/by-id
+//
+// as a system service. The file plugin resolves the NBD export name to a file
+// of that directory when the client connects, so a disk hot-added after nbdkit
+// started is served straight away, under the export name of its by-id link
+// ("wwn-0x<disk uuid>", available when disk.EnableUUID is TRUE on the proxy).
+//
+// A migration therefore only needs the vSphere API (ReconfigVM to attach and
+// detach) and a TCP connection to the proxy: no guest credentials, no guest
+// operations privilege, no SSH, no VDDK and no NFC.
 //
 // This package must stay free of cgo dependencies (no libnbd): it is linked
 // into the module_dispatcher binary. Do not import the vmware or nbdkit
@@ -38,13 +50,8 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 )
 
-const (
-	// DefaultPortMin is the first NBD port of a proxy.
-	DefaultPortMin = 10809
-	// PortsPerProxy is one port per SCSI slot (4 controllers x 16 units).
-	// To scale further, use several proxy VMs.
-	PortsPerProxy = 64
-)
+// DefaultPort is the port the nbdkit service of the proxy listens on.
+const DefaultPort = 10809
 
 // Config describes how to reach and drive the proxy VM.
 type Config struct {
@@ -53,13 +60,8 @@ type Config struct {
 	// Address is the IP the conversion host uses to reach nbdkit on the proxy.
 	// If empty, the IP reported by VMware Tools is used.
 	Address string
-	// PortMin/PortMax is the NBD port range opened on the proxy firewall.
-	PortMin int
-	PortMax int
-	// GuestUser/GuestPassword authenticate vSphere guest operations. The user
-	// needs passwordless sudo on the proxy.
-	GuestUser     string
-	GuestPassword string
+	// Port is the port of the nbdkit service of the proxy.
+	Port int
 }
 
 // withDefaults fills the port range and validates the config.
@@ -67,17 +69,11 @@ func (c Config) withDefaults() (Config, error) {
 	if c.VMName == "" {
 		return c, fmt.Errorf("proxy VM name is required")
 	}
-	if c.GuestUser == "" || c.GuestPassword == "" {
-		return c, fmt.Errorf("proxy guest username and password are required (vSphere guest operations)")
+	if c.Port == 0 {
+		c.Port = DefaultPort
 	}
-	if c.PortMin == 0 {
-		c.PortMin = DefaultPortMin
-	}
-	if c.PortMax == 0 {
-		c.PortMax = c.PortMin + PortsPerProxy - 1
-	}
-	if c.PortMin < 1 || c.PortMax > 65535 || c.PortMax < c.PortMin {
-		return c, fmt.Errorf("invalid NBD port range %d-%d", c.PortMin, c.PortMax)
+	if c.Port < 1 || c.Port > 65535 {
+		return c, fmt.Errorf("invalid NBD port %d", c.Port)
 	}
 	return c, nil
 }
@@ -87,7 +83,6 @@ type Proxy struct {
 	Client *vim25.Client
 	VM     *object.VirtualMachine
 	Config Config
-	Guest  GuestRunner
 }
 
 // New finds the proxy VM and prepares the guest operations runner.
@@ -111,12 +106,7 @@ func New(ctx context.Context, c *vim25.Client, finder *find.Finder, cfg Config) 
 		}
 		cfg.Address = o.Guest.IpAddress
 	}
-	return &Proxy{
-		Client: c,
-		VM:     vm,
-		Config: cfg,
-		Guest:  NewGuestOps(c, vm, cfg.GuestUser, cfg.GuestPassword),
-	}, nil
+	return &Proxy{Client: c, VM: vm, Config: cfg}, nil
 }
 
 // NewInDatacenterOf prepares the proxy VM, looking it up in the datacenter of

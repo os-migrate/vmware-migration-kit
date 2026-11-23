@@ -27,13 +27,14 @@ import_workloads_multidiskfs: "{{ multidiskfs | default(false) | bool }}"
 #          vSphere and exported by nbdkit to the conversion host. No VDDK/NFC.
 #          Uses the proxy_vm_* variables (see the proxy_vm role); check the setup
 #          with playbooks/proxy_precheck.yml.
+#          Nothing is executed in the proxy VM and no credentials for it are
+#          needed: it permanently runs "nbdkit --readonly --port 10809 file
+#          dir=/dev/disk/by-id" as a service, and serves each hot-added disk
+#          under the export name of its by-id link.
 import_workloads_transport: "{{ transport | default('vddk') }}"
 import_workloads_proxy_vm_name: "{{ proxy_vm_name | default('') }}"
 import_workloads_proxy_vm_ip: "{{ proxy_vm_ip | default('') }}"
-import_workloads_proxy_vm_guest_username: "{{ proxy_vm_guest_username | default('cloud-user') }}"
-import_workloads_proxy_vm_guest_password: "{{ proxy_vm_guest_password | default('') }}"
-import_workloads_proxy_vm_nbd_port_min: "{{ proxy_vm_nbd_port_min | default(10809) }}"
-import_workloads_proxy_vm_nbd_port_max: "{{ proxy_vm_nbd_port_max | default(proxy_vm_nbd_port_min | default(10809) | int + 63) }}"
+import_workloads_proxy_vm_nbd_port: "{{ proxy_vm_nbd_port | default(10809) }}"
 
 # Neutron port creation
 import_workloads_use_fixed_ips: "{{ use_fixed_ips | default(false) | bool }}"

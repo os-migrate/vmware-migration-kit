@@ -55,9 +55,11 @@ type Facts struct {
 	Host       string   `json:"host"`
 	PowerState string   `json:"power_state"`
 	Datastores []string `json:"datastores"`
-	FreeSlots  int      `json:"free_slots"`
-	PortMin    int      `json:"port_min"`
-	PortMax    int      `json:"port_max"`
+	// ProxyDiskWWNs are the by-id names of the disks of the proxy itself,
+	// used to check the nbdkit service really serves /dev/disk/by-id.
+	ProxyDiskWWNs []string `json:"proxy_disk_wwns"`
+	FreeSlots     int      `json:"free_slots"`
+	Port          int      `json:"port"`
 }
 
 // Report is the result of Precheck.
@@ -80,8 +82,7 @@ type PrecheckOptions struct {
 	VMs []string
 	// CBTSync: warn when CBT is disabled on a VM.
 	CBTSync bool
-	// CheckNetwork starts a temporary nbdkit on the first and last port of the
-	// range and checks this host can reach it.
+	// CheckNetwork checks this host can reach the nbdkit service of the proxy.
 	CheckNetwork bool
 }
 
@@ -94,16 +95,9 @@ type proxyInfo struct {
 // Precheck verifies the proxy VM is usable and can access every VM to migrate.
 func Precheck(ctx context.Context, finder *find.Finder, p *Proxy, opts PrecheckOptions) Report {
 	r := Report{Checks: []Check{}}
-	info, ready := p.checkProxy(ctx, &r)
-	if ready {
-		guestOK := p.checkGuest(ctx, &r)
-		if opts.CheckNetwork {
-			if guestOK {
-				p.checkNetwork(ctx, &r)
-			} else {
-				r.add("network", p.Config.VMName, StatusFail, "skipped: guest operations are not working")
-			}
-		}
+	info := p.checkProxy(ctx, &r)
+	if opts.CheckNetwork {
+		p.checkNetwork(&r)
 	}
 	for _, name := range opts.VMs {
 		vm, err := finder.VirtualMachine(ctx, name)
@@ -117,13 +111,13 @@ func Precheck(ctx context.Context, finder *find.Finder, p *Proxy, opts PrecheckO
 	return r
 }
 
-// checkProxy checks the proxy VM configuration through the vSphere API.
-// It returns information for the source VM checks and whether the guest is
-// ready for guest operations.
-func (p *Proxy) checkProxy(ctx context.Context, r *Report) (proxyInfo, bool) {
+// checkProxy checks the proxy VM configuration through the vSphere API and
+// returns the information needed by the source VM checks.
+func (p *Proxy) checkProxy(ctx context.Context, r *Report) proxyInfo {
 	name := p.Config.VMName
 	info := proxyInfo{datastores: map[types.ManagedObjectReference]string{}, diskUUIDs: map[string]bool{}}
-	r.Facts = Facts{Name: name, Address: p.Config.Address, PortMin: p.Config.PortMin, PortMax: p.Config.PortMax, Datastores: []string{}}
+	r.Facts = Facts{Name: name, Address: p.Config.Address, Port: p.Config.Port,
+		Datastores: []string{}, ProxyDiskWWNs: []string{}}
 
 	var o mo.VirtualMachine
 	err := p.VM.Properties(ctx, p.VM.Reference(), []string{
@@ -131,22 +125,21 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) (proxyInfo, bool) {
 	}, &o)
 	if err != nil || o.Config == nil {
 		r.add("proxy_config", name, StatusFail, "cannot read proxy VM configuration: %v", err)
-		return info, false
+		return info
 	}
 	r.Facts.PowerState = string(o.Runtime.PowerState)
 
-	ready := true
 	if o.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOn {
 		r.add("proxy_power", name, StatusOK, "powered on")
 	} else {
 		r.add("proxy_power", name, StatusFail, "proxy VM is %s, it must be powered on", o.Runtime.PowerState)
-		ready = false
 	}
+	// Tools are not needed to migrate (nothing is executed in the proxy),
+	// only to report the proxy IP when it is not configured explicitly.
 	if o.Guest != nil && o.Guest.ToolsRunningStatus == string(types.VirtualMachineToolsRunningStatusGuestToolsRunning) {
 		r.add("proxy_tools", name, StatusOK, "VMware Tools running")
 	} else {
-		r.add("proxy_tools", name, StatusFail, "VMware Tools not running (needed for guest operations)")
-		ready = false
+		r.add("proxy_tools", name, StatusWarn, "VMware Tools not running (only used to discover the proxy IP)")
 	}
 
 	enableUUID := false
@@ -164,13 +157,13 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) (proxyInfo, bool) {
 
 	devices := object.VirtualDeviceList(o.Config.Hardware.Device)
 	ctrls := scsiControllers(devices)
-	slots := freeSlots(devices, p.Config.PortMin, p.Config.PortMax)
+	slots := freeSlots(devices)
 	r.Facts.FreeSlots = len(slots)
 	switch {
 	case len(ctrls) == 0:
 		r.add("proxy_scsi", name, StatusFail, "no SCSI controller (pvscsi or LSI Logic needed for hot-add)")
 	case len(slots) == 0:
-		r.add("proxy_scsi", name, StatusFail, "no free SCSI slot within ports %d-%d", p.Config.PortMin, p.Config.PortMax)
+		r.add("proxy_scsi", name, StatusFail, "no free SCSI slot on the proxy VM")
 	default:
 		r.add("proxy_scsi", name, StatusOK, "%d SCSI controller(s), %d free slot(s) -> up to %d concurrent disk exports",
 			len(ctrls), len(slots), len(slots))
@@ -178,6 +171,7 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) (proxyInfo, bool) {
 	for _, d := range devices.SelectByType((*types.VirtualDisk)(nil)) {
 		if _, uuid, _ := diskBacking(d.(*types.VirtualDisk)); uuid != "" {
 			info.diskUUIDs[strings.ToLower(uuid)] = true
+			r.Facts.ProxyDiskWWNs = append(r.Facts.ProxyDiskWWNs, WWNFromUUID(uuid))
 		}
 	}
 
@@ -204,82 +198,39 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) (proxyInfo, bool) {
 			r.add("proxy_host", name, StatusOK, "on host %s, %d accessible datastore(s)", host.Name, len(info.datastores))
 		}
 	}
-	return info, ready
+	return info
 }
 
-// Exit codes of the guest tools check script.
-const (
-	exitGuestNoNbdkit     = 20
-	exitGuestNoFilePlugin = 21
-)
-
-// checkGuest checks guest credentials, sudo and nbdkit inside the proxy.
-func (p *Proxy) checkGuest(ctx context.Context, r *Report) bool {
-	name := p.Config.VMName
-	if err := p.Guest.Validate(ctx); err != nil {
-		r.add("proxy_guest_auth", name, StatusFail, "guest credentials rejected for %q: %v", p.Config.GuestUser, err)
-		return false
+// checkNetwork checks that this host (the conversion host) can reach the
+// nbdkit service of the proxy. Nothing is started in the proxy: the service
+// runs there permanently, so its greeting also proves it is up.
+func (p *Proxy) checkNetwork(r *Report) {
+	target := fmt.Sprintf("%s:%d", p.Config.Address, p.Config.Port)
+	if err := ProbeNBD(p.Config.Address, p.Config.Port, 10*time.Second); err != nil {
+		r.add("nbd_service", target, StatusFail,
+			"no NBD server answering: start the nbdkit service on the proxy "+
+				"(nbdkit --readonly --port %d file dir=/dev/disk/by-id) and open the port for this host: %v",
+			p.Config.Port, err)
+		return
 	}
-	r.add("proxy_guest_auth", name, StatusOK, "guest credentials valid for %q", p.Config.GuestUser)
+	r.add("nbd_service", target, StatusOK, "nbdkit service reachable from this host")
 
-	code, err := p.Guest.Run(ctx, "exit 0", true, time.Minute)
-	if err != nil || code != 0 {
-		r.add("proxy_sudo", name, StatusFail, "passwordless sudo does not work for %q (exit %d, %v)", p.Config.GuestUser, code, err)
-		return false
+	// The proxy's own disks are served too, so any export proves the service
+	// really serves /dev/disk/by-id and that by-id names are usable.
+	if len(r.Facts.ProxyDiskWWNs) == 0 {
+		return
 	}
-	r.add("proxy_sudo", name, StatusOK, "passwordless sudo works")
-
-	script := fmt.Sprintf(`command -v nbdkit >/dev/null 2>&1 || exit %d
-d=$(nbdkit --dump-config | sed -n 's/^plugindir=//p')
-[ -e "$d/nbdkit-file-plugin.so" ] || exit %d
-exit 0`, exitGuestNoNbdkit, exitGuestNoFilePlugin)
-	code, err = p.Guest.Run(ctx, script, true, time.Minute)
+	wwn := r.Facts.ProxyDiskWWNs[0]
+	info, err := QueryExport(p.Config.Address, p.Config.Port, wwn, 10*time.Second)
 	switch {
 	case err != nil:
-		r.add("proxy_nbdkit", name, StatusFail, "cannot check nbdkit: %v", err)
-		return false
-	case code == exitGuestNoNbdkit:
-		r.add("proxy_nbdkit", name, StatusFail, "nbdkit is not installed in the proxy")
-		return false
-	case code == exitGuestNoFilePlugin:
-		r.add("proxy_nbdkit", name, StatusFail, "nbdkit file plugin is missing (install nbdkit-basic-plugins)")
-		return false
-	case code != 0:
-		r.add("proxy_nbdkit", name, StatusFail, "nbdkit check failed with exit code %d", code)
-		return false
-	}
-	r.add("proxy_nbdkit", name, StatusOK, "nbdkit and its file plugin are installed")
-	return true
-}
-
-// checkNetwork starts a temporary nbdkit (null plugin) on the first and last
-// port of the range and checks that this host gets the NBD greeting. This
-// validates routing, NAT and the proxy firewall end to end.
-func (p *Proxy) checkNetwork(ctx context.Context, r *Report) {
-	ports := []int{p.Config.PortMin}
-	if p.Config.PortMax != p.Config.PortMin {
-		ports = append(ports, p.Config.PortMax)
-	}
-	for _, port := range ports {
-		target := fmt.Sprintf("%s:%d", p.Config.Address, port)
-		pid := fmt.Sprintf("/run/osm-nbdkit-precheck-%d.pid", port)
-		start := fmt.Sprintf("nbdkit --readonly --port %d --ipaddr %s --pidfile %s null size=1M", port, p.Config.Address, pid)
-		code, err := p.Guest.Run(ctx, start, true, time.Minute)
-		if err != nil || code != 0 {
-			r.add("network", target, StatusWarn,
-				"could not start a test nbdkit on the proxy (port in use by a running export, or address %s is not local to the proxy): exit %d, %v",
-				p.Config.Address, code, err)
-			continue
-		}
-		probeErr := ProbeNBD(p.Config.Address, port, 10*time.Second)
-		stop := fmt.Sprintf(`[ -f %[1]s ] && kill "$(cat %[1]s)"; rm -f %[1]s; exit 0`, pid)
-		_, _ = p.Guest.Run(ctx, stop, true, time.Minute)
-		if probeErr != nil {
-			r.add("network", target, StatusFail,
-				"conversion host cannot reach NBD on the proxy (open the port range in the proxy firewall for this host, check routing/NAT): %v", probeErr)
-			continue
-		}
-		r.add("network", target, StatusOK, "NBD reachable from this host")
+		r.add("nbd_exports", target, StatusWarn,
+			"the service answers but does not serve the proxy disk %s: check it runs with dir=/dev/disk/by-id (%v)", wwn, err)
+	case !info.ReadOnly:
+		r.add("nbd_exports", target, StatusFail,
+			"export %s is writable: the nbdkit service of the proxy must run with --readonly", wwn)
+	default:
+		r.add("nbd_exports", target, StatusOK, "serves disks by their by-id name, read-only (checked with %s)", wwn)
 	}
 }
 

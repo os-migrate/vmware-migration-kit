@@ -35,18 +35,11 @@ const (
 	attachRetries      = 5
 )
 
-// slot is a free SCSI slot on the proxy and the NBD port bound to it.
+// slot is a free SCSI slot on the proxy.
 type slot struct {
 	ControllerKey int32
 	Bus           int32
 	Unit          int32
-	Port          int
-}
-
-// portFor maps a SCSI slot to a port: one port per slot, so parallel
-// migrations on the same proxy never need to coordinate.
-func portFor(portMin int, bus, unit int32) int {
-	return portMin + int(bus)*unitsPerController + int(unit)
 }
 
 // scsiControllers returns the SCSI controllers of a device list sorted by bus.
@@ -63,8 +56,10 @@ func scsiControllers(devices object.VirtualDeviceList) []types.BaseVirtualSCSICo
 	return ctrls
 }
 
-// freeSlots lists the free SCSI slots whose port fits in [portMin, portMax].
-func freeSlots(devices object.VirtualDeviceList, portMin, portMax int) []slot {
+// freeSlots lists the free SCSI slots of the proxy. Each one can hold one
+// concurrently exported disk; parallel migrations need no coordination
+// because the disks are told apart by NBD export name, not by port.
+func freeSlots(devices object.VirtualDeviceList) []slot {
 	var slots []slot
 	for _, c := range scsiControllers(devices) {
 		sc := c.GetVirtualSCSIController()
@@ -79,11 +74,7 @@ func freeSlots(devices object.VirtualDeviceList, portMin, portMax int) []slot {
 			if used[unit] {
 				continue
 			}
-			port := portFor(portMin, sc.BusNumber, unit)
-			if port > portMax {
-				continue
-			}
-			slots = append(slots, slot{ControllerKey: sc.Key, Bus: sc.BusNumber, Unit: unit, Port: port})
+			slots = append(slots, slot{ControllerKey: sc.Key, Bus: sc.BusNumber, Unit: unit})
 		}
 	}
 	return slots
@@ -194,14 +185,13 @@ func (p *Proxy) attach(ctx context.Context, fileName string, datastore *types.Ma
 		if len(disksByFile(devices, fileName)) > 0 {
 			return nil, slot{}, fmt.Errorf("disk %s is already attached to the proxy VM", fileName)
 		}
-		slots := freeSlots(devices, p.Config.PortMin, p.Config.PortMax)
+		slots := freeSlots(devices)
 		if len(slots) == 0 {
-			return nil, slot{}, fmt.Errorf("no free SCSI slot on proxy VM %s within ports %d-%d (use another proxy VM)",
-				p.Config.VMName, p.Config.PortMin, p.Config.PortMax)
+			return nil, slot{}, fmt.Errorf("no free SCSI slot on proxy VM %s (use another proxy VM)", p.Config.VMName)
 		}
 		s := slots[0]
-		logger.Log.Infof("Attaching %s to proxy %s (SCSI %d:%d, port %d), attempt %d",
-			fileName, p.Config.VMName, s.Bus, s.Unit, s.Port, attempt)
+		logger.Log.Infof("Attaching %s to proxy %s (SCSI %d:%d), attempt %d",
+			fileName, p.Config.VMName, s.Bus, s.Unit, attempt)
 		if err := p.reconfigure(ctx, attachSpec(fileName, datastore, s)); err != nil {
 			lastErr = err
 			logger.Log.Warnf("Attach attempt %d failed: %v", attempt, err)
