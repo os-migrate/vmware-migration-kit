@@ -347,6 +347,11 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		return "", err
 	}
 
+	// A volume created by this run reads as zeros, so nbdcopy can skip writing
+	// every zero range of the source. Not true of a volume that already
+	// existed, nor of an external one adopted with cinder manage.
+	freshVolume := false
+
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
 		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
@@ -404,6 +409,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				logger.Log.Infof("Failed to create volume: %v", err)
 				return "", err
 			}
+			freshVolume = true
 		}
 	}
 	// Attach volume
@@ -517,7 +523,19 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero, c.NbdcopyOptions)
+				// Skipping the zero ranges of the source is only correct if
+				// the destination really reads back as zeros. A volume created
+				// by this run does; one that already existed may hold anything.
+				assumeZero := c.AssumeZero || freshVolume
+				if assumeZero && volume.Encrypted {
+					// Unwritten ciphertext does not decrypt to zeros, so the
+					// ranges we skipped would read back as garbage.
+					logger.Log.Warnf("Volume %s is encrypted: copying the zero ranges too, "+
+						"skipping them would leave unreadable data", volume.ID)
+					assumeZero = false
+				}
+				logger.Log.Infof("Copying disk (destination-is-zero=%t, new volume=%t)", assumeZero, freshVolume)
+				err = nbdkit.NbdCopy(sock, devPath, assumeZero, c.NbdcopyOptions)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
 					if err := stopNbd(); err != nil {
@@ -579,6 +597,7 @@ func main() {
 	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
 	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
 	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
+	assumeZero := moduleArgs.AssumeZero
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
 	skipV2V := moduleArgs.SkipConversion
@@ -758,6 +777,7 @@ func main() {
 			CloudOpts:      moduleArgs.DstCloud,
 			VolumeType:     volType,
 			VolumeAz:       volAz,
+			AssumeZero:     assumeZero,
 			NbdcopyOptions: nbdcopyOptions,
 			Proxy:          px,
 		}

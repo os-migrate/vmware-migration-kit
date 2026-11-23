@@ -5,6 +5,9 @@ import_workloads_nova_az: "{{ availability_zone | default(omit) }}"
 import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
 import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
 import_workloads_cinder_volume_type: "{{ cinder_volume_type | default(omit) }}"
+# Lets nbdcopy skip writing the zero ranges of the source disk. Applied
+# automatically to volumes this run creates (they read as zeros), so this only
+# matters for a volume that already exists. Ignored for encrypted volumes.
 import_workloads_nbdkit_assume_zero: "{{ destination_assume_zeroed | default(true) | bool }}"
 import_workloads_cutover: "{{ cutover | default(false) | bool }}"
 import_workloads_converted: "{{ converted | default(false) | bool }}"

@@ -52,8 +52,12 @@ options:
     required: false
   assumezero:
     description:
-      - Assume that the destination cinder volume will be zeroed.
-      - This allows for optmization of the data copy but may cause failures with encrypted volume types.
+      - Assume the destination Cinder volume reads back as zeros, which lets C(nbdcopy) skip writing the zero
+        ranges of the source disk. On a typical system disk most of the capacity is zeros, so this is usually
+        the difference between copying the whole disk and copying only the data.
+      - Not needed when the module creates the volume itself. A freshly created volume reads as zeros, so the
+        optimization is applied automatically; this option only matters for a volume that already exists.
+      - Ignored for encrypted volumes, where unwritten ciphertext does not decrypt to zeros.
     type: bool
     default: false
     required: false
