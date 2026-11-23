@@ -105,6 +105,7 @@ func exitJson(responseBody Response) {
 	})
 }
 
+// TODO: use switch statement instead of if-else
 // StackAbandonDecision returns whether to abandon a stack or skip. Missing and
 // DELETE_COMPLETE stacks are skip. In-progress stacks are errors. Unlike create,
 // already-deleted must not recreate anything.
@@ -195,6 +196,7 @@ func resourceType(res map[string]interface{}) string {
 	return ""
 }
 
+// FIXME: verbose logic
 func hasExternalID(res map[string]interface{}) bool {
 	if _, ok := res["external_id"]; ok {
 		return true
@@ -236,6 +238,7 @@ func indexResources(resources []ResourceRef) map[string]ResourceRef {
 	return byID
 }
 
+// FIXME: verbose logic
 // RewriteHeatManagedResources converts Heat-managed OS::Nova::Server and
 // OS::Neutron::Port resources to external_id, keeping the stack's live logical
 // names. Volumes and resources that already have external_id are left as-is.
@@ -354,6 +357,7 @@ func waitForStackDeleted(ctx context.Context, client *gophercloud.ServiceClient,
 	}
 }
 
+// FIXME: verbose logic
 func fallbackRewriteAndDelete(ctx context.Context, client *gophercloud.ServiceClient, stack *stacks.RetrievedStack, timeout int, wait bool, abandonErr error) error {
 	templateBytes, err := stacktemplates.Get(ctx, client, stack.Name, stack.ID).Extract()
 	if err != nil {

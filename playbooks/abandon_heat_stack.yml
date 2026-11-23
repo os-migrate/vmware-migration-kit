@@ -1,11 +1,3 @@
----
-# Leave a create-mode use_heat stack without deleting Nova instances or
-# Neutron ports. Tries stacks.Abandon(); if enable_stack_abandon is off,
-# rewrites Heat-managed ports/instances to external_id then deletes the stack.
-#
-# Required vars: heat_stack_name, dst_cloud
-# Optional: os_migrate_vmw_data_dir (default /opt/os-migrate),
-#           heat_abandon_hosts (default localhost)
 - name: Abandon a Heat stack without deleting migrated VMs
   hosts: "{{ heat_abandon_hosts | default('localhost') }}"
   gather_facts: false
