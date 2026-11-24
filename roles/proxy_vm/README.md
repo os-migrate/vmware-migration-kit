@@ -24,8 +24,17 @@ served straight away, under the export name of its by-id link
 
 One port serves every disk, in parallel: they are told apart by export name,
 so concurrent migrations need no coordination. The limit is the number of free
-SCSI slots on the proxy (15 per controller, up to 4 controllers); add proxy VMs
-to scale further.
+SCSI slots on the proxy:
+
+| Controller | Targets | Usable per controller |
+|---|---|---|
+| PVSCSI, hardware version 14 and later (vSphere 6.7+) | 64 | 63 |
+| PVSCSI on older hardware, LSI Logic | 16 | 15 |
+
+Up to 4 SCSI controllers per VM, so a modern proxy holds **~250 disks at
+once**, minus its own. The pre-check reports the real figure for your proxy.
+Add controllers, or proxy VMs, to go further. In practice the destination
+storage saturates long before the slots do.
 
 For now the proxy VM is prepared by hand (see below).
 TODO: build a proxy OVA with the service included and let this role deploy it.
@@ -119,7 +128,8 @@ Then check it from the conversion host with `playbooks/proxy_precheck.yml`.
 
 - Linux (RHEL/CentOS Stream 9/10), 2-4 vCPU, 2-4 GB RAM, VMXNET3 NIC.
 - PVSCSI or LSI Logic SCSI controller (hot-add does not work on IDE).
-  Each controller gives 15 slots; add controllers for more parallel disks.
+  Prefer PVSCSI on hardware version 14 or later: 63 usable slots per
+  controller instead of 15. Add controllers for more parallel disks.
 - VM advanced setting **`disk.EnableUUID=TRUE`** (needs a power off). Without
   it the hot-added disks have no `/dev/disk/by-id/wwn-*` link and cannot be
   identified, so the migration refuses to use them.

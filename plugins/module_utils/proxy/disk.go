@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,9 +33,34 @@ import (
 )
 
 const (
-	unitsPerController = 16
-	attachRetries      = 5
+	// A classic SCSI controller addresses targets 0-15. PVSCSI addresses 64
+	// of them from hardware version 14 (vSphere 6.7) on, which is what makes
+	// a proxy able to serve dozens of migrations at once: measured on
+	// vCenter 8.0.3 / vmx-15, units 20, 40 and 63 are all accepted.
+	legacySCSIUnits    = 16
+	pvscsiUnits        = 64
+	pvscsiMinHWVersion = 14
+
+	attachRetries = 5
 )
+
+// hardwareVersion turns a VM hardware version ("vmx-15") into its number.
+// Returns 0 when it cannot be read, which keeps the conservative limit.
+func hardwareVersion(version string) int {
+	n, err := strconv.Atoi(strings.TrimPrefix(version, "vmx-"))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// controllerUnits returns how many targets a SCSI controller can address.
+func controllerUnits(c types.BaseVirtualSCSIController, hwVersion int) int32 {
+	if _, ok := c.(*types.ParaVirtualSCSIController); ok && hwVersion >= pvscsiMinHWVersion {
+		return pvscsiUnits
+	}
+	return legacySCSIUnits
+}
 
 // slot is a free SCSI slot on the proxy.
 type slot struct {
@@ -57,10 +83,12 @@ func scsiControllers(devices object.VirtualDeviceList) []types.BaseVirtualSCSICo
 	return ctrls
 }
 
-// freeSlots lists the free SCSI slots of the proxy. Each one can hold one
-// concurrently exported disk; parallel migrations need no coordination
-// because the disks are told apart by NBD export name, not by port.
-func freeSlots(devices object.VirtualDeviceList) []slot {
+// freeSlots lists the free SCSI slots of the proxy, lowest unit first. Each
+// one can hold one concurrently exported disk; parallel migrations need no
+// coordination because the disks are told apart by NBD export name, not by
+// port. hwVersion is the hardware version of the proxy VM, which decides how
+// many targets a PVSCSI controller offers.
+func freeSlots(devices object.VirtualDeviceList, hwVersion int) []slot {
 	var slots []slot
 	for _, c := range scsiControllers(devices) {
 		sc := c.GetVirtualSCSIController()
@@ -71,7 +99,7 @@ func freeSlots(devices object.VirtualDeviceList) []slot {
 				used[*vd.UnitNumber] = true
 			}
 		}
-		for unit := int32(0); unit < unitsPerController; unit++ {
+		for unit := int32(0); unit < controllerUnits(c, hwVersion); unit++ {
 			if used[unit] {
 				continue
 			}
@@ -178,6 +206,7 @@ func (p *Proxy) reconfigure(ctx context.Context, change *types.VirtualDeviceConf
 // disk as seen by vSphere and the slot used.
 func (p *Proxy) attach(ctx context.Context, fileName string, datastore *types.ManagedObjectReference) (*types.VirtualDisk, slot, error) {
 	var lastErr error
+	tried := map[slot]bool{}
 	for attempt := 1; attempt <= attachRetries; attempt++ {
 		devices, err := p.VM.Device(ctx)
 		if err != nil {
@@ -186,11 +215,20 @@ func (p *Proxy) attach(ctx context.Context, fileName string, datastore *types.Ma
 		if len(disksByFile(devices, fileName)) > 0 {
 			return nil, slot{}, fmt.Errorf("disk %s is already attached to the proxy VM", fileName)
 		}
-		slots := freeSlots(devices)
-		if len(slots) == 0 {
-			return nil, slot{}, fmt.Errorf("no free SCSI slot on proxy VM %s (use another proxy VM)", p.Config.VMName)
+		// Re-read every time: a parallel migration may have taken a slot, or
+		// freed one, since the previous attempt.
+		var s slot
+		found := false
+		for _, candidate := range freeSlots(devices, p.HWVersion) {
+			if !tried[candidate] {
+				s, found = candidate, true
+				break
+			}
 		}
-		s := slots[0]
+		if !found {
+			return nil, slot{}, fmt.Errorf("no free SCSI slot left on proxy VM %s (use another proxy VM)", p.Config.VMName)
+		}
+		tried[s] = true
 		logger.Log.Infof("Attaching %s to proxy %s (SCSI %d:%d), attempt %d",
 			fileName, p.Config.VMName, s.Bus, s.Unit, attempt)
 		if err := p.reconfigure(ctx, attachSpec(fileName, datastore, s)); err != nil {

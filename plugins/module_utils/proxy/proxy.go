@@ -83,6 +83,9 @@ type Proxy struct {
 	Client *vim25.Client
 	VM     *object.VirtualMachine
 	Config Config
+	// HWVersion is the hardware version of the proxy VM ("vmx-15" -> 15). It
+	// decides how many disks a PVSCSI controller can hold at once.
+	HWVersion int
 }
 
 // New finds the proxy VM and prepares the guest operations runner.
@@ -96,17 +99,21 @@ func New(ctx context.Context, c *vim25.Client, finder *find.Finder, cfg Config) 
 	if err != nil {
 		return nil, fmt.Errorf("proxy VM %q not found: %w", cfg.VMName, err)
 	}
+	var o mo.VirtualMachine
+	if err := vm.Properties(ctx, vm.Reference(), []string{"guest.ipAddress", "config.version"}, &o); err != nil {
+		return nil, fmt.Errorf("failed to read proxy VM properties: %w", err)
+	}
 	if cfg.Address == "" {
-		var o mo.VirtualMachine
-		if err := vm.Properties(ctx, vm.Reference(), []string{"guest.ipAddress"}, &o); err != nil {
-			return nil, fmt.Errorf("failed to read proxy VM IP: %w", err)
-		}
 		if o.Guest == nil || o.Guest.IpAddress == "" {
 			return nil, fmt.Errorf("proxy VM %q has no IP reported by VMware Tools, set the proxy address", cfg.VMName)
 		}
 		cfg.Address = o.Guest.IpAddress
 	}
-	return &Proxy{Client: c, VM: vm, Config: cfg}, nil
+	hw := 0
+	if o.Config != nil {
+		hw = hardwareVersion(o.Config.Version)
+	}
+	return &Proxy{Client: c, VM: vm, Config: cfg, HWVersion: hw}, nil
 }
 
 // NewInDatacenterOf prepares the proxy VM, looking it up in the datacenter of

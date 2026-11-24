@@ -101,10 +101,10 @@ func diskAt(ctrl, unit int32, file string) *types.VirtualDisk {
 func TestFreeSlots(t *testing.T) {
 	devices := object.VirtualDeviceList{scsi(1000, 0), scsi(1001, 1), diskAt(1000, 0, "os.vmdk")}
 
-	slots := freeSlots(devices)
-	// 2 controllers x 16 units - 2 controller units (7) - 1 OS disk
+	// Legacy limit: 2 controllers x 16 units - 2 controller units (7) - 1 OS disk.
+	slots := freeSlots(devices, 13)
 	if len(slots) != 29 {
-		t.Fatalf("expected 29 free slots, got %d", len(slots))
+		t.Fatalf("expected 29 free slots on an old hardware version, got %d", len(slots))
 	}
 	if s := slots[0]; s.Bus != 0 || s.Unit != 1 {
 		t.Fatalf("first free slot should be 0:1, got %+v", s)
@@ -114,8 +114,41 @@ func TestFreeSlots(t *testing.T) {
 			t.Fatalf("unit 7 is the controller itself, must not be used: %+v", s)
 		}
 	}
-	if len(freeSlots(object.VirtualDeviceList{diskAt(200, 0, "ide.vmdk")})) != 0 {
+
+	// PVSCSI on hardware version 14 and later addresses 64 targets, which is
+	// what allows dozens of migrations at once on a single proxy.
+	slots = freeSlots(devices, 15)
+	if len(slots) != 125 { // 2 x (64 - 1) - 1 OS disk
+		t.Fatalf("expected 125 free slots on vmx-15, got %d", len(slots))
+	}
+	if len(freeSlots(object.VirtualDeviceList{diskAt(200, 0, "ide.vmdk")}, 15)) != 0 {
 		t.Fatal("no SCSI controller must mean no slot")
+	}
+}
+
+func TestHardwareVersion(t *testing.T) {
+	for in, want := range map[string]int{"vmx-15": 15, "vmx-21": 21, "vmx-9": 9, "": 0, "garbage": 0} {
+		if got := hardwareVersion(in); got != want {
+			t.Errorf("hardwareVersion(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestControllerUnits(t *testing.T) {
+	pv := scsi(1000, 0)
+	lsi := &types.VirtualLsiLogicController{}
+	lsi.Key = 1001
+	lsi.ScsiCtlrUnitNumber = 7
+
+	if got := controllerUnits(pv, 15); got != pvscsiUnits {
+		t.Errorf("PVSCSI on vmx-15 should offer %d targets, got %d", pvscsiUnits, got)
+	}
+	// Older hardware, or another controller type, keeps the classic limit.
+	if got := controllerUnits(pv, 13); got != legacySCSIUnits {
+		t.Errorf("PVSCSI on vmx-13 should keep %d targets, got %d", legacySCSIUnits, got)
+	}
+	if got := controllerUnits(lsi, 21); got != legacySCSIUnits {
+		t.Errorf("LSI Logic should keep %d targets, got %d", legacySCSIUnits, got)
 	}
 }
 

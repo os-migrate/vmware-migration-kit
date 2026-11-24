@@ -157,7 +157,7 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) proxyInfo {
 
 	devices := object.VirtualDeviceList(o.Config.Hardware.Device)
 	ctrls := scsiControllers(devices)
-	slots := freeSlots(devices)
+	slots := freeSlots(devices, p.HWVersion)
 	r.Facts.FreeSlots = len(slots)
 	switch {
 	case len(ctrls) == 0:
@@ -165,8 +165,10 @@ func (p *Proxy) checkProxy(ctx context.Context, r *Report) proxyInfo {
 	case len(slots) == 0:
 		r.add("proxy_scsi", name, StatusFail, "no free SCSI slot on the proxy VM")
 	default:
-		r.add("proxy_scsi", name, StatusOK, "%d SCSI controller(s), %d free slot(s) -> up to %d concurrent disk exports",
-			len(ctrls), len(slots), len(slots))
+		r.add("proxy_scsi", name, StatusOK,
+			"%d SCSI controller(s) on hardware version %d, %d free slot(s) -> up to %d disks exported at once "+
+				"(add SCSI controllers, or proxy VMs, to go further)",
+			len(ctrls), p.HWVersion, len(slots), len(slots))
 	}
 	for _, d := range devices.SelectByType((*types.VirtualDisk)(nil)) {
 		if _, uuid, _ := diskBacking(d.(*types.VirtualDisk)); uuid != "" {
