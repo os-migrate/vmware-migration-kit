@@ -19,6 +19,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -198,17 +199,59 @@ func (p *Proxy) attach(ctx context.Context, fileName string, datastore *types.Ma
 			time.Sleep(time.Duration(attempt) * 2 * time.Second)
 			continue
 		}
-		devices, err = p.VM.Device(ctx)
+		// The disk is attached from here on: every failure below has to
+		// detach it again, a leftover attachment blocks the removal of the
+		// source snapshot.
+		disk, err := p.attachedDisk(ctx, fileName)
 		if err != nil {
-			return nil, s, err
+			return nil, s, errors.Join(err, p.detach(ctx, fileName))
 		}
-		disks := disksByFile(devices, fileName)
-		if len(disks) != 1 {
-			return nil, s, fmt.Errorf("attached disk %s not found on the proxy VM (found %d)", fileName, len(disks))
-		}
-		return disks[0], s, nil
+		return disk, s, nil
 	}
 	return nil, slot{}, fmt.Errorf("failed to attach %s after %d attempts: %w", fileName, attachRetries, lastErr)
+}
+
+// attachedDisk returns the disk just attached from fileName, once it is sure
+// it can be told apart from the other disks of the proxy.
+func (p *Proxy) attachedDisk(ctx context.Context, fileName string) (*types.VirtualDisk, error) {
+	devices, err := p.VM.Device(ctx)
+	if err != nil {
+		return nil, err
+	}
+	disks := disksByFile(devices, fileName)
+	if len(disks) != 1 {
+		return nil, fmt.Errorf("attached disk %s not found on the proxy VM (found %d)", fileName, len(disks))
+	}
+	if other := duplicateUUID(devices, disks[0]); other != nil {
+		otherFile, uuid, _ := diskBacking(other)
+		return nil, fmt.Errorf("disk %s has the same UUID %s as %s, already attached to this proxy: "+
+			"both would share one /dev/disk/by-id link and could be read in place of each other",
+			fileName, uuid, otherFile)
+	}
+	return disks[0], nil
+}
+
+// duplicateUUID returns another disk of the list sharing disk's UUID, if any.
+//
+// The NBD export name is built from that UUID and the proxy exposes one by-id
+// link per UUID, so two disks sharing one would be indistinguishable: a
+// parallel migration could read the wrong disk. vSphere keeps disk UUIDs
+// unique, but hand-copied VMDKs or restored backups can duplicate them.
+func duplicateUUID(devices object.VirtualDeviceList, disk *types.VirtualDisk) *types.VirtualDisk {
+	_, uuid, _ := diskBacking(disk)
+	if uuid == "" {
+		return nil
+	}
+	for _, d := range devices.SelectByType((*types.VirtualDisk)(nil)) {
+		other := d.(*types.VirtualDisk)
+		if other.Key == disk.Key {
+			continue
+		}
+		if _, otherUUID, _ := diskBacking(other); strings.EqualFold(otherUUID, uuid) {
+			return other
+		}
+	}
+	return nil
 }
 
 // detach removes every proxy disk backed by exactly fileName, keeping files.

@@ -528,3 +528,137 @@ func TestSimPrecheck(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------- parallelism
+
+// diskWithUUID builds an attached disk with a given backing file and UUID.
+func diskWithUUID(key, ctrl, unit int32, file, uuid string) *types.VirtualDisk {
+	d := diskAt(ctrl, unit, file)
+	d.Key = key
+	d.Backing.(*types.VirtualDiskFlatVer2BackingInfo).Uuid = uuid
+	return d
+}
+
+// Several migrations share one proxy and one NBD port: disks are told apart by
+// export name, which is the disk UUID. Two disks sharing a UUID would collapse
+// onto a single /dev/disk/by-id link in the proxy, so one migration could read
+// the other's disk. That must be refused rather than silently copied.
+func TestDuplicateUUIDIsDetected(t *testing.T) {
+	mine := diskWithUUID(2000, 1000, 1, "[ds] a/a.vmdk", "6000C293-43fb-7db7-9ba0-c86bceb5c325")
+	other := diskWithUUID(2001, 1000, 2, "[ds] b/b.vmdk", "6000c293-43FB-7db7-9ba0-c86bceb5c325") // same, different case
+	unrelated := diskWithUUID(2002, 1000, 3, "[ds] c/c.vmdk", "6000C291-f0c8-470c-061c-1a10d75fcf14")
+
+	// On its own, or with unrelated disks, the disk is unambiguous.
+	if got := duplicateUUID(object.VirtualDeviceList{mine}, mine); got != nil {
+		t.Fatalf("a disk must not duplicate itself, got %v", got)
+	}
+	if got := duplicateUUID(object.VirtualDeviceList{mine, unrelated}, mine); got != nil {
+		t.Fatalf("distinct UUIDs must not collide, got %v", got)
+	}
+
+	// A second disk with the same UUID, whatever the case, is a collision.
+	got := duplicateUUID(object.VirtualDeviceList{mine, other, unrelated}, mine)
+	if got == nil || got.Key != other.Key {
+		t.Fatalf("duplicate UUID not detected, got %v", got)
+	}
+
+	// A disk with no UUID cannot be exported at all; that is reported
+	// elsewhere, and must not be mistaken for a duplicate of another.
+	noUUID := diskWithUUID(2003, 1000, 4, "[ds] d/d.vmdk", "")
+	alsoNoUUID := diskWithUUID(2004, 1000, 5, "[ds] e/e.vmdk", "")
+	if got := duplicateUUID(object.VirtualDeviceList{noUUID, alsoNoUUID}, noUUID); got != nil {
+		t.Fatalf("missing UUIDs must not count as duplicates, got %v", got)
+	}
+}
+
+// Two disks of two VMs attached at the same time must each get their own
+// export name, and each migration waits for its own.
+func TestSimParallelExportsAreDistinct(t *testing.T) {
+	simulator.Test(func(ctx context.Context, c *vim25.Client) {
+		served := map[string]bool{}
+		addr, port, stop := fakeNBD(t, func(n string) (uint64, bool, bool) {
+			served[n] = true
+			return 10737418240, true, true
+		})
+		defer stop()
+
+		p, src, finder := simSetup(ctx, t, c, addr, port)
+		other, err := finder.VirtualMachine(ctx, "DC0_C0_RP0_VM0")
+		if err != nil {
+			t.Fatalf("second source VM: %v", err)
+		}
+		d1, d2 := firstDisk(ctx, t, src), firstDisk(ctx, t, other)
+		d1.CapacityInBytes, d2.CapacityInBytes = 10737418240, 10737418240
+
+		e1, err := p.Export(ctx, d1)
+		if err != nil {
+			t.Fatalf("first export: %v", err)
+		}
+		e2, err := p.Export(ctx, d2)
+		if err != nil {
+			t.Fatalf("second export while the first is open: %v", err)
+		}
+		if e1.Name == e2.Name {
+			t.Fatalf("two disks got the same export name %q", e1.Name)
+		}
+		if !served[e1.Name] || !served[e2.Name] {
+			t.Fatalf("each migration must wait for its own export, served: %v", served)
+		}
+		// Both are attached at once, on different SCSI slots.
+		devices, _ := p.VM.Device(ctx)
+		if n := len(disksByFile(devices, e1.FileName)) + len(disksByFile(devices, e2.FileName)); n != 2 {
+			t.Fatalf("expected both disks attached, got %d", n)
+		}
+		// Closing one leaves the other alone.
+		if err := e1.Close(ctx); err != nil {
+			t.Fatalf("close first: %v", err)
+		}
+		devices, _ = p.VM.Device(ctx)
+		if len(disksByFile(devices, e1.FileName)) != 0 || len(disksByFile(devices, e2.FileName)) != 1 {
+			t.Fatal("closing one export must not detach the other")
+		}
+		if err := e2.Close(ctx); err != nil {
+			t.Fatalf("close second: %v", err)
+		}
+	})
+}
+
+// The duplicate check must be wired into the attach path, not just available.
+//
+// The simulator assigns the UUID from the disk file and ignores attempts to
+// change it, so the collision can only be built if that ever changes; the
+// detection itself is covered by TestDuplicateUUIDIsDetected.
+func TestSimAttachedDiskRefusesDuplicateUUID(t *testing.T) {
+	simulator.Test(func(ctx context.Context, c *vim25.Client) {
+		addr, port, stop := fakeNBD(t, func(string) (uint64, bool, bool) { return 10737418240, true, true })
+		defer stop()
+		p, src, _ := simSetup(ctx, t, c, addr, port)
+		srcDisk := firstDisk(ctx, t, src)
+		srcDisk.CapacityInBytes = 10737418240
+		fileName, _, _ := diskBacking(srcDisk)
+
+		exp, err := p.Export(ctx, srcDisk)
+		if err != nil {
+			t.Fatalf("Export: %v", err)
+		}
+		defer func() { _ = exp.Close(ctx) }()
+
+		// Try to give the proxy's own disk the UUID of the attached one.
+		devices, _ := p.VM.Device(ctx)
+		_, uuid, _ := diskBacking(disksByFile(devices, fileName)[0])
+		own := firstDisk(ctx, t, p.VM)
+		own.Backing.(*types.VirtualDiskFlatVer2BackingInfo).Uuid = uuid
+		if err := p.VM.EditDevice(ctx, own); err != nil {
+			t.Skipf("the simulator refuses to edit a disk UUID: %v", err)
+		}
+		devices, _ = p.VM.Device(ctx)
+		if duplicateUUID(devices, disksByFile(devices, fileName)[0]) == nil {
+			t.Skip("the simulator ignored the UUID change, the collision cannot be built here")
+		}
+
+		if _, err := p.attachedDisk(ctx, fileName); err == nil ||
+			!strings.Contains(err.Error(), "same UUID") {
+			t.Fatalf("a disk sharing its UUID with another must be refused, got %v", err)
+		}
+	})
+}
