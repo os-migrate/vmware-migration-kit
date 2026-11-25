@@ -1,12 +1,18 @@
+# Set run_prechecks=false to skip the checks and start the migration sooner.
+# Also available: os_migrate_conversion_host_content_install=false to skip the
+# conversion host setup below, which is the slower of the two.
 - name: Run pre checks
   import_playbook: pre_checks.yml
+  when: run_prechecks | default(true) | bool
 
 - name: Run setup requirements
   import_playbook: setup_requirements.yml
 
 - name: Check the proxy VM (proxy disk transport)
   import_playbook: proxy_precheck.yml
-  when: (import_workloads_transport | default(transport | default('vddk'))) == 'proxy'
+  when:
+    - run_prechecks | default(true) | bool
+    - (import_workloads_transport | default(transport | default('vddk'))) == 'proxy'
 
 - name: Make sure already deployed conversion host is set up correctly
   import_playbook: conversion_host_content.yml

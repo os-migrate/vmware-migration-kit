@@ -170,6 +170,25 @@ firewall-cmd --reload
 
 Then migrate with `transport: proxy` (see the `import_workloads` role).
 
+With `transport: proxy` the conversion host needs **no VMware VIX DiskLib and
+no nbdkit plugin**: nbdkit runs on the proxy. The `conversion_host` role skips
+its libdir, custom-plugin and OpenVixDiskLib checks accordingly, so
+`custom_nbdkit_plugin` or `use_openvixdisklib` left over from a VDDK setup no
+longer make the run fail.
+
+## Skipping the checks
+
+`migration.yml` runs the pre-checks on every migration. To start copying
+sooner, for example when re-running against a lab you have just validated:
+
+```bash
+-e run_prechecks=false                              # collection + proxy checks
+-e os_migrate_conversion_host_content_install=false # conversion host setup (slower)
+```
+
+`proxy_vm_check_network=false` skips only the NBD reachability probe while
+keeping the rest.
+
 ## VMs with several disks
 
 Disks are migrated **one after the other**: for each disk the kit snapshots the
