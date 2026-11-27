@@ -5,6 +5,9 @@ import_workloads_nova_az: "{{ availability_zone | default(omit) }}"
 import_workloads_use_socks: "{{ use_socks | default(true) | bool }}"
 import_workloads_cbt_sync: "{{ cbt_sync | default(false) | bool }}"
 import_workloads_cinder_volume_type: "{{ cinder_volume_type | default(omit) }}"
+# Lets nbdcopy skip writing the zero ranges of the source disk. Applied
+# automatically to volumes this run creates (they read as zeros), so this only
+# matters for a volume that already exists. Ignored for encrypted volumes.
 import_workloads_nbdkit_assume_zero: "{{ destination_assume_zeroed | default(true) | bool }}"
 import_workloads_cutover: "{{ cutover | default(false) | bool }}"
 import_workloads_converted: "{{ converted | default(false) | bool }}"
@@ -20,6 +23,21 @@ import_workloads_extra_opts: "{{ extra_opts | default(omit) }}"
 import_workloads_boot_script_path: "{{ boot_script_path | default(omit) }}"
 import_workloads_volume_type_mapping: "{{ volume_type_mapping | default([]) }}"
 import_workloads_multidiskfs: "{{ multidiskfs | default(false) | bool }}"
+
+# Disk transport:
+#   vddk  (default): nbdkit + VDDK on the conversion host reads the disk from ESXi.
+#   proxy: the snapshot disk is hot-added (read-only) to a proxy VM running in
+#          vSphere and exported by nbdkit to the conversion host. No VDDK/NFC.
+#          Uses the proxy_vm_* variables (see the proxy_vm role); check the setup
+#          with playbooks/proxy_precheck.yml.
+#          Nothing is executed in the proxy VM and no credentials for it are
+#          needed: it permanently runs "nbdkit --readonly --port 10809 file
+#          dir=/dev/disk/by-id" as a service, and serves each hot-added disk
+#          under the export name of its by-id link.
+import_workloads_transport: "{{ transport | default('vddk') }}"
+import_workloads_proxy_vm_name: "{{ proxy_vm_name | default('') }}"
+import_workloads_proxy_vm_ip: "{{ proxy_vm_ip | default('') }}"
+import_workloads_proxy_vm_nbd_port: "{{ proxy_vm_nbd_port | default(10809) }}"
 
 # Neutron port creation
 import_workloads_use_fixed_ips: "{{ use_fixed_ips | default(false) | bool }}"

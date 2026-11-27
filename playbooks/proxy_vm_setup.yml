@@ -1,0 +1,21 @@
+# Turn a blank Fedora / CentOS Stream / RHEL VM into a proxy VM for the proxy
+# disk transport: install nbdkit, deploy the export service, open the port and
+# make sure vSphere exposes disk UUIDs in the guest.
+#
+# Inventory (see localhost_inventory.yml):
+#
+#   proxy_vm:
+#     hosts:
+#       proxy-vm-ip:
+#         ansible_ssh_user: cloud-user
+#         ansible_ssh_private_key_file: /home/stack/.ssh/proxy-vm
+#
+# Then check it from the conversion host with playbooks/proxy_precheck.yml.
+- name: Configure the proxy VM
+  hosts: proxy_vm
+  gather_facts: true
+  tasks:
+    - name: Configure the proxy VM
+      ansible.builtin.include_role:
+        name: os_migrate.vmware_migration_kit.proxy_vm
+        tasks_from: configure.yml

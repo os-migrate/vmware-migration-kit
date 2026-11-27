@@ -1,4 +1,10 @@
 conversion_host_os_migrate_vmw_data_dir: "{{ os_migrate_vmw_data_dir }}"
+# Disk transport, see the import_workloads role. With "proxy" the disks are
+# read from the nbdkit service of the proxy VM, so the conversion host needs
+# no VMware VIX DiskLib and no nbdkit plugin of its own: everything below
+# about libdir, the custom plugin and OpenVixDiskLib is then skipped.
+conversion_host_transport: "{{ transport | default('vddk') }}"
+conversion_host_needs_vmware_plugin: "{{ conversion_host_transport != 'proxy' }}"
 # Install VMware VIX DiskLib if not already installed, see documentation for details
 conversion_host_vmware_lib_dir: /usr/lib/vmware-vix-disklib
 # Path to a custom nbdkit plugin. When set, the VMware VIX DiskLib (libdir) check
@@ -18,7 +24,8 @@ conversion_host_openvixdisklib_repo: "{{ openvixdisklib_repo | default('https://
 conversion_host_openvixdisklib_version: "{{ openvixdisklib_version | default('main') }}"
 # The VMware VIX DiskLib (libdir) is only required for the built-in vddk plugin.
 conversion_host_requires_vmware_libdir: >-
-  {{ (not (conversion_host_use_openvixdisklib | bool))
+  {{ (conversion_host_needs_vmware_plugin | bool)
+     and (not (conversion_host_use_openvixdisklib | bool))
      and (conversion_host_custom_nbdkit_plugin | length == 0) }}
 # Virtio-win package version
 conversion_host_virtio_version: "1.9.40"

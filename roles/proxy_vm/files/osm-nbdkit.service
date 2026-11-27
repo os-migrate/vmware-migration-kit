@@ -1,0 +1,42 @@
+[Unit]
+Description=OS Migrate proxy VM disk export (nbdkit)
+Documentation=https://github.com/os-migrate/vmware-migration-kit
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Serves every disk of /dev/disk/by-id read-only. A disk hot-added to this VM
+# is served as soon as the kernel exposes it, under the export name of its
+# by-id link ("wwn-0x<disk uuid>", needs disk.EnableUUID=TRUE on the VM):
+# the file plugin resolves the export name when a client connects.
+#
+# --readonly is what keeps the exports read-only; never remove it.
+# Restrict the port to the conversion host(s) in the firewall: every disk
+# attached to this VM, including its own, is readable through it.
+# nbdkit resolves dir= at startup and refuses to start if it is missing.
+# udev only creates /dev/disk/by-id once some disk has a link there, so on a
+# VM whose disks have no UUID yet (disk.EnableUUID not applied) the directory
+# does not exist at all. Create it so the service comes up and simply serves
+# nothing until disks appear.
+ExecStartPre=/usr/bin/mkdir -p /dev/disk/by-id
+ExecStart=/usr/sbin/nbdkit --foreground --readonly \
+    --port ${OSM_NBD_PORT} --ipaddr ${OSM_NBD_ADDRESS} \
+    file dir=/dev/disk/by-id
+Environment=OSM_NBD_PORT=10809
+Environment=OSM_NBD_ADDRESS=0.0.0.0
+EnvironmentFile=-/etc/sysconfig/osm-nbdkit
+Restart=always
+RestartSec=5
+
+# The service only ever reads block devices.
+User=root
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

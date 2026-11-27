@@ -30,6 +30,7 @@ import (
 	"vmware-migration-kit/plugins/module_utils/logger"
 	"vmware-migration-kit/plugins/module_utils/nbdkit"
 	osm_os "vmware-migration-kit/plugins/module_utils/openstack"
+	"vmware-migration-kit/plugins/module_utils/proxy"
 	"vmware-migration-kit/plugins/module_utils/vmware"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -89,6 +90,9 @@ type MigrationConfig struct {
 	ExtraOpts          string
 	CinderManageConfig *osm_os.CinderManageConfig
 	NbdcopyOptions     map[string]interface{}
+	// Proxy is set when transport is "proxy": the snapshot disk is exported by
+	// nbdkit on a proxy VM in vSphere instead of nbdkit+VDDK on this host.
+	Proxy *proxy.Proxy
 }
 
 // Datastore name to Volume type mapping
@@ -131,6 +135,12 @@ type ModuleArgs struct {
 	CustomNbdkitPlugin string                 `json:"custom_nbdkit_plugin"`
 	NbdkitOptions      map[string]interface{} `json:"nbdkit_options"`
 	NbdcopyOptions     map[string]interface{} `json:"nbdcopy_options"`
+	// Disk transport: "vddk" (default, nbdkit+VDDK on the conversion host) or
+	// "proxy" (snapshot disk hot-added to a proxy VM and exported by nbdkit).
+	Transport   string `json:"transport"`
+	ProxyVmName string `json:"proxy_vm_name"`
+	ProxyVmIp   string `json:"proxy_vm_ip"`
+	NbdPort     int    `json:"nbd_port"`
 }
 
 func (c *MigrationConfig) runV2VConversion(ctx context.Context, path string, volumeIDs []string, multiDisk bool) error {
@@ -337,6 +347,11 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 		return "", err
 	}
 
+	// A volume created by this run reads as zeros, so nbdcopy can skip writing
+	// every zero range of the source. Not true of a volume that already
+	// existed, nor of an external one adopted with cinder manage.
+	freshVolume := false
+
 	var volMetadata map[string]string
 	if volume == nil && err == nil {
 		if changeID, _ := c.NbdkitConfig.VddkConfig.GetCBTChangeID(ctx); changeID != "" {
@@ -394,6 +409,7 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 				logger.Log.Infof("Failed to create volume: %v", err)
 				return "", err
 			}
+			freshVolume = true
 		}
 	}
 	// Attach volume
@@ -441,25 +457,46 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 			// geometry, so pass the capacity explicitly.
 			c.NbdkitConfig.DiskSize = disk.CapacityInBytes
 
-			var nbdSrv *nbdkit.NbdkitServer
-			if c.LocalDiskPath != "" {
-				logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
-				nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(
-					strings.TrimSpace(strings.SplitN(info.FileName, " ", 2)[1]), c.LocalDiskPath)
+			// sock is the NBD endpoint consumed by nbdcopy / SyncChangedDiskData:
+			// a local socket or nbd://localhost (VDDK), or nbd://<proxy>:<port>.
+			var sock string
+			// stopNbd stops the NBD source; also used on the nbdcopy error path.
+			var stopNbd func() error
+			if c.Proxy != nil {
+				// Hot-add the snapshot disk to the proxy VM and export it with
+				// nbdkit there. Closed (nbdkit stopped, disk detached keeping
+				// files) by the defer below, which runs before the snapshot
+				// removal registered earlier.
+				logger.Log.Infof("Using proxy transport: proxy VM %s", c.Proxy.Config.VMName)
+				exp, err := c.Proxy.Export(ctx, disk)
+				if err != nil {
+					logger.Log.Infof("Failed to export disk through the proxy VM: %v", err)
+					return "", err
+				}
+				sock = exp.URI()
+				stopNbd = func() error { return exp.Close(ctx) }
 			} else {
-				nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
+				var nbdSrv *nbdkit.NbdkitServer
+				if c.LocalDiskPath != "" {
+					logger.Log.Infof("Using local disk path: %s", c.LocalDiskPath)
+					nbdSrv, err = c.NbdkitConfig.RunNbdKitFromLocal(
+						strings.TrimSpace(strings.SplitN(info.FileName, " ", 2)[1]), c.LocalDiskPath)
+				} else {
+					nbdSrv, err = c.NbdkitConfig.RunNbdKit(info.FileName)
+				}
+				// Check the error before using nbdSrv: it is nil when nbdkit failed to start.
+				if err != nil {
+					logger.Log.Infof("Failed to run nbdkit: %v", err)
+					return "", err
+				}
+				sock = nbdSrv.GetSocketPath()
+				stopNbd = nbdSrv.Stop
 			}
-			sock := nbdSrv.GetSocketPath()
 			defer func() {
-				if err := nbdSrv.Stop(); err != nil {
-					logger.Log.Infof("Failed to stop NBD server: %v", err)
+				if err := stopNbd(); err != nil {
+					logger.Log.Infof("Failed to stop NBD source: %v", err)
 				}
 			}()
-
-			if err != nil {
-				logger.Log.Infof("Failed to run nbdkit: %v", err)
-				return "", err
-			}
 
 			if syncVol {
 				// Check change id
@@ -486,11 +523,23 @@ func (c *MigrationConfig) VMMigration(parentCtx context.Context, runV2V bool) (s
 					logger.Log.Infof("No change in VM, skipping volume sync")
 				}
 			} else {
-				err = nbdkit.NbdCopy(sock, devPath, c.AssumeZero, c.NbdcopyOptions)
+				// Skipping the zero ranges of the source is only correct if
+				// the destination really reads back as zeros. A volume created
+				// by this run does; one that already existed may hold anything.
+				assumeZero := c.AssumeZero || freshVolume
+				if assumeZero && volume.Encrypted {
+					// Unwritten ciphertext does not decrypt to zeros, so the
+					// ranges we skipped would read back as garbage.
+					logger.Log.Warnf("Volume %s is encrypted: copying the zero ranges too, "+
+						"skipping them would leave unreadable data", volume.ID)
+					assumeZero = false
+				}
+				logger.Log.Infof("Copying disk (destination-is-zero=%t, new volume=%t)", assumeZero, freshVolume)
+				err = nbdkit.NbdCopy(sock, devPath, assumeZero, c.NbdcopyOptions)
 				if err != nil {
 					logger.Log.Infof("Failed to copy disk: %v", err)
-					if err := nbdSrv.Stop(); err != nil {
-						logger.Log.Infof("Failed to stop NBD server during error handling: %v", err)
+					if err := stopNbd(); err != nil {
+						logger.Log.Infof("Failed to stop NBD source during error handling: %v", err)
 					}
 					return "", err
 				}
@@ -548,6 +597,7 @@ func main() {
 	extraOpts := ansible.DefaultIfEmpty(moduleArgs.ExtraOpts, "")
 	volAz := ansible.DefaultIfEmpty(moduleArgs.VolumeAz, "")
 	volType := ansible.DefaultIfEmpty(moduleArgs.VolumeType, "")
+	assumeZero := moduleArgs.AssumeZero
 	cbtsync := moduleArgs.CBTSync
 	cutover := moduleArgs.CutOver
 	skipV2V := moduleArgs.SkipConversion
@@ -595,6 +645,42 @@ func main() {
 	if err != nil {
 		logger.Log.Infof("Failed to check vCenter connectivity: %v", err)
 		response.Msg = "Failed to check vCenter connectivity: " + err.Error()
+		ansible.FailJson(response)
+	}
+
+	// Disk transport
+	var px *proxy.Proxy
+	switch transport := ansible.DefaultIfEmpty(moduleArgs.Transport, "vddk"); transport {
+	case "vddk":
+	case "proxy":
+		if localDisk != "" {
+			response.Msg = "localdiskpath cannot be used with the proxy transport"
+			ansible.FailJson(response)
+		}
+		px, err = proxy.NewInDatacenterOf(ctx, c.Client, vm.InventoryPath, proxy.Config{
+			VMName:  moduleArgs.ProxyVmName,
+			Address: moduleArgs.ProxyVmIp,
+			Port:    moduleArgs.NbdPort,
+		})
+		if err != nil {
+			logger.Log.Infof("Failed to set up the proxy VM: %v", err)
+			response.Msg = "Failed to set up the proxy VM: " + err.Error() + ". Check logs: " + LogFile
+			ansible.FailJson(response)
+		}
+		logger.Log.Infof("Proxy transport: proxy VM %s, nbdkit service at %s:%d",
+			px.Config.VMName, px.Config.Address, px.Config.Port)
+		// Detach anything this VM left attached to the proxy in a crashed run,
+		// it would block the removal of the snapshot. Done once here rather
+		// than per disk: the disks of a VM are migrated one after the other,
+		// and cleaning up between two of them could detach a disk another run
+		// of the same VM is reading.
+		if err := px.CleanupStale(ctx, vm); err != nil {
+			logger.Log.Infof("Failed to clean up stale proxy attachments: %v", err)
+			response.Msg = "Failed to clean up stale proxy attachments: " + err.Error() + ". Check logs: " + LogFile
+			ansible.FailJson(response)
+		}
+	default:
+		response.Msg = "Unknown transport " + transport + " (expected vddk or proxy)"
 		ansible.FailJson(response)
 	}
 
@@ -691,7 +777,9 @@ func main() {
 			CloudOpts:      moduleArgs.DstCloud,
 			VolumeType:     volType,
 			VolumeAz:       volAz,
+			AssumeZero:     assumeZero,
 			NbdcopyOptions: nbdcopyOptions,
+			Proxy:          px,
 		}
 		volUUID, err := VMMigration.VMMigration(ctx, runV2V)
 		if err != nil {
